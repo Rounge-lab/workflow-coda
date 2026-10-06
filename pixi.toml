@@ -20,7 +20,7 @@ docs = { features = ["docs"], solve-group = "docs" }
 
 [tasks]
 pytest = "pytest"
-mypy = "mypy"
+mypy = "mypy ."
 ruff-check = "ruff check ."
 ruff-format-check = "ruff format --check ."
 ruff-format = "ruff format ."
