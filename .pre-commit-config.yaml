@@ -21,35 +21,16 @@ repos:
 
   - repo: local
     hooks:
-      - id: ruff-check
-        name: ruff check
-        entry: pixi run ruff check --fix
+      - id: lint
+        name: lint
+        entry: pixi run lint
         language: system
-        types_or:
-          - python
-          - pyi
         pass_filenames: true
-
-      - id: ruff-format
-        name: ruff format
-        entry: pixi run ruff format
-        language: system
-        types_or:
-          - python
-          - pyi
-        pass_filenames: true
-
-      - id: pytest
-        name: pytest
-        entry: pixi run pytest
-        language: system
-        pass_filenames: false
         always_run: true
-        stages: [pre-push]
 
-      - id: mypy
-        name: mypy
-        entry: pixi run mypy
+      - id: test
+        name: test
+        entry: pixi run test
         language: system
         pass_filenames: false
         always_run: true
