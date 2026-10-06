@@ -20,16 +20,16 @@ Issues = "https://github.com/sverre-branders/workflow-coda/issues"
 
 [project.optional-dependencies]
 dev = [
-    "mypy=2.4.0",
-    "pre-commit=4.6.2",
-    "pytest>=9.1.1",
-    "ruff>=0.16.10",
+    "mypy>=2.4",
+    "pre-commit>=4.6",
+    "pytest>=9",
+    "ruff>=0.16",
 ]
 docs = [
     "sphinx-copybutton",
     "sphinx-rtd-dark-mode",
     "sphinx-rtd-theme",
-    "sphinx=9.1.0",
+    "sphinx",
 ]
 
 [project.scripts]
@@ -74,14 +74,12 @@ select = [
     "RET",
     "UP",
 ]
+ignore = ["E501"] # Should be handled by ruff format
 fixable = ["ALL"]
 unfixable = []
 
 [tool.ruff.lint.mccabe]
 max-complexity = 12
-
-[tool.ruff.lint]
-ignore = ["E501"] # Should be handled by ruff format
 
 [tool.ruff.format]
 quote-style = "double"

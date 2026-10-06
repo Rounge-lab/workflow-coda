@@ -1,29 +1,37 @@
 [workspace]
 name = "workflow-coda"
 channels = ["conda-forge"]
-platforms = ["linux-64", "osx-64", "osx-arm64", "win-64"]
+platforms = ["linux-64", "osx-arm64", "win-64"]
 
 [dependencies]
 python = "3.14.*"
 
-[pypi-dependencies]
-workflow-coda = {
-    path = ".",
-    editable = true,
-    extras = ["dev", "docs"]
-}
+[pypi-dependencies.workflow-coda]
+path = "."
+editable = true
+extras = ["dev"]
+
+[feature.docs.pypi-dependencies]
+workflow-coda = { path = ".", editable = true, extras = ["docs"] }
+
+[environments]
+default = { features = [], solve-group = "default" }
+docs = { features = ["docs"], solve-group = "docs" }
 
 [tasks]
 pytest = "pytest"
-mypy = "mypy ."
+mypy = "mypy"
 ruff-check = "ruff check ."
 ruff-format-check = "ruff format --check ."
 ruff-format = "ruff format ."
 
+pre-commit = "pre-commit run --all-files"
+pre-commit-install = "pre-commit install --install-hooks"
+
 format = { depends-on = ["ruff-format"] }
 lint = { depends-on = ["ruff-check", "ruff-format-check"] }
 test = { depends-on = ["lint", "mypy", "pytest"] }
-docs = {
-    cmd = "sphinx-build -M html ./source ./build --fail-on-warning",
-    cwd = "docs/dev",
-}
+
+[tasks.docs]
+cmd = "sphinx-build -M html ./source ./build --fail-on-warning"
+cwd = "docs/dev"
