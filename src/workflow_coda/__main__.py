@@ -1,0 +1,4 @@
+from workflow_coda.cli import main
+
+if __name__ == "__main__":
+    main()
