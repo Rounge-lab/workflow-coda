@@ -37,6 +37,7 @@ changes and commit again.
 
 To avoid dependency conflicts, the developer documentation tools have a
 dedicated environment.
+
 .. code-block::
    :caption: Generate documentation
 
