@@ -25,7 +25,7 @@ repos:
         name: lint
         entry: pixi run lint
         language: system
-        pass_filenames: true
+        pass_filenames: false
         always_run: true
 
       - id: test

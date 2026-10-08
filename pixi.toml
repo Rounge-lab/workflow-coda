@@ -19,11 +19,12 @@ default = { features = [], solve-group = "default" }
 docs = { features = ["docs"], solve-group = "docs" }
 
 [tasks]
-pytest = "pytest"
+build = "python -m build"
 mypy = "mypy ."
+pytest = "pytest --cov=workflow_coda --cov-report=term-missing"
 ruff-check = "ruff check ."
-ruff-format-check = "ruff format --check ."
 ruff-format = "ruff format ."
+ruff-format-check = "ruff format --check ."
 
 pre-commit = "pre-commit run --all-files"
 pre-commit-install = "pre-commit install --install-hooks"
