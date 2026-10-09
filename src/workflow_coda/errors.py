@@ -21,6 +21,15 @@ class WorkflowCodaError(Exception):
     """Base class for all workflow-coda exceptions."""
 
 
+class ManifestError(WorkflowCodaError):
+    """A report manifest could not be read, parsed, or validated.
+
+    Raised when a manifest file is unreadable, is not strict UTF-8, is not
+    valid JSON, or does not conform to the manifest envelope contract.
+    The original exception, when there is one, is attached as ``__cause__``.
+    """
+
+
 class ArtifactStoreError(WorkflowCodaError):
     """Base class for artifact store failures."""
 

@@ -12,6 +12,7 @@ from .envelope import (
     ProducerMetadata,
     ReportManifest,
 )
+from .loader import load_manifest
 from .types import (
     ArtifactId,
     ArtifactSchemaVersion,
@@ -34,4 +35,5 @@ __all__ = [
     "ProducerMetadata",
     "ReportManifest",
     "Sha256Hex",
+    "load_manifest",
 ]

@@ -21,7 +21,7 @@ import io
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
+from typing import Self, cast
 
 from .errors import (
     ArtifactChecksumError,
@@ -34,6 +34,7 @@ from .manifest import (
     ArtifactStatus,
     ArtifactType,
     ReportManifest,
+    load_manifest,
 )
 
 type JsonValue = (
@@ -187,6 +188,20 @@ class ArtifactStore:
         self._by_type: dict[str, ArtifactDeclaration] = {
             artifact.type: artifact for artifact in manifest.artifacts
         }
+
+    @classmethod
+    def from_manifest_file(cls, path: Path | str) -> Self:
+        """Build a store rooted at a manifest file's directory.
+
+        Loads and validates the manifest via :func:`load_manifest`, then
+        roots the store at the manifest's directory.  Symbolic links in
+        ``path`` are resolved first, so a symlinked manifest is addressed
+        relative to its *real* location — the bundle its relative artifact
+        paths refer to lives around the actual file, not around the link.
+        """
+        manifest = load_manifest(path)
+        root = Path(path).resolve().parent
+        return cls(manifest, root)
 
     @property
     def manifest(self) -> ReportManifest:
