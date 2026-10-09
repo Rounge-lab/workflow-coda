@@ -5,6 +5,9 @@ freely omit keys, inject invalid values, and exercise every failure mode
 through ``model_validate``.
 """
 
+import json
+from pathlib import Path
+
 VALID_SHA256 = "a" * 64
 """A syntactically valid lowercase hexadecimal SHA-256 digest."""
 
@@ -39,6 +42,17 @@ def make_manifest_payload(**overrides: object) -> dict[str, object]:
     }
     payload.update(overrides)
     return payload
+
+
+def write_manifest_file(
+    directory: Path,
+    payload: dict[str, object],
+    name: str = "report_manifest.json",
+) -> Path:
+    """Serialize a manifest payload as UTF-8 JSON and return its path."""
+    path = directory / name
+    path.write_text(json.dumps(payload), encoding="utf-8", newline="\n")
+    return path
 
 
 def omit(payload: dict[str, object], *keys: str) -> dict[str, object]:
