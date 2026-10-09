@@ -1,0 +1,4 @@
+# Normalize every text file to LF in the repository and in every working
+# tree, on every platform. Binary files are auto-detected and untouched.
+* text=auto eol=lf
+*.bat text eol=crlf
