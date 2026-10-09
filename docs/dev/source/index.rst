@@ -29,3 +29,11 @@ components, and renders a portable static HTML report.
    roadmap/assets
    roadmap/security
    roadmap/structure
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Reference documentation
+
+   reference/errors
+   reference/manifest
+   reference/artifact_store

@@ -28,10 +28,12 @@ dev = [
     "ruff>=0.16",
 ]
 docs = [
+    "build",
+    "autodoc-pydantic",
+    "sphinx",
     "sphinx-copybutton",
     "sphinx-rtd-dark-mode",
     "sphinx-rtd-theme",
-    "sphinx",
 ]
 
 [project.scripts]

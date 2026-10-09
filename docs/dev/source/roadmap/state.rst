@@ -66,7 +66,7 @@ never run, ``on_missing: placeholder`` applies. If CheckV exists but the
 selected sample has no records, the CheckV component itself should display an
 empty state.
 
-Prefer state variables over generic “filters.” A “filter” implies exclusion
+Prefer state variables over generic "filters". A "filter" implies exclusion
 only. State can represent a selected item, an aggregation level, a display mode,
 a threshold, or a category selection.
 
