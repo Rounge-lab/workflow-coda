@@ -15,6 +15,8 @@ release = "0.1.0"
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
+    "sphinx.ext.autodoc",
+    "sphinx.ext.viewcode",
     "sphinx_rtd_dark_mode",
     "sphinx_copybutton",
 ]
@@ -37,3 +39,10 @@ html_theme_options = {
 
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
+
+# -- Autodoc
+autodoc_member_order = "bysource"
+autodoc_default_options = {
+    "members": True,
+    "show-inheritance": True,
+}
