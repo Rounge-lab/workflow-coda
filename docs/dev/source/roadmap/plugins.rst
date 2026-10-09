@@ -16,7 +16,7 @@ Recommended entry-point group:
 
 .. code-block:: toml
 
-   [project.entry-points."workflow_reports.plugins"]
+   [project.entry-points."workflow_coda.plugins"]
    example_bio = "example_bio_reports.plugin:get_plugin"
 
 A plugin distribution may also provide layouts, templates, static assets, and

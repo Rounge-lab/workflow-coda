@@ -282,7 +282,7 @@ A vOTU annotation component may instead include one pre-rendered panel per vOTU
 when the number of vOTUs is small.
 
 Large all-by-all combinations must not be pre-rendered. If a report has SS
-samples and VV vOTUs, pre-rendering every sample-by-vOTU view has S×VS×V
+samples and VV vOTUs, pre-rendering every sample-by-vOTU view has S×V
 views and will quickly create impractically large HTML files.
 
 Plugins should choose the smallest practical update strategy. The plugin

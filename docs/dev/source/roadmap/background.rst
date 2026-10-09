@@ -30,7 +30,7 @@ The central architectural principle is:
    Workflow or analysis system
        -> report-ready artifacts
        -> report manifest
-       -> workflow-reports core
+       -> workflow-coda core
        -> installed report plugins
        -> declarative layout configuration
        -> generic HTML renderer
