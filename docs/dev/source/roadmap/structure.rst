@@ -9,8 +9,8 @@ Suggested Package Structure
    ├── __init__.py
    ├── cli.py
    ├── builder.py
-   ├── manifest.py
-   ├── artifacts.py
+   ├── manifest/...
+   ├── artifact_store.py
    ├── context.py
    ├── components.py
    ├── diagnostics.py
