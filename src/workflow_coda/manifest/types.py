@@ -27,7 +27,9 @@ type ArtifactType = Annotated[
 ]
 
 # Version string of a manifest or artifact content schema, e.g. "1.0".
-type SchemaVersion = Annotated[str, StringConstraints(strict=True, min_length=1)]
+type ArtifactSchemaVersion = Annotated[
+    str, StringConstraints(strict=True, min_length=1)
+]
 
 # Path of an artifact relative to the manifest that declares it.
 type ManifestRelativePath = Annotated[

@@ -1,25 +1,23 @@
 """The report manifest envelope.
 
-The envelope declares the manifest schema version, identifies the producer, and
+The manifest envelope declares the manifest schema version, identifies the producer, and
 lists the artifact declarations.
 
-The envelope's schema version is gated strictly: a manifest with an unknown
-``schema_version`` fails validation because an unrecognized envelope cannot be
-validated or consumed correctly.  The set of accepted versions is
-:data:`SUPPORTED_MANIFEST_SCHEMA_VERSIONS`.
+The envelope's schema version is gated strictly: a manifest written for an unknown
+version fails validation because an unrecognized envelope cannot be validated or
+consumed correctly.  The supported versions are enumerated by ``ManifestSchemaVersion``:
 """
 
 from collections import Counter
-from typing import Final
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from .artifact import ArtifactDeclaration
-from .types import NonEmptyStr, SchemaVersion
+from .types import NonEmptyStr
 
-#: Manifest schema versions this framework accepts.  Matching is exact;
-#: versions are not negotiated by range.
-SUPPORTED_MANIFEST_SCHEMA_VERSIONS: Final[frozenset[str]] = frozenset({"0.1.0"})
+# Manifest envelope contract versions accepted by the report framework
+type ManifestSchemaVersion = Literal["0.1.0"]
 
 
 class ProducerMetadata(BaseModel):
@@ -32,6 +30,9 @@ class ProducerMetadata(BaseModel):
 
     version: NonEmptyStr
     """Version of the producer, e.g. a release number."""
+
+    module_id: NonEmptyStr | None = None
+    """Optional identifier of the specific workflow module that produced the artifacts."""
 
     run_id: NonEmptyStr | None = None
     """Optional identifier of the specific run that produced the artifacts."""
@@ -52,26 +53,14 @@ class ReportManifest(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    schema_version: SchemaVersion
+    schema_version: ManifestSchemaVersion
     """Version of the manifest envelope contract this file complies with."""
 
     producer: ProducerMetadata
     """The workflow or application that produced this manifest."""
 
     artifacts: tuple[ArtifactDeclaration, ...]
-    """Artifact entries in declaration order; may be empty for a partial run."""
-
-    @field_validator("schema_version")
-    @classmethod
-    def _validate_supported_version(cls, value: str) -> str:
-        """Reject manifests written for an unsupported schema version."""
-        if value not in SUPPORTED_MANIFEST_SCHEMA_VERSIONS:
-            supported = ", ".join(sorted(SUPPORTED_MANIFEST_SCHEMA_VERSIONS))
-            raise ValueError(
-                f"unsupported manifest schema_version {value!r} "
-                f"(supported: {supported})"
-            )
-        return value
+    """Artifact entries in declaration order. May be empty ([]) for a partial run."""
 
     @field_validator("artifacts")
     @classmethod

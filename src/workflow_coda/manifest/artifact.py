@@ -16,9 +16,9 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 from .types import (
     ArtifactId,
+    ArtifactSchemaVersion,
     ArtifactType,
     ManifestRelativePath,
-    SchemaVersion,
     Sha256Hex,
 )
 
@@ -61,7 +61,7 @@ class ArtifactDeclaration(BaseModel):
     type: ArtifactType
     """Namespaced artifact type, e.g. ``org.example.sample_metrics``."""
 
-    schema_version: SchemaVersion
+    schema_version: ArtifactSchemaVersion
     """Version of the artifact's content schema."""
 
     path: ManifestRelativePath

@@ -8,16 +8,16 @@ without notice.
 
 from .artifact import ArtifactDeclaration, ArtifactFormat, ArtifactStatus
 from .envelope import (
-    SUPPORTED_MANIFEST_SCHEMA_VERSIONS,
+    ManifestSchemaVersion,
     ProducerMetadata,
     ReportManifest,
 )
 from .types import (
     ArtifactId,
+    ArtifactSchemaVersion,
     ArtifactType,
     ManifestRelativePath,
     NonEmptyStr,
-    SchemaVersion,
     Sha256Hex,
 )
 
@@ -25,13 +25,13 @@ __all__ = [
     "ArtifactDeclaration",
     "ArtifactFormat",
     "ArtifactId",
+    "ArtifactSchemaVersion",
     "ArtifactStatus",
     "ArtifactType",
     "ManifestRelativePath",
+    "ManifestSchemaVersion",
     "NonEmptyStr",
     "ProducerMetadata",
     "ReportManifest",
-    "SUPPORTED_MANIFEST_SCHEMA_VERSIONS",
-    "SchemaVersion",
     "Sha256Hex",
 ]
