@@ -15,3 +15,8 @@ def assert_frozen(model: BaseModel, field: str, value: object = "x") -> None:
     """
     with pytest.raises(ValidationError, match="frozen_instance"):
         setattr(model, field, value)
+
+
+def invalid_fields(exc: ValidationError) -> set[str]:
+    """Top-level field names reported by a validation error."""
+    return {str(error["loc"][-1]) for error in exc.errors()}

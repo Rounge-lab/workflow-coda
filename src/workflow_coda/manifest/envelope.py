@@ -64,31 +64,33 @@ class ReportManifest(BaseModel):
 
     @field_validator("artifacts")
     @classmethod
-    def _validate_unique_ids(
+    def _validate_unique_artifact_keys(
         cls, value: tuple[ArtifactDeclaration, ...]
     ) -> tuple[ArtifactDeclaration, ...]:
-        """Reject manifests that declare the same artifact id more than once."""
-        counts: Counter[str] = Counter(artifact.id for artifact in value)
-        duplicated = sorted(id_ for id_, count in counts.items() if count > 1)
-        if duplicated:
-            details = ", ".join(f"{id_!r} x{counts[id_]}" for id_ in duplicated)
-            raise ValueError(f"duplicate artifact ids in manifest: {details}")
-        return value
+        """Reject duplicate artifact ids and duplicate artifact types.
 
-    @field_validator("artifacts")
-    @classmethod
-    def _validate_unique_types(
-        cls, value: tuple[ArtifactDeclaration, ...]
-    ) -> tuple[ArtifactDeclaration, ...]:
-        """Reject manifests that declare the same artifact type more than once.
-
-        The artifact store resolves artifacts *by type* (``require(type)``),
-        so two declarations of the same type would make lookup ambiguous.
-        Requiring type uniqueness keeps the store API single-valued.
+        Ids must be unique because they identify artifacts within the
+        manifest; types must be unique because the artifact store resolves
+        artifacts by type (``require``), where two declarations of the same
+        type would make lookup ambiguous.  Both problems are collected and
+        reported together so a malformed manifest surfaces every collision
+        at once.
         """
-        counts: Counter[str] = Counter(artifact.type for artifact in value)
-        duplicated = sorted(type_ for type_, count in counts.items() if count > 1)
-        if duplicated:
-            details = ", ".join(f"{type_!r} x{counts[type_]}" for type_ in duplicated)
-            raise ValueError(f"duplicate artifact types in manifest: {details}")
+        problems: list[str] = []
+        id_counts: Counter[str] = Counter(artifact.id for artifact in value)
+        duplicated_ids = sorted(id_ for id_, count in id_counts.items() if count > 1)
+        if duplicated_ids:
+            details = ", ".join(f"{id_!r} x{id_counts[id_]}" for id_ in duplicated_ids)
+            problems.append(f"duplicate artifact ids in manifest: {details}")
+        type_counts: Counter[str] = Counter(artifact.type for artifact in value)
+        duplicated_types = sorted(
+            type_ for type_, count in type_counts.items() if count > 1
+        )
+        if duplicated_types:
+            details = ", ".join(
+                f"{type_!r} x{type_counts[type_]}" for type_ in duplicated_types
+            )
+            problems.append(f"duplicate artifact types in manifest: {details}")
+        if problems:
+            raise ValueError("; ".join(problems))
         return value
