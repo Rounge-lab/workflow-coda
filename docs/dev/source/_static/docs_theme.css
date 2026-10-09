@@ -1,0 +1,20 @@
+html[data-theme="dark"].writer-html5
+.rst-content dl.std.option .sig-name.descname,
+html[data-theme="dark"].writer-html5
+.rst-content dl.std.option .sig-name.descname .pre,
+html[data-theme="dark"].writer-html5
+.rst-content
+dl[class]:not(.option-list):not(.field-list):not(.footnote):not(.citation):not(.glossary):not(.simple)
+.sig-name,
+html[data-theme="dark"].writer-html5 .rst-content
+dl[class]:not(.option-list):not(.field-list):not(.footnote):not(.citation):not(.glossary):not(.simple)
+.descclassname {
+    color: #bfbfbf !important;
+}
+
+html[data-theme="dark"].writer-html5 .rst-content
+dl[class]:not(.option-list):not(.field-list):not(.footnote):not(.citation):not(.glossary):not(.simple)
+dl:not(.option-list):not(.field-list):not(.footnote):not(.citation):not(.glossary):not(.simple)
+> dt {
+    background: #0b0b0b !important;
+}
