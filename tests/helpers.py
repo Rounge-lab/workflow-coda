@@ -1,5 +1,7 @@
 """Shared utilities for workflow-coda tests."""
 
+from pathlib import Path
+
 import pytest
 from pydantic import BaseModel, ValidationError
 
@@ -20,3 +22,13 @@ def assert_frozen(model: BaseModel, field: str, value: object = "x") -> None:
 def invalid_fields(exc: ValidationError) -> set[str]:
     """Top-level field names reported by a validation error."""
     return {str(error["loc"][-1]) for error in exc.errors()}
+
+
+def symlink_or_skip(target: Path, link: Path) -> None:
+    """Create *link* pointing at *target*, skipping the test when the
+    platform does not permit symbolic link creation (e.g. unprivileged
+    Windows)."""
+    try:
+        link.symlink_to(target)
+    except OSError:
+        pytest.skip("symbolic link creation not permitted on this platform")
