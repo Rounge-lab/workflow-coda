@@ -25,8 +25,13 @@ schema gating, lookup) belong to the registry.
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Final
 
 from .components import PluginMetadata, ReportComponent
+
+ENTRY_POINT_GROUP: Final[str] = "workflow_coda.plugins"
+"""The entry-point group under which every report plugin registers."""
+
 
 type GetPlugin = Callable[[], "ReportPlugin"]
 """The zero-argument entry-point callable every plugin package provides."""

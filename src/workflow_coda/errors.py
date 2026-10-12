@@ -12,6 +12,9 @@ The hierarchy encodes a distinction that spans the whole system:
 * *Integrity violations* (e.g. :class:`ArtifactChecksumError`) indicate a
   broken or untrustworthy manifest or bundle and surface loudly.
 
+The plugin family is raised by the registry when the installed plugin
+environment is broken or a component id resolves to nothing.
+
 Import exceptions from this module; do not import them from the modules
 that raise them.
 """
@@ -60,3 +63,33 @@ class ArtifactChecksumError(ArtifactStoreError):
 
 class ArtifactReadError(ArtifactStoreError):
     """An artifact's contents could not be read, decoded, or parsed."""
+
+
+class PluginError(WorkflowCodaError):
+    """Root of the plugin family: failures discovering, loading, or
+    resolving report plugins and their components at report build time.
+
+    Contrast with the plain ``ValueError`` raised by the component
+    contracts: those fire at plugin authoring time, in the plugin
+    author's own test run.  These fire while building a report, when
+    only typed framework errors may reach the user.
+    """
+
+
+class PluginLoadError(PluginError):
+    """A plugin entry point failed to import or did not yield a
+    :class:`~workflow_coda.plugins.ReportPlugin`."""
+
+
+class PluginConflictError(PluginError):
+    """Two loaded plugins claim the same id, making the component
+    namespace ambiguous."""
+
+
+class ComponentUnavailableError(PluginError):
+    """No loaded plugin offers the requested component id.
+
+    The registry counterpart of :class:`ArtifactUnavailableError`: an
+    expected-missing condition that report building can handle as
+    policy rather than as a failure.
+    """
