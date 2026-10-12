@@ -107,7 +107,15 @@ def test_empty_colors_is_rejected_with_full_report() -> None:
 
 
 @pytest.mark.parametrize(
-    "token", ["Background", "background-color", "1background", "", "-background"]
+    "token",
+    [
+        "Background",
+        "1background",
+        "",
+        "-background",
+        "background_color",
+        "background color",
+    ],
 )
 def test_rejects_malformed_tokens(token: str) -> None:
     colors = make_valid_colors() | {token: VALID_HEX}
