@@ -1,6 +1,7 @@
 """Tests for the component contracts: the render outcome."""
 
 import pytest
+from factories import make_component, make_metadata, noop_render
 from helpers import assert_frozen_dataclass
 
 from workflow_coda.components import ComponentStatus, RenderedComponent
@@ -139,3 +140,130 @@ def test_rendered_component_rejects_new_attributes() -> None:
     rendered = RenderedComponent.skipped()
     with pytest.raises(AttributeError):
         rendered.extra = "nope"  # type: ignore[attr-defined]
+
+
+# ---------------------------------------------------------------------------
+# ReportComponent declarations
+# ---------------------------------------------------------------------------
+
+
+def test_component_defaults_round_trip() -> None:
+    component = make_component()
+    assert component.id == "example.quality"
+    assert component.title == "Quality overview"
+    assert component.description is None
+    assert component.render is noop_render
+
+
+def test_component_accepts_description() -> None:
+    component = make_component(description="Per-sample QC summary")
+    assert component.description == "Per-sample QC summary"
+
+
+@pytest.mark.parametrize(
+    "id",
+    [
+        "quality",  # no dot: missing plugin prefix
+        "example.quality.extra",  # two dots
+        "example.QUALITY",  # uppercase in the name half
+        "Example.quality",  # uppercase in the prefix half
+        "example.1quality",  # digit-leading name half
+        "example.q-uality",  # hyphen in the name half
+        "example.",  # empty name half
+        ".quality",  # empty prefix half
+        "example quality",  # space
+        "",  # empty
+    ],
+)
+def test_component_rejects_malformed_ids(id: str) -> None:
+    with pytest.raises(ValueError, match="invalid component id"):
+        make_component(id=id)
+
+
+def test_component_requires_visible_title() -> None:
+    with pytest.raises(ValueError, match="title must contain visible text"):
+        make_component(title="   ")
+
+
+def test_component_rejects_blank_description() -> None:
+    with pytest.raises(ValueError, match="description must contain visible text"):
+        make_component(description="   ")
+
+
+def test_component_rejects_non_callable_render() -> None:
+    with pytest.raises(ValueError, match="render must be a callable"):
+        make_component(render="<p/>")  # type: ignore[arg-type]
+
+
+def test_components_compare_by_value_and_hash() -> None:
+    # Equality is by fields, but render callables compare by identity, so
+    # value-equal components share the same renderer — which is what the
+    # builder relies on when looking components up.
+    first = make_component()
+    second = make_component()
+    assert first == second
+    assert first.render is second.render  # both default to noop_render
+    assert hash(first) == hash(second)
+
+
+def test_component_is_frozen() -> None:
+    assert_frozen_dataclass(make_component(), "title")
+
+
+def test_component_rejects_new_attributes() -> None:
+    with pytest.raises(AttributeError):
+        make_component().extra = "nope"  # type: ignore[attr-defined]
+
+
+# ---------------------------------------------------------------------------
+# PluginMetadata declarations
+# ---------------------------------------------------------------------------
+
+
+def test_metadata_defaults_round_trip() -> None:
+    metadata = make_metadata()
+    assert metadata.id == "example"
+    assert metadata.name == "Example plugin"
+    assert metadata.version == "1.0.0"
+    assert metadata.description == "Components for the test suite."
+    assert metadata.supported_schema_versions == frozenset({"0.1.0"})
+
+
+@pytest.mark.parametrize(
+    "id",
+    ["Example", "example-plugin", "example plugin", "1example", "", "_example"],
+)
+def test_metadata_rejects_malformed_ids(id: str) -> None:
+    with pytest.raises(ValueError, match="invalid plugin id"):
+        make_metadata(id=id)
+
+
+def test_metadata_requires_visible_text_fields() -> None:
+    for field in ("name", "version", "description"):
+        with pytest.raises(
+            ValueError, match=rf"plugin 'example': {field} must contain visible text"
+        ):
+            make_metadata(**{field: "   "})
+
+
+def test_metadata_requires_at_least_one_schema_version() -> None:
+    with pytest.raises(ValueError, match="at least one manifest schema version"):
+        make_metadata(supported_schema_versions=())
+
+
+def test_metadata_accepts_multiple_schema_versions() -> None:
+    metadata = make_metadata(supported_schema_versions=["0.1.0", "0.2.0"])
+    assert metadata.supported_schema_versions == frozenset({"0.1.0", "0.2.0"})
+
+
+def test_metadata_is_frozen_and_hashable() -> None:
+    first = make_metadata()
+    second = make_metadata()
+    assert first == second
+    assert hash(first) == hash(second)
+    assert_frozen_dataclass(first, "name")
+
+
+def test_metadata_rejects_new_attributes() -> None:
+    with pytest.raises(AttributeError):
+        make_metadata().extra = "nope"  # type: ignore[attr-defined]

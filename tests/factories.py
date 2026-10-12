@@ -7,9 +7,19 @@ through ``model_validate``.
 
 import hashlib
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+from workflow_coda.components import (
+    ComponentParameters,
+    ComponentRenderer,
+    PluginMetadata,
+    RenderedComponent,
+    ReportComponent,
+)
+from workflow_coda.context import RenderContext
+from workflow_coda.plugins import ReportPlugin
 from workflow_coda.theme import DEFAULT_THEME
 
 VALID_SHA256 = "a" * 64
@@ -180,3 +190,68 @@ def make_theme_payload(**overrides: object) -> dict[str, object]:
     payload: dict[str, object] = DEFAULT_THEME.model_dump()
     payload.update(overrides)
     return payload
+
+
+# ---------------------------------------------------------------------------
+# Plugin and component factories
+# ---------------------------------------------------------------------------
+
+
+def noop_render(
+    _context: RenderContext, _parameters: ComponentParameters
+) -> RenderedComponent:
+    """The do-nothing renderer: every outcome is a skip.
+
+    A stable module-level callable, so factory-built components are
+    hashable and ``component.render is noop_render`` is checkable.
+    Underscore-prefixed parameters mark them as intentionally unused.
+    """
+    return RenderedComponent.skipped()
+
+
+def make_metadata(
+    id: str = "example",
+    name: str = "Example plugin",
+    version: str = "1.0.0",
+    description: str = "Components for the test suite.",
+    supported_schema_versions: Iterable[str] = ("0.1.0",),
+) -> PluginMetadata:
+    """A fresh, valid plugin metadata value."""
+    return PluginMetadata(
+        id=id,
+        name=name,
+        version=version,
+        description=description,
+        supported_schema_versions=frozenset(supported_schema_versions),
+    )
+
+
+def make_component(
+    id: str = "example.quality",
+    title: str = "Quality overview",
+    description: str | None = None,
+    render: ComponentRenderer = noop_render,
+) -> ReportComponent:
+    """A fresh, valid component declaration.
+
+    The default id is prefixed with :func:`make_metadata`'s default id, so
+    ``make_plugin()`` assembles cleanly; override either side to build the
+    invalid combinations the integrity tests exercise.
+    """
+    return ReportComponent(
+        id=id,
+        title=title,
+        description=description,
+        render=render,
+    )
+
+
+def make_plugin(
+    metadata: PluginMetadata | None = None,
+    components: tuple[ReportComponent, ...] | None = None,
+) -> ReportPlugin:
+    """A fresh, valid single-component report plugin."""
+    return ReportPlugin(
+        metadata=metadata if metadata is not None else make_metadata(),
+        components=components if components is not None else (make_component(),),
+    )
