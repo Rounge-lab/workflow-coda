@@ -55,25 +55,52 @@ This supports early diagnostics such as:
 * A plugin does not support the manifest schema version.
 * Two plugins claim the same component ID.
 
+Plugin metadata also declares the manifest schema versions the plugin
+supports (currently ``"0.1.0"``).  The report builder refuses to run a
+plugin whose supported versions do not include the manifest's
+``schema_version``, and the diagnostics section names both versions.
+
 Plugin Interface
+----------------
 
 .. code-block:: python
 
    from typing import Protocol
 
-   class ReportPlugin(Protocol): metadata: PluginMetadata
+   class ReportPlugin(Protocol):
+       """Contract implemented by every report plugin."""
 
-      def build(
-          self,
-          artifacts: "ArtifactStore",
-          context: "ReportContext",
-      ) -> list["ReportComponent"]:
-          ...
+       metadata: PluginMetadata
+
+       def get_components(self) -> list[ReportComponent]: ...
+
+       def render(
+           self, context: RenderContext, parameters: ComponentParameters
+       ) -> RenderedComponent: .
 
 
 The framework should isolate plugin failures. By default, a failure in one
 non-required plugin should generate a diagnostic and allow unrelated components
 to render. Strict mode may promote plugin failures to report-build errors.
+
+Render Context
+--------------
+
+Plugins never touch the filesystem directly and never hard-code colors.
+Both are provided by the render context, constructed once per report and
+passed to every render call:
+
+* ``context.store``: the artifact store for the report's manifest.
+  Plugins resolve and read artifacts exclusively through the store,
+  inheriting its path-safety, status, and checksum guarantees.
+* ``context.theme``: the report's design-token theme (see the Theming
+  section of the rendering page).  Plugins style figures and other
+  generated output from ``context.theme.series`` and the core color
+  tokens.
+
+Component-specific configuration travels separately, as the
+per-component ``parameters`` argument of ``render``.  The context is
+per-report; the parameters are per-component; they are never merged.
 
 Component IDs
 -------------

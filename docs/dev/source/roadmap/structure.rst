@@ -22,6 +22,7 @@ the remaining modules land with their milestones.
    │   ├── artifact.py
    │   ├── envelope.py
    │   └── loader.py
+   ├── theme.py
    ├── context.py
    ├── components.py
    ├── diagnostics.py
@@ -55,7 +56,8 @@ The ``manifest`` package is the manifest data contract: constrained shared
 types, artifact declarations, the manifest envelope, and manifest loading.
 ``artifact_store`` resolves and reads declared artifacts relative to the
 manifest root. ``errors`` holds the exception hierarchy shared by the whole
-framework.
+framework. ``theme`` defines the design-token theme model shared by the report
+CSS and plugin-generated figures; the render context exposes it to plugins.
 
 .. code-block:: text
    :caption: Example extension package
@@ -108,3 +110,5 @@ Planned alongside later milestones:
 * Successful HTML generation for partial runs.
 * Plotly included once in a generated report.
 * Accessibility checks for tab controls where practical.
+* Theme model validation (core tokens present, color syntax, series
+  palette length).

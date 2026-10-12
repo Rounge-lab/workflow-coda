@@ -28,3 +28,11 @@ The base report template should include Plotly once, either through:
 * An inlined Plotly bundle for a fully self-contained file.
 
 For reproducible offline reports, a local pinned version is preferred.
+
+``report.css`` contains no color literals.  All colors come from the
+CSS custom properties that the report template emits from the active
+theme (``--wc-*`` variables; see the Theming section of the rendering
+page). This is what makes a theme swap restyle the entire report,
+including plugin output, without any CSS edits. The bundled
+``plotly.min.js`` likewise carries no theme awareness: figures are
+styled by plugins through the render context before they are embedded.
