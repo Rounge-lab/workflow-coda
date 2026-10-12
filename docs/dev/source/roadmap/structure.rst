@@ -112,3 +112,13 @@ Planned alongside later milestones:
 * Accessibility checks for tab controls where practical.
 * Theme model validation (core tokens present, color syntax, series
   palette length).
+* Component contract invariants: status/field pairing for every
+  outcome, id shapes, blank-text gates, and the constructor helpers —
+  including the figure embedding flags, pinned with a fake
+  Plotly-shaped figure.
+* Plugin assembly integrity: prefix enforcement, duplicate component
+  ids, declaration-order preservation, and frozen/slots value
+  semantics.
+* Registry behavior: namespace assembly, ``find``/``require`` lookup,
+  schema-version gating, and entry-point loading through real
+  ``importlib.metadata`` entry points against a fixture plugin module.
