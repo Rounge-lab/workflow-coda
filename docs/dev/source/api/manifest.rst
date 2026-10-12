@@ -8,4 +8,5 @@ package directly (``workflow_coda.manifest``); the submodule layout is an
 implementation detail.
 
 .. automodule:: workflow_coda.manifest
-   :imported-members:
+   :members:
+   :exclude-members: model_config

@@ -34,6 +34,11 @@ components, and renders a portable static HTML report.
    :maxdepth: 2
    :caption: Reference documentation
 
-   reference/errors
-   reference/manifest
-   reference/artifact_store
+   api/errors
+   api/manifest
+   api/artifact_store
+   api/theme
+   api/context
+   api/components
+   api/plugins
+   api/registry

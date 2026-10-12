@@ -45,8 +45,7 @@ html_css_files = [
 ]
 
 # -- Autodoc
-autodoc_member_order = "bysource"
 autodoc_default_options = {
-    "members": True,
+    "member-order": "bysource",
     "show-inheritance": True,
 }
