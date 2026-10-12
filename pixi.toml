@@ -23,6 +23,7 @@ build = "python -m build"
 mypy = "mypy ."
 pytest = "pytest --cov=workflow_coda --cov-report=term-missing"
 ruff-check = "ruff check ."
+ruff-check-fix = "ruff check . --fix"
 ruff-format = "ruff format ."
 ruff-format-check = "ruff format --check ."
 
@@ -31,6 +32,7 @@ pre-commit-install = "pre-commit install --install-hooks"
 
 format = { depends-on = ["ruff-format"] }
 lint = { depends-on = ["ruff-check", "ruff-format-check"] }
+lint-fix = { depends-on = ["ruff-format", "ruff-check-fix"] }
 test = { depends-on = ["lint", "mypy", "pytest"] }
 
 [tasks.docs]

@@ -1,5 +1,6 @@
 """Shared utilities for workflow-coda tests."""
 
+from dataclasses import FrozenInstanceError
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,18 @@ def assert_frozen(model: BaseModel, field: str, value: object = "x") -> None:
     """
     with pytest.raises(ValidationError, match="frozen_instance"):
         setattr(model, field, value)
+
+
+def assert_frozen_dataclass(obj: object, field: str, value: object = "x") -> None:
+    """Assert that mutating a frozen dataclass raises at runtime.
+
+    Same rationale as :func:`assert_frozen`: static assignment is a mypy
+    error (frozen dataclass fields are read-only to the type checker),
+    and a constant-string ``setattr`` trips ruff's B010, so a
+    parameterized attribute name reaches the runtime guard cleanly.
+    """
+    with pytest.raises(FrozenInstanceError):
+        setattr(obj, field, value)
 
 
 def invalid_fields(exc: ValidationError) -> set[str]:
