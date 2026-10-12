@@ -100,8 +100,17 @@ type ComponentRenderer = Callable[
 layout parameters in, one typed outcome out."""
 
 
-def _has_visible_text(text: str) -> bool:
-    """Whether *text* contains at least one non-whitespace character."""
+def has_visible_text(text: str) -> bool:
+    """Whether *text* contains at least one non-whitespace character.
+
+    The shared predicate of the authoring-time strict-text rule: a
+    whitespace-only value is always an authoring mistake, whether it
+    lands in a plugin contract constructed in Python or a layout file
+    deserialized from YAML.  The component contracts apply it in their
+    ``__post_init__`` gates with contextual messages; the layout model
+    applies it through its ``VisibleText`` validator, where pydantic
+    supplies the field path.
+    """
     return bool(text.strip())
 
 
@@ -155,7 +164,7 @@ class RenderedComponent:
                 "an 'ok' RenderedComponent requires html content; "
                 "use RenderedComponent.from_html() or from_figure()"
             )
-        if not _has_visible_text(self.html):
+        if not has_visible_text(self.html):
             raise ValueError(
                 "RenderedComponent html must contain visible content; "
                 "use RenderedComponent.skipped() to produce no component"
@@ -173,7 +182,7 @@ class RenderedComponent:
                 "an 'unavailable' RenderedComponent requires an "
                 "explanation message; use RenderedComponent.unavailable()"
             )
-        if not _has_visible_text(self.message):
+        if not has_visible_text(self.message):
             raise ValueError("RenderedComponent message must contain visible text")
         if self.html is not None:
             raise ValueError(
@@ -265,7 +274,7 @@ class PluginMetadata:
                 f"with a letter)"
             )
         for field_name in ("name", "version", "description"):
-            if not _has_visible_text(getattr(self, field_name)):
+            if not has_visible_text(getattr(self, field_name)):
                 raise ValueError(
                     f"plugin {self.id!r}: {field_name} must contain visible text"
                 )
@@ -321,13 +330,13 @@ class ReportComponent:
             )
         if not self.title:
             raise ValueError(f"component {self.id!r}: title must be non-empty")
-        if not _has_visible_text(self.title):
+        if not has_visible_text(self.title):
             raise ValueError(f"component {self.id!r}: title must contain visible text")
         if self.description is not None and not self.description:
             raise ValueError(
                 f"component {self.id!r}: description must be non-empty when given"
             )
-        if self.description is not None and not _has_visible_text(self.description):
+        if self.description is not None and not has_visible_text(self.description):
             raise ValueError(
                 f"component {self.id!r}: description must contain visible "
                 f"text when given"

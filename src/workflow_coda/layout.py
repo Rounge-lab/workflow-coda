@@ -38,7 +38,7 @@ from typing import Annotated, Literal
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 from .artifact_store import JsonValue
-from .components import COMPONENT_ID_PATTERN
+from .components import COMPONENT_ID_PATTERN, has_visible_text
 
 LayoutSchemaVersion = Literal["0.1.0"]
 """The layout contract's own version.
@@ -50,7 +50,7 @@ format itself.  The two are never compared."""
 
 def _require_visible_text(value: str) -> str:
     """Reject whitespace-only text: always an authoring mistake."""
-    if not value.strip():
+    if not has_visible_text(value):
         raise ValueError("must contain visible text, not only whitespace")
     return value
 
