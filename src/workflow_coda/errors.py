@@ -93,3 +93,18 @@ class ComponentUnavailableError(PluginError):
     expected-missing condition that report building can handle as
     policy rather than as a failure.
     """
+
+
+class LayoutError(WorkflowCodaError):
+    """A report layout could not be loaded or is not valid.
+
+    The layout is the framework's human-authored input, so its loader
+    raises this for every authoring failure — an unreadable file,
+    invalid YAML, a duplicate mapping key, a document that is not a
+    mapping, or a layout model violation — with a message naming the
+    file and, wherever the format provides one, the location inside it.
+
+    A single class, like :class:`ManifestError`: every instance has the
+    same correction clock (fix the file), so nothing downstream needs
+    to distinguish the failure kinds.
+    """
