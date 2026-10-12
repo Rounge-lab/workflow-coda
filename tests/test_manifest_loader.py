@@ -11,8 +11,11 @@ from workflow_coda.artifact_store import ArtifactStore
 from workflow_coda.errors import ManifestError
 from workflow_coda.manifest import ReportManifest, load_manifest
 
-
+# ---------------------------------------------------------------------------
 # Happy path
+# ---------------------------------------------------------------------------
+
+
 def test_loads_valid_manifest(tmp_path: Path) -> None:
     path = write_manifest_file(
         tmp_path,
@@ -42,7 +45,11 @@ def test_loading_does_not_require_artifact_files(tmp_path: Path) -> None:
     assert len(manifest.artifacts) == 1
 
 
+# ---------------------------------------------------------------------------
 # Error wrapping
+# ---------------------------------------------------------------------------
+
+
 def test_missing_file_wraps_os_error(tmp_path: Path) -> None:
     missing = tmp_path / "missing.json"
     with pytest.raises(ManifestError) as exc_info:
@@ -99,7 +106,11 @@ def test_invalid_envelope_is_wrapped(tmp_path: Path) -> None:
     assert isinstance(exc_info.value.__cause__, ValidationError)
 
 
+# ---------------------------------------------------------------------------
 # BOM handling
+# ---------------------------------------------------------------------------
+
+
 def test_leading_bom_is_rejected(tmp_path: Path) -> None:
     path = tmp_path / "manifest.json"
     path.write_bytes(b"\xef\xbb\xbf{}")
@@ -116,7 +127,11 @@ def test_bom_is_only_rejected_at_start(tmp_path: Path) -> None:
     assert manifest.producer.name == "Example\ufeffworkflow"
 
 
+# ---------------------------------------------------------------------------
 # ArtifactStore.from_manifest_file
+# ---------------------------------------------------------------------------
+
+
 def test_from_manifest_file_roots_at_manifest_directory(tmp_path: Path) -> None:
     results_dir = tmp_path / "results"
     results_dir.mkdir()

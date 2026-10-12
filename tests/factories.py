@@ -10,6 +10,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from workflow_coda.theme import DEFAULT_THEME
+
 VALID_SHA256 = "a" * 64
 """A syntactically valid lowercase hexadecimal SHA-256 digest."""
 
@@ -166,3 +168,15 @@ def write_artifact_bundle(
         bundle_root, make_manifest_payload(artifacts=[declaration])
     )
     return ArtifactBundle(manifest_path=manifest_path, artifact_path=artifact_path)
+
+
+def make_theme_payload(**overrides: object) -> dict[str, object]:
+    """Return a fresh, valid design-token theme payload.
+
+    Built from :data:`workflow_coda.theme.DEFAULT_THEME` via ``model_dump``,
+    so the factory can never drift from the default theme: changing the
+    default palette updates the fixtures automatically.
+    """
+    payload: dict[str, object] = DEFAULT_THEME.model_dump()
+    payload.update(overrides)
+    return payload

@@ -39,7 +39,11 @@ def store(bundle: ReportBundle) -> ArtifactStore:
     return ArtifactStore.from_manifest_file(bundle.manifest_path)
 
 
+# ---------------------------------------------------------------------------
 # Construction and properties
+# ---------------------------------------------------------------------------
+
+
 def test_direct_construction_uses_explicit_root(tmp_path: Path) -> None:
     declaration = make_artifact_payload()
     artifact_bundle = write_artifact_bundle(
@@ -59,7 +63,11 @@ def test_properties_expose_manifest_and_root(
     assert artifact_store.manifest.schema_version == "0.1.0"
 
 
+# ---------------------------------------------------------------------------
 # Membership and inspection
+# ---------------------------------------------------------------------------
+
+
 def test_declared_types_lists_all_declared_types(store: ArtifactStore) -> None:
     assert store.declared_types == frozenset(
         {
@@ -201,7 +209,11 @@ def test_require_allows_symlink_inside_root(tmp_path: Path) -> None:
     assert rows == [{"sample_id": "S1", "passed": "true"}]
 
 
+# ---------------------------------------------------------------------------
 # Checksum verification
+# ---------------------------------------------------------------------------
+
+
 def test_read_verifies_matching_checksum(store: ArtifactStore) -> None:
     rows = store.require("org.example.votu_catalog").read_tsv()
     assert rows == [{"votu_id": "vOTU_001", "quality": "medium"}]
@@ -258,7 +270,11 @@ def test_artifact_without_checksum_is_not_verified(
     assert rows == [{"sample_id": "S3", "passed": "true"}]
 
 
+# ---------------------------------------------------------------------------
 # read_tsv contract
+# ---------------------------------------------------------------------------
+
+
 def test_read_tsv_returns_rows_as_dicts(store: ArtifactStore) -> None:
     rows = store.require(METRICS_TYPE).read_tsv()
     assert rows == [
@@ -382,7 +398,11 @@ def test_readers_are_explicit_not_format_dispatched(tmp_path: Path) -> None:
     assert artifact_store.require(METRICS_TYPE).read_tsv() == [{"a": "S1", "b": "x"}]
 
 
+# ---------------------------------------------------------------------------
 # read_json contract
+# ---------------------------------------------------------------------------
+
+
 def test_read_json_returns_parsed_document(store: ArtifactStore) -> None:
     payload = store.require("org.example.qc_summary").read_json()
     assert payload == {"passed": 1, "total_samples": 2}
@@ -430,13 +450,21 @@ def test_read_json_rejects_invalid_json(tmp_path: Path) -> None:
     assert "line 1" in message
 
 
+# ---------------------------------------------------------------------------
 # read_text
+# ---------------------------------------------------------------------------
+
+
 def test_read_text_returns_decoded_contents(store: ArtifactStore) -> None:
     artifact = store.require(METRICS_TYPE)
     assert artifact.read_text() == "sample_id\tpassed\nS1\ttrue\nS2\tfalse\n"
 
 
+# ---------------------------------------------------------------------------
 # Error taxonomy
+# ---------------------------------------------------------------------------
+
+
 def test_store_errors_share_the_framework_root() -> None:
     for error_type in (
         ArtifactUnavailableError,

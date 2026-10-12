@@ -14,8 +14,11 @@ from pydantic import ValidationError
 
 from workflow_coda.manifest import ProducerMetadata, ReportManifest
 
-
+# ---------------------------------------------------------------------------
 # ProducerMetadata
+# ---------------------------------------------------------------------------
+
+
 def test_valid_producer_parses() -> None:
     producer = ProducerMetadata.model_validate(make_producer_payload())
     assert producer.name == "Example workflow"
@@ -66,7 +69,11 @@ def test_producer_is_frozen() -> None:
     assert_frozen(producer, "name", "renamed")
 
 
+# ---------------------------------------------------------------------------
 # ReportManifest
+# ---------------------------------------------------------------------------
+
+
 def test_valid_manifest_parses() -> None:
     manifest = ReportManifest.model_validate(make_manifest_payload())
     assert manifest.schema_version == "0.1.0"
@@ -124,7 +131,11 @@ def test_version_must_be_a_string(version: object) -> None:
         ReportManifest.model_validate(make_manifest_payload(schema_version=version))
 
 
+# ---------------------------------------------------------------------------
 # Artifact uniqueness
+# ---------------------------------------------------------------------------
+
+
 def test_rejects_duplicate_ids() -> None:
     payload = make_manifest_payload(
         artifacts=[
@@ -183,7 +194,11 @@ def test_duplicate_ids_and_types_are_reported_together() -> None:
         ReportManifest.model_validate(payload)
 
 
+# ---------------------------------------------------------------------------
 # Value semantics
+# ---------------------------------------------------------------------------
+
+
 def test_artifact_order_is_preserved() -> None:
     payload = make_manifest_payload(
         artifacts=[
