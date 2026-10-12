@@ -11,6 +11,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+from workflow_coda.artifact_store import JsonValue
 from workflow_coda.components import (
     ComponentParameters,
     ComponentRenderer,
@@ -255,3 +256,29 @@ def make_plugin(
         metadata=metadata if metadata is not None else make_metadata(),
         components=components if components is not None else (make_component(),),
     )
+
+
+# ---------------------------------------------------------------------------
+# Layout factories
+# ---------------------------------------------------------------------------
+
+
+def make_layout_payload(**overrides: JsonValue) -> dict[str, JsonValue]:
+    """A fresh, valid report layout payload: one section, one placement.
+
+    Override any top-level key, or replace ``sections`` wholesale;
+    tests for section- and placement-level violations build their own
+    nested structure under ``sections``.
+    """
+    payload: dict[str, JsonValue] = {
+        "schema_version": "0.1.0",
+        "title": "Metagenomic analysis",
+        "sections": [
+            {
+                "title": "Quality control",
+                "components": [{"id": "example_bio.qc"}],
+            }
+        ],
+    }
+    payload.update(overrides)
+    return payload
