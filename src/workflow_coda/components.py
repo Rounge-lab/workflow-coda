@@ -41,10 +41,11 @@ from .context import RenderContext
 _PLUGIN_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z][a-z0-9_]*$")
 """Shape of a valid plugin id: lowercase snake_case."""
 
-_COMPONENT_ID_PATTERN: Final[re.Pattern[str]] = re.compile(
+COMPONENT_ID_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$"
 )
-"""Shape of a valid component id: ``<plugin_id>.<component_name>``."""
+"""Shape of a valid component id: ``<plugin_id>.<component_name>`` — the
+contract shared by component declarations and layout placements."""
 
 
 class ComponentStatus(Enum):
@@ -312,7 +313,7 @@ class ReportComponent:
                 f"(context, parameters); got {self.render!r} — pass the "
                 f"function itself, not a call result"
             )
-        if _COMPONENT_ID_PATTERN.fullmatch(self.id) is None:
+        if COMPONENT_ID_PATTERN.fullmatch(self.id) is None:
             raise ValueError(
                 f"invalid component id {self.id!r}: must be "
                 f"'<plugin_id>.<component_name>', lowercase snake_case on "

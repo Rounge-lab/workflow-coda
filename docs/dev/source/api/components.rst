@@ -3,6 +3,8 @@ Components
 
 .. automodule:: workflow_coda.components
 
+.. autodata:: workflow_coda.components.COMPONENT_ID_PATTERN
+
 .. autoclass:: workflow_coda.components.ComponentStatus
    :members:
    :undoc-members:
