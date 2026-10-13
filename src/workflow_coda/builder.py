@@ -47,7 +47,6 @@ from .context import RenderContext
 from .errors import ComponentUnavailableError, LayoutError
 from .layout import ComponentPlacement, MissingPolicy
 from .layout_loader import UniqueKeySafeLoader, load_layout
-from .manifest import Manifest
 from .plugins import ReportPlugin
 from .registry import PluginRegistry
 from .report import (
@@ -171,15 +170,19 @@ def _render(
 
 def build_report(
     layout_path: Path,
-    manifest: Manifest,
     store: ArtifactStore,
     registry: PluginRegistry | None = None,
 ) -> ReportDocument:
-    """Build the report document for one manifest under one layout.
+    """Build the report document for one artifact bundle under one layout.
+
+    *store* is the bundle's artifact store; the manifest is read from
+    ``store.manifest``, so the two can never disagree.  *registry*
+    defaults to the plugins installed in the environment; pass one to
+    build against a fixed set.
 
     Raises :class:`~workflow_coda.errors.LayoutError` for authoring
-    problems (layout, theme, declared assets),
-    :class:`~workflow_coda.errors.PluginLoadError` /
+    problems (the layout file, the theme file it declares, declared
+    image assets), :class:`~workflow_coda.errors.PluginLoadError` /
     ``PluginConflictError`` for a broken plugin environment, and
     :class:`~workflow_coda.errors.ComponentUnavailableError`` when the
     ``fail`` policy meets an unresolvable placement.  Plugin bugs never
@@ -187,6 +190,7 @@ def build_report(
     """
     if registry is None:
         registry = PluginRegistry.load()
+    manifest = store.manifest
     layout = load_layout(layout_path)
     diagnostics: list[Diagnostic] = []
 

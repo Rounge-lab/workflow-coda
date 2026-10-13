@@ -3,8 +3,9 @@
 The report builder turns a validated layout, a manifest's artifact
 store, and the loaded plugin registry into a :class:`ReportDocument`
 — the complete, resolved content of one report.  The document is the
-hand-off contract between the layout and rendering layers: everything
-the rendering layer needs, and nothing it should have to reconstruct.
+hand-off contract between the report building and report rendering
+layers: everything the rendering layer needs, and nothing it should
+have to reconstruct.
 
 Two properties shape the model:
 
@@ -32,7 +33,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from .components import RenderedComponent, has_visible_text
-from .manifest import Manifest
+from .manifest import ReportManifest
 from .theme import Theme
 
 
@@ -218,7 +219,7 @@ class ReportDocument:
     favicon: EmbeddedAsset | None
     """The embedded favicon, or ``None`` when the layout declared none."""
 
-    manifest: Manifest
+    manifest: ReportManifest
     """The report's validated manifest, for the provenance footer."""
 
     sections: tuple[DocumentSection, ...]
