@@ -84,6 +84,12 @@ The fields:
    Optional paths to images, relative to the layout file, embedded
    into the report.  Same declared-or-diagnostic rule as the theme.
 
+``toc``
+   Whether the report includes a table of contents — a navigation
+   list linking to each section.  The default is ``true``.
+   ``toc: false`` turns it off (``toc: no`` also works — the one
+   place YAML's boolean ``no`` is exactly what you mean).
+
 ``on_missing``
    What happens when a placement names a component no loaded
    plugin supports for this manifest.  One of ``fail``, ``notice``

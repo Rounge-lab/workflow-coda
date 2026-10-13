@@ -634,3 +634,13 @@ def test_no_informational_diagnostics_when_everything_is_declared(
     assert document.diagnostics == ()
     assert document.logo is not None
     assert document.favicon is not None
+
+
+def test_the_layout_toc_flag_carries_to_the_document(tmp_path: Path) -> None:
+    layout_path = write_layout(tmp_path, sections=[qc_section("run A")])
+    document = build(tmp_path, layout_path, current_plugin())
+    assert document.toc is True
+
+    off_path = write_layout(tmp_path, toc=False, sections=[qc_section("run A")])
+    document = build(tmp_path, off_path, current_plugin())
+    assert document.toc is False

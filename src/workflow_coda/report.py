@@ -233,3 +233,8 @@ class ReportDocument:
     diagnostics: tuple[Diagnostic, ...]
     """Everything noteworthy the builder recorded, in occurrence
     order."""
+
+    toc: bool = True
+    """Whether the rendered report includes the table of contents; a
+    layout decision carried in the document so rendering needs
+    nothing else."""

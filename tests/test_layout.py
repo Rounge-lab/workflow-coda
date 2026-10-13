@@ -269,3 +269,23 @@ def test_layout_is_frozen() -> None:
         layout.title = "New title"  # type: ignore[misc]
     with pytest.raises(ValidationError, match="frozen"):
         layout.sections[0].components[0].id = "example.bio.other"  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# The table of contents toggle
+# ---------------------------------------------------------------------------
+
+
+def test_toc_defaults_to_true() -> None:
+    layout = ReportLayout.model_validate(make_layout_payload())
+    assert layout.toc is True
+
+
+def test_toc_explicit_false_round_trips() -> None:
+    layout = ReportLayout.model_validate(make_layout_payload(toc=False))
+    assert layout.toc is False
+
+
+def test_toc_rejects_non_boolean_values() -> None:
+    with pytest.raises(ValidationError, match="toc"):
+        ReportLayout.model_validate(make_layout_payload(toc="sometimes"))

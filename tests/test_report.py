@@ -1,5 +1,7 @@
 """Tests for the report document: the builder's output model."""
 
+from dataclasses import replace
+
 import pytest
 from factories import make_manifest_payload
 from helpers import assert_frozen_dataclass
@@ -330,3 +332,11 @@ def test_document_is_frozen_and_slotted() -> None:
     assert_frozen_dataclass(document, "title")
     with pytest.raises(AttributeError):
         document.extra = "nope"  # type: ignore[attr-defined]
+
+
+def test_document_carries_the_toc_flag() -> None:
+    document = make_document()
+    assert document.toc is True
+    without_toc = replace(document, toc=False)
+    assert without_toc.toc is False
+    assert without_toc != document

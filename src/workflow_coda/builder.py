@@ -300,4 +300,5 @@ def build_report(
         manifest=manifest,
         sections=tuple(sections),
         diagnostics=tuple(diagnostics),
+        toc=layout.toc,
     )

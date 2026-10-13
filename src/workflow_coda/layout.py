@@ -168,6 +168,11 @@ class ReportLayout(BaseModel):
     """Optional path to a favicon image, relative to the layout file;
     embedded into the report at build time."""
 
+    toc: bool = True
+    """Whether the report includes a table of contents: a navigation
+    list linking to the report's sections.  The default is ``True``;
+    turn it off with ``toc: false``."""
+
     on_missing: MissingPolicy = MissingPolicy.FAIL
     """The default placement policy when a component id resolves to
     nothing; per-placement ``on_missing`` overrides it."""
