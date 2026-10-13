@@ -256,9 +256,9 @@ def build_report(
                 plugin, _ = full[placement.id]
                 versions = ", ".join(sorted(plugin.metadata.supported_schema_versions))
                 reason = (
-                    f"its plugin {plugin.metadata.id!r} supports "
-                    f"manifest schema versions {versions}, but the "
-                    f"manifest uses {manifest.schema_version!r}"
+                    f"its plugin {plugin.metadata.id!r} does not support "
+                    f"this manifest's schema version "
+                    f"{manifest.schema_version!r} (it supports: {versions})"
                 )
                 subject = plugin.metadata.id
                 kind = DiagnosticKind.PLUGIN_EXCLUDED
