@@ -109,6 +109,11 @@ class SectionEntry:
                     f"section entry {self.component_id!r}: a rendered "
                     f"entry must carry its outcome"
                 )
+            if not isinstance(self.outcome, RenderedComponent):
+                raise ValueError(
+                    f"section entry {self.component_id!r}: a rendered "
+                    f"entry's outcome must be a RenderedComponent"
+                )
             if self.error is not None:
                 raise ValueError(
                     f"section entry {self.component_id!r}: a rendered "
