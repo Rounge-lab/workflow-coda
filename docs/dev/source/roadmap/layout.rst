@@ -78,6 +78,11 @@ The fields:
    Optional free-form author line shown in the report footer — a
    person, a group, several names; whatever should be credited.
 
+``version``
+   Optional free-form report version, shown in the report header
+   under the title — "1.2.0", "v2", "draft", a date; whatever
+   identifies this revision of the report.
+
 ``theme``
    Optional path to a theme file, relative to the layout file.
    Omitted, the report renders with the built-in default theme and

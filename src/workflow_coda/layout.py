@@ -161,6 +161,11 @@ class ReportLayout(BaseModel):
     """Optional free-form author line shown in the report footer —
     a person, a group, several names; whatever should be credited."""
 
+    version: VisibleText | None = None
+    """Optional free-form report version, shown in the header under
+    the title — "1.2.0", "v2", "draft", a date; whatever identifies
+    this revision of the report."""
+
     theme: VisibleText | None = None
     """Optional path to a theme file, relative to the layout file.
     Omitted means the built-in default theme."""

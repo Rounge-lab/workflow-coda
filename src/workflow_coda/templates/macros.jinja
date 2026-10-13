@@ -35,7 +35,7 @@
    notes — each a kind badge plus the message.  The builder's
    messages already name their subject, so the subject is not
    printed a second time. #}
-{% macro diagnostics_block(document, problems, informational) %}
+{% macro diagnostics_block(problems, informational) %}
 <section class="coda-diagnostics" id="diagnostics">
   <h2>Diagnostics</h2>
   {% if problems %}

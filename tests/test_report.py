@@ -55,6 +55,7 @@ def make_document() -> ReportDocument:
     return ReportDocument(
         title="Metagenomic analysis",
         author=None,
+        version=None,
         subtitle=None,
         theme=DEFAULT_THEME,
         logo=None,
@@ -309,6 +310,8 @@ def test_document_round_trip() -> None:
     document = make_document()
     assert document.title == "Metagenomic analysis"
     assert document.subtitle is None
+    assert document.author is None
+    assert document.version is None
     assert document.theme is DEFAULT_THEME
     assert document.logo is None
     assert document.favicon is None
@@ -349,3 +352,11 @@ def test_document_carries_the_author_line() -> None:
     authored = replace(document, author="The Genomics Group")
     assert authored.author == "The Genomics Group"
     assert authored != document
+
+
+def test_document_carries_the_report_version() -> None:
+    document = make_document()
+    assert document.version is None
+    versioned = replace(document, version="1.2.0")
+    assert versioned.version == "1.2.0"
+    assert versioned != document

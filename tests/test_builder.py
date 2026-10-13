@@ -665,3 +665,11 @@ def test_the_layout_author_carries_to_the_document(tmp_path: Path) -> None:
     )
     document = build(tmp_path, layout_path, current_plugin())
     assert document.author == "The Genomics Group"
+
+
+def test_the_layout_version_carries_to_the_document(tmp_path: Path) -> None:
+    layout_path = write_layout(
+        tmp_path, version="1.2.0", sections=[qc_section("run A")]
+    )
+    document = build(tmp_path, layout_path, current_plugin())
+    assert document.version == "1.2.0"

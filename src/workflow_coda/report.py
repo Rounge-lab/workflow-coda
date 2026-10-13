@@ -219,6 +219,9 @@ class ReportDocument:
     author: str | None
     """The optional author line, from the layout."""
 
+    version: str | None
+    """The optional report version, from the layout."""
+
     theme: Theme
     """The loaded theme the report is rendered with."""
 

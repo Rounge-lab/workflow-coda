@@ -40,27 +40,36 @@
     {% endif %}
   </head>
   <body>
+    <header class="coda-headerbar">
+      <div class="coda-headerbar-inner">
+        <div class="coda-brand">
+          {% if document.logo %}
+          <img class="coda-logo" src="{{ document.logo.data_uri }}" alt="">
+          {% endif %}
+          <div class="coda-brand-text">
+            <h1>{{ document.title }}</h1>
+            {% if document.version %}
+            <p class="coda-version">{{ document.version }}</p>
+            {% endif %}
+            {% if document.subtitle %}
+            <p class="coda-subtitle">{{ document.subtitle }}</p>
+            {% endif %}
+          </div>
+        </div>
+        {% if document.toc and document.sections %}
+        <nav class="coda-tabs" aria-label="Table of contents">
+          {% for section in document.sections %}
+          {% set anchor = loop.index ~ "-" ~ (section.title | slugify) %}
+          <a href="#{{ anchor }}">{{ section.title }}</a>
+          {% endfor %}
+          {% if document.diagnostics %}
+          <a href="#diagnostics">Diagnostics</a>
+          {% endif %}
+        </nav>
+        {% endif %}
+      </div>
+    </header>
     <div class="coda-page">
-      <header class="coda-header">
-        {% if document.logo %}
-        <img class="coda-logo" src="{{ document.logo.data_uri }}" alt="">
-        {% endif %}
-        <h1>{{ document.title }}</h1>
-        {% if document.subtitle %}
-        <p class="coda-subtitle">{{ document.subtitle }}</p>
-        {% endif %}
-      </header>
-      {% if document.toc and document.sections %}
-      <nav class="coda-toc" aria-label="Table of contents">
-        {% for section in document.sections %}
-        {% set anchor = loop.index ~ "-" ~ (section.title | slugify) %}
-        <a href="#{{ anchor }}">{{ section.title }}</a>
-        {% endfor %}
-        {% if document.diagnostics %}
-        <a href="#diagnostics">Diagnostics</a>
-        {% endif %}
-      </nav>
-      {% endif %}
       <main>
         {% for section in document.sections %}
         {% set anchor = loop.index ~ "-" ~ (section.title | slugify) %}
@@ -73,7 +82,7 @@
         {% endfor %}
       </main>
       {% if document.diagnostics %}
-      {{ diagnostics_block(document, problem_diagnostics, informational_diagnostics) }}
+      {{ diagnostics_block(problem_diagnostics, informational_diagnostics) }}
       {% endif %}
       {{ provenance_footer(document, provenance_lines, attribution) }}
     </div>

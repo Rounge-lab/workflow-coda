@@ -311,3 +311,20 @@ def test_author_is_optional_and_round_trips() -> None:
 def test_author_requires_visible_text() -> None:
     with pytest.raises(ValidationError, match="must contain visible text"):
         ReportLayout.model_validate(make_layout_payload(author="  "))
+
+
+# ---------------------------------------------------------------------------
+# The report version
+# ---------------------------------------------------------------------------
+
+
+def test_version_is_optional_and_round_trips() -> None:
+    layout = ReportLayout.model_validate(make_layout_payload())
+    assert layout.version is None
+    layout = ReportLayout.model_validate(make_layout_payload(version="1.2.0"))
+    assert layout.version == "1.2.0"
+
+
+def test_version_requires_visible_text() -> None:
+    with pytest.raises(ValidationError, match="must contain visible text"):
+        ReportLayout.model_validate(make_layout_payload(version="  "))
