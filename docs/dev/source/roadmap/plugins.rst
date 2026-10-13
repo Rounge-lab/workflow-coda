@@ -122,7 +122,7 @@ embedding flags — a bare ``div`` without its own Plotly.js bundle,
 because the report page loads Plotly.js exactly once — so a plugin
 cannot get the embedding wrong.  Expected missing data is a status;
 plugin *bugs* are exceptions, which the report builder collects into
-the diagnostics section (the builder is a planned milestone).
+the diagnostics section.
 
 The render context
 ------------------

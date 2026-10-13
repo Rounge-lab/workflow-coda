@@ -42,3 +42,8 @@ components, and renders a portable static HTML report.
    api/components
    api/plugins
    api/registry
+   api/layout
+   api/layout_loader
+   api/builder
+   api/report
+   api/assets

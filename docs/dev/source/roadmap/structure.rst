@@ -97,9 +97,6 @@ Implemented for the manifest and artifact-store foundation:
 * Checksum verification over the exact bytes that are parsed.
 * Artifact loading for TSV and JSON, including malformed input.
 * Error wrapping: every failure surfaces as a typed ``WorkflowCodaError``.
-
-Planned alongside later milestones:
-
 * Plugin behavior with complete, absent, empty, and malformed artifacts.
 * Artifact schema validation for each artifact type a plugin consumes.
 * Component registry duplicate-ID detection.
@@ -122,3 +119,15 @@ Planned alongside later milestones:
 * Registry behavior: namespace assembly, ``find``/``require`` lookup,
   schema-version gating, and entry-point loading through real
   ``importlib.metadata`` entry points against a fixture plugin module.
+* Layout model: every authoring rule as shape validation against
+  payload dictionaries — visible-text gates, id shape, unknown keys,
+  enum coercion, the missing policy's default and override, frozen
+  semantics, empty-section rejection.
+* Layout loader: real YAML files exercising every failure family, with
+  the teaching messages pinned — including the boolean-trap
+  explanation and duplicate-key rejection with line numbers.
+* Report builder: placement resolution and the missing policy across
+  all three resolution cases, plugin-bug capture (with control-flow
+  exceptions passing through), and declared-then-strict theme and
+  asset loading; plus document-model guards for the entry, asset, and
+  diagnostic contracts.

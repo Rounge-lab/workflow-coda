@@ -4,7 +4,11 @@ import pytest
 from factories import make_component, make_metadata, noop_render
 from helpers import assert_frozen_dataclass
 
-from workflow_coda.components import ComponentStatus, RenderedComponent
+from workflow_coda.components import (
+    ComponentStatus,
+    RenderedComponent,
+    has_visible_text,
+)
 
 
 class FakeFigure:
@@ -267,3 +271,20 @@ def test_metadata_is_frozen_and_hashable() -> None:
 def test_metadata_rejects_new_attributes() -> None:
     with pytest.raises(AttributeError):
         make_metadata().extra = "nope"  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("", False),
+        ("   ", False),
+        ("\t\n ", False),
+        ("x", True),
+        ("  provenance  ", True),
+        ("0", True),
+    ],
+)
+def test_has_visible_text(text: str, expected: bool) -> None:
+    # The shared predicate behind both the component gates and the
+    # layout model's VisibleText validator.
+    assert has_visible_text(text) is expected
