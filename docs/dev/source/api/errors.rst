@@ -30,3 +30,8 @@ Plugin family
 .. autoclass:: workflow_coda.errors.PluginLoadError
 .. autoclass:: workflow_coda.errors.PluginConflictError
 .. autoclass:: workflow_coda.errors.ComponentUnavailableError
+
+Layout family
+--------------
+
+.. autoclass:: workflow_coda.errors.LayoutError
