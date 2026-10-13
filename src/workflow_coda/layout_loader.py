@@ -41,7 +41,7 @@ _MISSING = object()
 """Sentinel for a location that does not resolve into the parsed document."""
 
 
-class _DuplicateKeyError(Exception):
+class _DuplicateKeyError(yaml.YAMLError):
     """Internal: a duplicate mapping key, with its 1-based line number."""
 
     def __init__(self, key: object, line: int) -> None:
@@ -50,12 +50,13 @@ class _DuplicateKeyError(Exception):
         self.line = line
 
 
-class _LayoutSafeLoader(yaml.SafeLoader):
+class UniqueKeySafeLoader(yaml.SafeLoader):
     """``SafeLoader`` that rejects duplicate mapping keys.
 
-    See the module docstring: YAML's silent last-wins resolution is a
-    trap for a hand-authored file, so a duplicate becomes an error
-    naming the key and line.
+    The shared YAML machinery for the framework's human-authored files:
+    the layout file and the theme files it declares.  YAML's silent
+    last-wins resolution is a trap for a hand-authored file, so a
+    duplicate becomes an error naming the key and line.
     """
 
     def construct_mapping(
@@ -155,7 +156,7 @@ def load_layout(path: Path) -> ReportLayout:
             f"cannot read the layout file {path}: {e.strerror or e}"
         ) from e
     try:
-        parsed = yaml.load(text, Loader=_LayoutSafeLoader)
+        parsed = yaml.load(text, Loader=UniqueKeySafeLoader)
     except _DuplicateKeyError as e:
         raise LayoutError(
             f"{path}: duplicate key {e.key!r} on line {e.line} — YAML "

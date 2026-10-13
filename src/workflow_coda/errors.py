@@ -107,4 +107,8 @@ class LayoutError(WorkflowCodaError):
     A single class, like :class:`ManifestError`: every instance has the
     same correction clock (fix the file), so nothing downstream needs
     to distinguish the failure kinds.
+
+    The report builder raises the same error when a theme file or image
+    asset *declared* in a valid layout cannot be loaded at build time:
+    same correction clock — fix the file, then build again.
     """
