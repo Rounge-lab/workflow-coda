@@ -1,491 +1,296 @@
-Declarative Layout Configuration
-================================
+Composing reports
+=================
 
-The report layout should be represented in ``YAML``. The layout controls
-composition while plugins control component content.
+A pipeline run produces a *manifest*: machine-written data
+describing what happened — which artifacts were produced, which
+passed or failed.  A report is composed from that data by a
+*layout*: a small, human-authored YAML file declaring what the
+report shows — its title and branding, and an ordered list of
+sections, each placing the components that appear in it.  The
+manifest is written by the pipeline; the layout is written by you.
 
-Interactive report behavior is controlled through report state. Report state is
-a collection of named variables that can be changed by the user in the static
-HTML report. Components may optionally bind one or more parameters to those
-variables.
+The layout is the framework's most human-facing input, and its
+design rules follow from that.  Everything is declared in plain
+words.  Every mistake produces an error naming the file, the spot
+inside it, and the fix.  And nothing you wrote is silently
+reinterpreted.
 
-For example:
+This page covers authoring the layout file and building a report
+from it.  The Plugins page describes how components come to exist;
+this page describes how you place them.
 
-* A ``sample_id`` state variable can drive sample-specific quality and taxonomy plots.
-* A ``votu_id`` state variable can drive vOTU-specific annotation views.
-* A ``taxonomy_rank`` state variable can drive a taxonomic aggregation plot.
-
-Components without state bindings are global components. For example, cohort
-KPIs and a cohort ordination may remain unchanged when a user selects a sample.
-
-State is intentionally generic. The reporting system should not reserve special
-semantics for ``sample_id`` or ``votu_id`` beyond their use as conventional,
-well-documented state variable names.
-
-Example layout:
-
-.. code-block:: yaml
-
-   version: 1
-
-   report:
-     title: Viral Identification Pipeline Report
-
-    state:
-    variables:
-      - id: sample_id
-        label: Sample
-        type: select
-        source:
-          type: manifest_samples
-        default: first
-
-      - id: votu_id
-        label: vOTU
-        type: select
-        source:
-          type: artifact_column
-          artifact: virmake.votu_catalog
-          column: votu_id
-        default: first
-
-    tabs:
-      - id: overview
-      title: Cohort Overview
-      layout:
-        type: row
-        class: layout-flex overview
-        children:
-          - type: component
-            ref: overview.kpis
-
-          - type: component
-            ref: ordination.bray_curtis
-            on_missing: hide
-
-    - id: samples
-      title: Samples
-      layout:
-        type: grid
-        columns: 2
-        gap: medium
-        type: stack
-        children:
-          - type: state_control
-            ref: sample_id
-          - type: grid
-            columns: 2
-            gap: medium
-            children:
-              - type: component
-                ref: checkv.summary
-                bind:
-                  sample_id: sample_id
-                on_missing: placeholder
-              - type: component
-                ref: taxonomy.relative_abundance
-                bind:
-                  sample_id: sample_id
-                on_missing: hide
-    - id: votu
-      title: vOTUs
-      layout:
-        type: stack
-        children:
-          - type: state_control
-            ref: votu_id
-          - type: component
-            ref: checkv.summary
-            on_missing: placeholder
-          - type: component
-            ref: taxonomy.relative_abundance
-            ref: annotation.genome_summary
-            bind:
-              votu_id: votu_id
-            on_missing: hide
-
-Layout configuration enables report rearrangement without modifying a central
-template. State controls can likewise be moved, repeated, or grouped through
-configuration.
-
-For example, moving CheckV to the overview page is a configuration-only change.
-
-.. code-block:: yaml
-
-   - id: overview
-     title: Cohort Overview
-     layout:
-       type: grid
-       columns: 2
-       children:
-         - type: component
-           ref: overview.kpis
-
-         - type: component
-           ref: ordination.bray_curtis
-
-         - type: component
-           ref: checkv.summary
-           bind:
-             sample_id: sample_id
-
-
-State Variables
+The layout file
 ---------------
 
-A state variable has:
-
-``id``
-    A stable machine-readable identifier. Examples include ``sample_id``,
-    ``votu_id``, ``taxonomy_rank``, and ``checkv_quality_category``.
-
-``label``
-    Human-readable text displayed beside the control.
-
-``type``
-    The control and value type. The initial implementation should support
-    ``select`` and ``multi_select``.
-
-``source``
-    The source from which valid selectable values are obtained.
-
-``default``
-    The initial selected value or selection policy.
-
-The initial supported state-value sources should be:
-
-``manifest_samples``
-    Populate values from the manifest sample collection.
-
-``artifact_column``
-    Populate unique values from a declared column in a normalized report
-    artifact.
-
-``static``
-    Use values explicitly provided in the layout configuration.
-
-
-Example ``static`` state variable:
+A complete layout:
 
 .. code-block:: yaml
 
-   id: taxonomy_rank
-   label: Taxonomic rank
-   type: select
-   source:
-     type: static
-     values:
-       - realm
-       - kingdom
-       - phylum
-       - class
-       - order
-       - family
-       - genus
-   default: family
+   schema_version: "0.1.0"
+   title: Metagenomic analysis — run ABC123
+   subtitle: Sequencing depth and taxonomic composition
+   theme: themes/ntnu.yaml
+   logo: assets/ntnu_logo.png
+   favicon: assets/favicon.ico
+   on_missing: notice
 
+   sections:
+     - title: Quality control
+       components:
+         - id: example_bio.qc
+           parameters:
+             min_depth: 10
+             show_legend: true
+     - title: Taxonomy
+       components:
+         - id: virmake.abundance
+           parameters:
+             min_abundance: 0.01
 
-State controls update report state in the browser. The report JavaScript emits
-a ``report:state-change`` event whenever a state variable changes. Components
-bound to that variable subscribe to the event and update their displayed data.
-
-The URL may optionally be synchronized with state using query parameters or a
-URL fragment. This allows a selected state to be bookmarked or shared:
-
-.. code-block:: text
-
-    virmake_report.html?sample_id=ERR2867948&votu_id=vOTU_001
-
-Component State Bindings
-------------------------
-
-A component node may bind component parameters to report-state variables.
+Only ``schema_version``, ``title``, and ``sections`` are required.
+The minimal report:
 
 .. code-block:: yaml
 
-   type: component
-   ref: checkv.summary
-   bind:
-     sample_id: sample_id
-   on_missing: placeholder
+   schema_version: "0.1.0"
+   title: Metagenomic analysis
+   sections:
+     - title: Quality control
+       components:
+         - id: example_bio.qc
 
-The key in bind is a parameter exposed by the component. The value is the
-ID of a report-state variable.
+The file is conventionally named ``report_layout.yaml`` and lives
+next to the theme and images it references; any path works.
 
-A component can bind multiple parameters:
+The fields:
+
+``schema_version``
+   The layout contract's own version — currently ``"0.1.0"``.
+   This is a different axis from the manifest's schema version,
+   which gates plugins; the two are never compared.
+
+``title``, ``subtitle``
+   The report's title and optional one-line subtitle.  Both must
+   contain visible text — a whitespace-only value here is always an
+   authoring mistake.
+
+``theme``
+   Optional path to a theme file, relative to the layout file.
+   Omitted, the report renders with the built-in default theme and
+   the diagnostics explain how to declare one.  Declared, the file
+   must load — see `Theme and branding`_.
+
+``logo``, ``favicon``
+   Optional paths to images, relative to the layout file, embedded
+   into the report.  Same declared-or-diagnostic rule as the theme.
+
+``on_missing``
+   What happens when a placement names a component no loaded
+   plugin supports for this manifest.  One of ``fail``, ``notice``
+   or ``skip``; the default is ``fail``.  See
+   `When a component is missing`_.
+
+Sections and placements
+-----------------------
+
+A report is an ordered list of sections; each section is a title
+plus an ordered list of *placements*.  A placement names one
+component by its globally unique id — ``example_bio.qc`` is the
+``qc`` component of the ``example_bio`` plugin — with two optional
+fields:
+
+``parameters``
+   Values handed to the component's render call; see
+   `Parameters: transport, not interpretation`_.
+
+``on_missing``
+   Per-placement override of the layout-level policy.
+
+A placement is an *instance*, not a reference: the same component
+may be placed twice, in the same or different sections, each time
+with its own parameters — one component with two parameterizations
+is a feature, not a conflict.
+
+A section must list at least one component.  To remove a section
+temporarily, comment out the whole block, title line included:
 
 .. code-block:: yaml
 
-   type: component
-   ref: abundance.sample_votu_profile
-   bind:
-     sample_id: sample_id
-     votu_id: votu_id
-   on_missing: hide
+   #  - title: Quality control
+   #    components:
+   #      - id: example_bio.qc
 
-Bindings are declared in layout because they describe page composition and user
-interaction. Plugin metadata declares which parameters a component supports.
+Parameters: transport, not interpretation
+------------------------------------------
 
-For example:
+Parameters travel to the component's render call *exactly as
+written*:
+
+.. code-block:: yaml
+
+   - id: example_bio.qc
+     parameters:
+       min_depth: 10
+       show_legend: true
+       min_abundance: 0.01
+
+``10`` stays an integer, ``true`` stays a boolean, ``0.01`` stays
+a float.  The framework interprets none of the keys; each plugin
+reads and validates the keys it cares about.  A boolean parameter
+like ``show_legend: true`` is correct YAML and arrives as a
+boolean.
+
+Because parameters travel as *JSON-compatible* values, YAML's
+richer types are rejected with an error naming the field — write
+a date as text and let the plugin parse it:
+
+.. code-block:: yaml
+
+   - id: example_bio.qc
+     parameters:
+       cutoff_date: "2026-10-12"   # text; the plugin parses it
+
+YAML notes for authors
+----------------------
+
+Comments start with ``#`` and work everywhere.  Two traps are
+worth knowing; the loader catches both with an explanation:
+
+* **Bare ``no``, ``yes``, ``on``, ``off``, ``true``, ``false`` are
+  booleans in YAML** — ``title: no`` is the boolean ``False``, not
+  the word "no".  Quote the word to make it text: ``title: "no"``.
+  When a boolean lands where text was expected, the error shows
+  the quoting rule with an example.
+* **Duplicate keys are rejected.**  Plain YAML keeps only the last
+  occurrence without an error — a block pasted twice would
+  silently swallow half your report.  The loader refuses the
+  file, naming the key and its line.
+
+When a component is missing
+---------------------------
+
+A placement names a component; whether it resolves depends on the
+installed plugins *and* the manifest — plugins declare the
+manifest schema versions they support, and only supporting plugins
+render.  The ``on_missing`` policy decides what an unresolvable
+placement does:
+
+``fail``
+   The build fails with an explanation.  The default, because an
+   unknown id in a layout you just wrote is an authoring bug — and
+   the error teaches: it lists the component ids that *are*
+   available.
+``notice``
+   The report builds without the component; the diagnostics
+   section records which component was omitted and why.  The
+   shared-layout scenario: one layout serving runs whose installed
+   plugins vary.
+``skip``
+   The component is omitted silently.
+
+The layout-level ``on_missing`` is the default; a placement's own
+``on_missing`` overrides it:
+
+.. code-block:: yaml
+
+   sections:
+     - title: Optional extras
+       components:
+         - id: example_bio.provenance
+           on_missing: skip
+
+The explanation distinguishes the two ways a component can be
+unresolvable.  An unknown id lists what is available.  An id whose
+plugin exists but supports only older manifest schema versions
+names the plugin and both sides' versions — so "the plugin needs
+an update" and "the layout has a typo" are told apart.
+
+Theme and branding
+------------------
+
+``theme``, ``logo`` and ``favicon`` follow one rule: **declared,
+then strict**.  Omitted, the report renders with the built-in
+default theme and no logo or favicon, and the diagnostics explain
+how to declare each.  Declared, the build fails — with an error
+naming the file and the fix — unless it loads:
+
+* the theme file must be readable, valid YAML with unique keys,
+  and a valid theme (a mapping of theme tokens; see the theming
+  documentation);
+* the logo and favicon must exist next to the layout file, have a
+  supported image extension — ``png``, ``jpg``, ``jpeg``, ``gif``,
+  ``svg``, ``ico`` or ``webp`` — and actually be that image type
+  (checked by file signature, not by extension alone).
+
+Assets are embedded into the report as data URIs at build time.
+The finished report is one self-contained HTML file; it references
+no files that only the build machine could resolve.
+
+Building a report
+-----------------
+
+Building is one call — the manifest's artifact store, the layout
+file, and the installed plugins:
 
 .. code-block:: python
 
-   ReportComponent(
-      id="checkv.summary",
-      title="CheckV genome quality summary",
-      kind="plot",
-      html=initial_html,
-      parameters={
-          "sample_id": ComponentParameter(
-              type="select",
-              required=False,
-          ),
-      },
-   )
-
-
-A layout validator must reject a binding when:
-
-* The referenced state variable does not exist.
-* The component does not expose the bound parameter.
-* The state-variable value type is incompatible with the component parameter.
-
-Component Update Strategies
----------------------------
-
-A component may be static or reactive.
-
-``static``
-    The component does not depend on report state. It is rendered once during
-    report generation and has no client-side update behavior.
-
-``reactive``
-    The component depends on one or more state variables and updates when its
-    bound state changes.
-
-The first implementation should support two reactive strategies:
-
-``client_filter``
-    The report embeds a compact, normalized data payload. Browser JavaScript
-    filters or aggregates that payload, then updates the component. This is
-    appropriate for tables, KPIs, and moderate-sized Plotly datasets.
-
-``precomputed_views``
-    The report generator pre-renders a finite set of component views, indexed by
-    state values. Browser JavaScript swaps the currently visible view. This is
-    appropriate when the plotting logic is difficult to reproduce in JavaScript
-    but the number of possible views is small.
-
-For example, a CheckV component may include Plotly traces for all samples and
-use Plotly.react to display the trace subset for the selected ``sample_id``.
-A vOTU annotation component may instead include one pre-rendered panel per vOTU
-when the number of vOTUs is small.
-
-Large all-by-all combinations must not be pre-rendered. If a report has SS
-samples and VV vOTUs, pre-rendering every sample-by-vOTU view has S×V
-views and will quickly create impractically large HTML files.
-
-Plugins should choose the smallest practical update strategy. The plugin
-interface should hide this implementation detail from the layout system.
-
-
-Layout Primitive Vocabulary
----------------------------
-
-The first implementation should support a small, explicit layout vocabulary.
-
-``component``
-   Reference a component registered by a plugin.
-
-``state_control``
-   Render a selector or other input control for a declared report-state
-   variable.
-
-``stack``
-   Render children vertically.
-
-``row``
-   Render children horizontally using flexbox or CSS grid.
-
-``grid``
-   Render children in a configurable CSS grid.
-
-``group``
-   Render a titled and optionally described group.
-
-``tabs``
-   Render a tabbed group. Top-level tabs may initially be handled separately.
-
-``notice``
-   Render a static informational, warning, or error message.
-
-``markdown``
-   Render trusted static markdown content.
-
-``conditional``
-   Render children only when a supported condition is true.
-
-``divider``
-   Render a visual separator.
-
-Avoid using layout configuration as an arbitrary HTML abstraction. The layout DSL
-should remain small, documented, validated, and styleable.
-
-Missing Component Behavior
---------------------------
-
-A component reference may be unresolved because:
-
-* The corresponding analysis was not run.
-* A required artifact was missing.
-* A plugin was disabled.
-* The plugin is not installed.
-* The component was renamed.
-* The component has no data for the currently selected state.
-
-
-The layout should explicitly state the desired behavior.
-
-.. code-block:: yaml
-
-   - type: component
-     ref: checkv.summary
-     on_missing: placeholder
-
-Supported policies should include:
-
-``hide``
-   Do not render the component or its empty container.
-
-``placeholder``
-   Render an informative unavailable-state card.
-
-``warning``
-   Hide the component but record a warning in a report-level diagnostics area.
-
-``error``
-   Fail report generation because this component is required for the selected
-   layout.
-
-``on_missing`` applies to report-build-time component availability. For example,
-it applies when CheckV was not run and the checkv.summary component cannot
-be built.
-
-A component that is available at build time but has no data for a particular
-current state must normally render its own empty-state message. For example:
-
-.. code-block:: text
-
-    No CheckV-quality records are available for sample ERR2867948.
-
-This distinction prevents the layout tree from changing unexpectedly whenever a
-user changes a selector.
-
-Conditional Layout
-------------------
-
-Conditional layout support should be intentionally constrained.
-
-Recommended supported conditions:
-
-.. code-block:: yaml
-
-   - type: conditional
-     when:
-       component_available: ordination.bray_curtis
-     children:
-       - type: component
-         ref: ordination.bray_curtis
-
-.. code-block:: yaml
-
-   - type: conditional
-     when:
-       state_defined: sample_id
-     children:
-       - type: component
-         ref: overview.kpis
-       - type: state_control
-         ref: sample_id
-
-.. code-block:: yaml
-
-   - type: conditional
-     when:
-       artifact_available: virmake.relative_abundance
-     children:
-       - type: component
-         ref: taxonomy.relative_abundance
-
-Do not allow arbitrary Python expressions in configuration.
-
-Avoid configurations such as:
-
-.. code-block:: yaml
-
-   # Unsupported and unsafe.
-   when: "len(samples) > 2 and config['enable_ordination']"
-
-Layout Validation
------------------
-
-Layout validation should occur in two stages.
-
-Static validation
-^^^^^^^^^^^^^^^^^
-
-Static validation verifies configuration syntax and structural validity.
-
-Examples:
-
-* All tabs have unique IDs.
-* Supported node types are used.
-* A grid has at least one column.
-* A component node contains a ``ref``.
-* A group has a title.
-* An ``on_missing`` policy is valid.
-* A state variable has a unique id.
-* A ``state_control`` node references a declared state variable.
-* A component bind mapping has valid key-value structure.
-
-Runtime validation
-^^^^^^^^^^^^^^^^^^
-
-Runtime validation occurs after plugins have registered their components.
-
-Examples:
-
-* Detect references to unknown component IDs.
-* Detect components unavailable due to absent artifacts.
-* Detect duplicate component IDs.
-* Detect references to state variables unavailable because their source artifact
-
-Example diagnostic:
-
-.. code-block:: text
-
-   Warning: Layout references unknown component:
-     functional.kegg_summary
-
-   Available components:
-     - annotation.genome_summary
-     - checkv.summary
-     - overview.kpis
-     - ordination.bray_curtis
-     - taxonomy.relative_abundance
-
-The severity should be configurable.
-
-.. code-block:: yaml
-
-   settings:
-     unknown_component: warning
-     unavailable_component: hide
-
-For stricter production or CI environments:
-
-.. code-block:: yaml
-
-   settings:
-     unknown_component: error
-     unavailable_component: error
+   from pathlib import Path
+
+   from workflow_coda.artifact_store import ArtifactStore
+   from workflow_coda.builder import build_report
+
+   store = ArtifactStore.from_manifest_file("artifacts/report_manifest.json")
+   document = build_report(Path("report_layout.yaml"), store)
+
+The build:
+
+1. loads and validates the layout file;
+2. loads the installed plugins and gates them by the manifest's
+   schema version;
+3. loads the theme and embeds the declared assets;
+4. resolves every placement, applying the missing policy;
+5. renders each resolved component — the plugin's render call,
+   with the report's render context (the artifact store and the
+   theme) and the placement's parameters;
+6. assembles the result into a *report document*: the complete,
+   resolved content of the report.
+
+What can fail, and whose fix it is:
+
+* ``LayoutError`` — the layout file, the theme file it declares,
+  or a declared asset is unreadable or invalid.  An authoring
+  failure: fix the file, build again.
+* ``PluginLoadError`` / ``PluginConflictError`` — the installed
+  plugin environment is broken.  A plugin's problem, not the
+  layout's.
+* ``ComponentUnavailableError`` — the ``fail`` policy met an
+  unresolvable placement; the message explains, as above.
+* **A plugin bug never fails the build.**  A render call that
+  raises is caught, recorded as a failed entry in place — the
+  section shows where the component would have been — and the
+  details go to diagnostics.
+
+The document's diagnostics carry two groups of entries.
+*Informational*: the report is complete and the entry explains
+what was left out (default theme, no logo, no favicon).
+*Problems*: an excluded plugin, an omitted component under the
+``notice`` policy, or a plugin bug.  Sections whose placements all
+resolved away are dropped — an empty titled header would look
+broken, and the diagnostics already explain the absences.
+
+The document itself holds everything, resolved: the theme, the
+embedded assets, the manifest (for the provenance footer), and
+the sections with each component's render outcome or failure.  It
+holds no paths and no plugin references — nothing that only the
+build machine could resolve.
+
+Testing a layout
+----------------
+
+Layout validation is pure data, so it tests cheaply.  Constructing
+the layout models from payload dictionaries exercises every shape
+rule; loader tests write real YAML files and pin the teaching
+messages; and ``build_report`` accepts a fixed registry, so a
+build test needs no installed plugins — construct plugins in the
+test and inject them.  The framework's own suite works exactly
+this way.
