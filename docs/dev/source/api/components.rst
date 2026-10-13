@@ -5,8 +5,6 @@ Components
 
 .. autodata:: workflow_coda.components.COMPONENT_ID_PATTERN
 
-.. autofunction:: workflow_coda.components.has_visible_text
-
 .. autoclass:: workflow_coda.components.ComponentStatus
    :members:
    :undoc-members:

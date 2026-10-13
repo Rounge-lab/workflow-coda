@@ -32,8 +32,9 @@ were rendered.
 from dataclasses import dataclass
 from enum import Enum
 
-from .components import RenderedComponent, has_visible_text
+from .components import RenderedComponent
 from .manifest import ReportManifest
+from .text import has_visible_text
 from .theme import Theme
 
 

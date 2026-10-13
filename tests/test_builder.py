@@ -644,3 +644,16 @@ def test_the_layout_toc_flag_carries_to_the_document(tmp_path: Path) -> None:
     off_path = write_layout(tmp_path, toc=False, sections=[qc_section("run A")])
     document = build(tmp_path, off_path, current_plugin())
     assert document.toc is False
+
+
+def test_theme_fonts_flow_to_the_document(tmp_path: Path) -> None:
+    payload = DEFAULT_THEME.model_dump()
+    payload["font_heading"] = "Georgia, serif"
+    (tmp_path / "custom_theme.yaml").write_text(
+        yaml.safe_dump(payload), encoding="utf-8"
+    )
+    layout_path = write_layout(
+        tmp_path, theme="custom_theme.yaml", sections=[qc_section("run A")]
+    )
+    document = build(tmp_path, layout_path, current_plugin())
+    assert document.theme.font_heading == "Georgia, serif"

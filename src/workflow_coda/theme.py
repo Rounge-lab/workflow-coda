@@ -17,6 +17,7 @@ theme restyles any plugin's output.
 from typing import Annotated, Final
 
 from pydantic import (
+    AfterValidator,
     BaseModel,
     ConfigDict,
     Field,
@@ -25,6 +26,26 @@ from pydantic import (
 )
 
 from .manifest import NonEmptyStr
+from .text import has_visible_text
+
+
+def _require_font_stack(value: str) -> str:
+    """Font tokens name families; they never fetch files."""
+    if not has_visible_text(value):
+        raise ValueError("must contain visible text, not only whitespace")
+    if "url(" in value.lower():
+        raise ValueError(
+            "font tokens must be CSS font-family names, not fetched "
+            "files — reports are self-contained and fetch no fonts; "
+            "a custom font must be installed or embedded"
+        )
+    return value
+
+
+FontStack = Annotated[str, AfterValidator(_require_font_stack)]
+"""A CSS ``font-family`` list: family names and fallbacks, never a
+fetched file — reports render with the fonts the reading machine has
+installed."""
 
 type ColorHex = Annotated[
     str, StringConstraints(strict=True, pattern=r"^#[0-9a-fA-F]{6}$")
@@ -74,6 +95,19 @@ class Theme(BaseModel):
 
     series: tuple[ColorHex, ...] = Field(min_length=2)
     """Ordered categorical palette for plots and repeated-color contexts."""
+
+    font_body: FontStack = (
+        'system-ui, -apple-system, "Segoe UI", Roboto, '
+        '"Helvetica Neue", Arial, sans-serif'
+    )
+    """The report body font, as a CSS ``font-family`` list.  The
+    default is the system font stack: the report fetches nothing."""
+
+    font_heading: FontStack = (
+        'system-ui, -apple-system, "Segoe UI", Roboto, '
+        '"Helvetica Neue", Arial, sans-serif'
+    )
+    """The heading font; defaults to the body stack."""
 
     @field_validator("colors")
     @classmethod

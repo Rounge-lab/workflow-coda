@@ -37,6 +37,7 @@ from typing import Final, Protocol, Self
 
 from .artifact_store import JsonValue
 from .context import RenderContext
+from .text import has_visible_text
 
 _PLUGIN_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z][a-z0-9_]*$")
 """Shape of a valid plugin id: lowercase snake_case."""
@@ -98,20 +99,6 @@ type ComponentRenderer = Callable[
 ]
 """A component's render callable: the report context and the component's
 layout parameters in, one typed outcome out."""
-
-
-def has_visible_text(text: str) -> bool:
-    """Whether *text* contains at least one non-whitespace character.
-
-    The shared predicate of the authoring-time strict-text rule: a
-    whitespace-only value is always an authoring mistake, whether it
-    lands in a plugin contract constructed in Python or a layout file
-    deserialized from YAML.  The component contracts apply it in their
-    ``__post_init__`` gates with contextual messages; the layout model
-    applies it through its ``VisibleText`` validator, where pydantic
-    supplies the field path.
-    """
-    return bool(text.strip())
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

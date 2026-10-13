@@ -38,7 +38,8 @@ from typing import Annotated, Literal
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 from .artifact_store import JsonValue
-from .components import COMPONENT_ID_PATTERN, has_visible_text
+from .components import COMPONENT_ID_PATTERN
+from .text import has_visible_text
 
 LayoutSchemaVersion = Literal["0.1.0"]
 """The layout contract's own version.
