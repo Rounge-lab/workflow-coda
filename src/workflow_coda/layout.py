@@ -157,6 +157,10 @@ class ReportLayout(BaseModel):
     subtitle: VisibleText | None = None
     """Optional one-line subtitle under the title."""
 
+    author: VisibleText | None = None
+    """Optional free-form author line shown in the report footer —
+    a person, a group, several names; whatever should be credited."""
+
     theme: VisibleText | None = None
     """Optional path to a theme file, relative to the layout file.
     Omitted means the built-in default theme."""

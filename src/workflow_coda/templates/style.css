@@ -1,0 +1,197 @@
+/*
+ * Framework chrome for generated reports.
+ *
+ * Every color and both fonts come from CSS custom properties in the
+ * ":root" block the renderer generates from the report's theme and
+ * emits above this file.  The framework owns this namespace: classes
+ * are coda-*, properties are --coda-*, so plugin-supplied html cannot
+ * collide with the chrome — and may use the custom properties
+ * (including --coda-series-N) to match the theme.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--coda-font-body);
+  background: var(--coda-bg);
+  color: var(--coda-text);
+  line-height: 1.6;
+}
+
+.coda-page {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 3rem;
+}
+
+/* --- Page header ---------------------------------------------------- */
+
+.coda-header {
+  border-bottom: 3px solid var(--coda-accent);
+  padding-bottom: 1rem;
+}
+
+.coda-logo {
+  max-height: 4rem;
+  max-width: 16rem;
+}
+
+.coda-header h1 {
+  font-family: var(--coda-font-heading);
+  font-size: 2rem;
+  line-height: 1.25;
+  margin: 0.75rem 0 0;
+}
+
+.coda-subtitle {
+  color: var(--coda-muted);
+  font-size: 1.1rem;
+  margin: 0.25rem 0 0;
+}
+
+/* --- Table of contents ---------------------------------------------- */
+
+.coda-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--coda-border);
+}
+
+.coda-toc a {
+  color: var(--coda-accent);
+  text-decoration: none;
+}
+
+.coda-toc a:hover,
+.coda-toc a:focus {
+  text-decoration: underline;
+}
+
+/* --- Sections and cards ---------------------------------------------- */
+
+.coda-section {
+  margin-top: 2.5rem;
+}
+
+.coda-section > h2,
+.coda-diagnostics > h2 {
+  font-family: var(--coda-font-heading);
+  font-size: 1.5rem;
+  border-bottom: 1px solid var(--coda-border);
+  padding-bottom: 0.25rem;
+  margin: 0 0 0.5rem;
+}
+
+.coda-card {
+  background: var(--coda-surface);
+  border: 1px solid var(--coda-border);
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin: 1rem 0;
+}
+
+.coda-card > h3 {
+  font-family: var(--coda-font-heading);
+  font-size: 1.1rem;
+  margin: 0 0 0.5rem;
+}
+
+/* Wide figures and tables stay inside the card. */
+.coda-card-body {
+  overflow-x: auto;
+}
+
+.coda-card-body > :first-child {
+  margin-top: 0;
+}
+
+.coda-card-body > :last-child {
+  margin-bottom: 0;
+}
+
+.coda-card--notice {
+  border-left: 4px solid var(--coda-warning);
+}
+
+.coda-card--failure {
+  border-left: 4px solid var(--coda-error);
+}
+
+.coda-card--notice > p,
+.coda-card--failure > p {
+  color: var(--coda-muted);
+  margin: 0;
+}
+
+/* --- Diagnostics ------------------------------------------------------ */
+
+.coda-diagnostics {
+  margin-top: 2.5rem;
+}
+
+.coda-diagnostics h3 {
+  font-family: var(--coda-font-heading);
+  font-size: 1rem;
+  color: var(--coda-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 1rem 0 0.25rem;
+}
+
+.coda-diagnostic {
+  margin: 0.35rem 0;
+}
+
+.coda-badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  border: 1px solid var(--coda-border);
+  border-radius: 4px;
+  padding: 0 0.4rem;
+  margin-right: 0.5rem;
+  color: var(--coda-muted);
+}
+
+/* Problems wear the error color; informational kinds keep the
+   default badge style. */
+.coda-badge--plugin_bug,
+.coda-badge--component_missing,
+.coda-badge--plugin_excluded {
+  color: var(--coda-error);
+  border-color: var(--coda-error);
+}
+
+/* --- Footer ------------------------------------------------------------ */
+
+.coda-footer {
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--coda-border);
+  color: var(--coda-muted);
+  font-size: 0.875rem;
+}
+
+.coda-author {
+  margin: 0 0 0.5rem;
+}
+
+.coda-provenance {
+  margin: 0 0 0.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.coda-provenance li {
+  margin: 0.1rem 0;
+}
+
+.coda-attribution {
+  margin: 0.75rem 0 0;
+}

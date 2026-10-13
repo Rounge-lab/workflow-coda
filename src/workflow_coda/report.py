@@ -216,6 +216,9 @@ class ReportDocument:
     subtitle: str | None
     """The optional subtitle, from the layout."""
 
+    author: str | None
+    """The optional author line, from the layout."""
+
     theme: Theme
     """The loaded theme the report is rendered with."""
 

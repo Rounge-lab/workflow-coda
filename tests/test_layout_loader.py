@@ -179,9 +179,9 @@ def test_non_json_parameter_names_the_field(tmp_path: Path) -> None:
 
 
 def test_unknown_top_level_key_rejected_through_file(tmp_path: Path) -> None:
-    text = MINIMAL_YAML + "author: me\n"
+    text = MINIMAL_YAML + "titel: Run report\n"
     with pytest.raises(
         LayoutError,
-        match=re.escape("author: Extra inputs are not permitted"),
+        match=re.escape("titel: Extra inputs are not permitted"),
     ):
         load_layout(write_layout(tmp_path, text))

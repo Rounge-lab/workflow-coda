@@ -74,6 +74,10 @@ The fields:
    contain visible text — a whitespace-only value here is always an
    authoring mistake.
 
+``author``
+   Optional free-form author line shown in the report footer — a
+   person, a group, several names; whatever should be credited.
+
 ``theme``
    Optional path to a theme file, relative to the layout file.
    Omitted, the report renders with the built-in default theme and

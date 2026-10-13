@@ -54,6 +54,7 @@ def make_document() -> ReportDocument:
     informational diagnostic."""
     return ReportDocument(
         title="Metagenomic analysis",
+        author=None,
         subtitle=None,
         theme=DEFAULT_THEME,
         logo=None,
@@ -340,3 +341,11 @@ def test_document_carries_the_toc_flag() -> None:
     without_toc = replace(document, toc=False)
     assert without_toc.toc is False
     assert without_toc != document
+
+
+def test_document_carries_the_author_line() -> None:
+    document = make_document()
+    assert document.author is None
+    authored = replace(document, author="The Genomics Group")
+    assert authored.author == "The Genomics Group"
+    assert authored != document

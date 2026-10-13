@@ -657,3 +657,11 @@ def test_theme_fonts_flow_to_the_document(tmp_path: Path) -> None:
     )
     document = build(tmp_path, layout_path, current_plugin())
     assert document.theme.font_heading == "Georgia, serif"
+
+
+def test_the_layout_author_carries_to_the_document(tmp_path: Path) -> None:
+    layout_path = write_layout(
+        tmp_path, author="The Genomics Group", sections=[qc_section("run A")]
+    )
+    document = build(tmp_path, layout_path, current_plugin())
+    assert document.author == "The Genomics Group"

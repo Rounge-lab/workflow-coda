@@ -294,6 +294,7 @@ def build_report(
     return ReportDocument(
         title=layout.title,
         subtitle=layout.subtitle,
+        author=layout.author,
         theme=theme,
         logo=logo,
         favicon=favicon,
