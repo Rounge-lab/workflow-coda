@@ -48,3 +48,4 @@ components, and renders a portable static HTML report.
    api/builder
    api/report
    api/assets
+   api/render

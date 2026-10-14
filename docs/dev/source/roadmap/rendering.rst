@@ -1,274 +1,130 @@
-Generic Jinja Rendering
-=======================
+The rendered report
+===================
 
-The base Jinja template should only render general report concepts:
+The last stage of the pipeline turns a report document into the
+deliverable: one HTML file, ready to open, archive, or attach — on
+any machine, with or without a network, with nothing else
+installed.  This page describes what that page contains and the
+promises it keeps.
 
-* HTML document structure.
-* Header and footer.
-* Tab navigation.
-* Shared assets.
-* A recursive layout tree.
+Rendering is a pure function of the document.  By the time the
+document exists, every decision has been made: plugins resolved and
+gated, components rendered, the theme loaded, assets embedded.  The
+renderer reads the document plus the framework's own chrome — the
+templates and stylesheet shipped with workflow-coda — and writes
+the page.  It consults no registry, reads no user files, and takes
+no options.
 
-It should not render analysis-specific variables directly.
-
-Avoid:
-
-.. code-block:: jinja
-
-   {{ checkv_plot | safe }}
-   {{ taxonomy_plot | safe }}
-   {{ genome_annotation_plot | safe }}
-
-Prefer:
-
-.. code-block:: jinja
-
-   {% for tab in tabs %}
-   <section
-       id="{{ tab.id }}-panel"
-       class="tab-panel {% if loop.first %}active{% endif %}"
-       role="tabpanel"
-       aria-labelledby="{{ tab.id }}-tab"
-       {% if not loop.first %}hidden{% endif %}
-   >
-       {{ layout.render_node(tab.layout) }}
-   </section>
-   {% endfor %}
-
-Recursive Layout Macro
+What the page contains
 ----------------------
 
-A generic Jinja macro can render configured layout nodes.
+The page is a single scrollable document, structured top to bottom:
 
-.. code-block:: jinja
+* a header bar carrying the brand: the logo (on a small plate in
+  the page's own color, so transparent logos stay readable on the
+  colored bar), the report title, the optional version and
+  subtitle, and — unless the layout turned the table of contents
+  off — one tab per section, plus the diagnostics;
+* the sections in layout order: each section is a heading followed
+  by the report's cards;
+* the diagnostics section, only when there are diagnostics:
+  problems first (in the theme's danger color), then informational
+  notes;
+* a footer with the author line when the layout declares one, the
+  provenance from the manifest, and the framework attribution.
 
-   {% macro render_node(node) %}
+Each component renders where it was placed, with an honest visual
+vocabulary.  A successful render is the component's own content in a
+card.  An unavailable component — its inputs missing, its
+explanation given by the plugin — renders as a notice.  A failed
+render, a plugin bug captured at build time, renders as a failure
+notice in place, so the section shows where the component would
+have been.  A skipped component renders nothing at all.
 
-       {% if node.type == "component" %}
-           <article
-               class="report-component report-component--{{ node.component.kind }}
-                      {{ node.class_name or '' }}"
-           >
-               {% if node.component.title %}
-               <header class="report-component__header">
-                   <h2>{{ node.component.title }}</h2>
-               </header>
-               {% endif %}
+Self-contained, genuinely
+-------------------------
 
-               <div class="report-component__content">
-                   {{ node.component.html | safe }}
-               </div>
-           </article>
+The finished file needs no network and no files from the build
+machine:
 
-       {% elif node.type == "stack" %}
-           <div class="layout-stack {{ node.class_name or '' }}">
-               {% for child in node.children %}
-                   {{ render_node(child) }}
-               {% endfor %}
-           </div>
+* the theme ships as CSS custom properties generated into the page,
+  and the framework stylesheet is inlined;
+* the logo and favicon are embedded as data URIs — already at build
+  time;
+* fonts are family lists rendered by whatever the reading machine
+  has installed: a theme can change what fonts the report asks for,
+  but a report never fetches a font;
+* when the document contains a figure, the Plotly.js library is
+  inlined into the page head, read from the installed ``plotly``
+  package — exactly one copy, no matter how many figures; a report
+  without figures carries no scripts at all.
 
-       {% elif node.type == "row" %}
-           <div class="layout-row {{ node.class_name or '' }}">
-               {% for child in node.children %}
-                   {{ render_node(child) }}
-               {% endfor %}
-           </div>
+Every link inside the page is either embedded data or an in-page
+fragment: there is nothing external to load, and nowhere for the
+page to fail on a machine without network access.  The framework's
+own suite enforces this as an invariant over a worst-case page: a
+generated report with figures, assets, tabs and diagnostics must
+reference nothing outside itself.
 
-       {% elif node.type == "grid" %}
-           <div
-               class="layout-grid {{ node.class_name or '' }}"
-               style="--grid-columns: {{ node.columns }};"
-           >
-               {% for child in node.children %}
-                   {{ render_node(child) }}
-               {% endfor %}
-           </div>
+Theming the page
+----------------
 
-       {% elif node.type == "group" %}
-           <section class="report-group">
-               <header class="report-group__header">
-                   <h2>{{ node.title }}</h2>
+Every theme color token becomes one CSS custom property —
+``--coda-background``, ``--coda-surface``, ``--coda-text``, and so
+on — including any additional tokens a theme declares beyond the
+core set.  The categorical palette becomes ``--coda-series-1`` …
+``--coda-series-N``, and the font stacks become ``--coda-font-body``
+and ``--coda-font-heading``.  The framework owns this namespace:
+its classes are ``coda-*`` and its properties ``--coda-*``, so
+plugin content cannot collide with the chrome.  Plugins may use the
+custom properties in their own html — including the series palette
+— so figures and tables can match the theme.
 
-                   {% if node.description %}
-                   <p>{{ node.description }}</p>
-                   {% endif %}
-               </header>
+Figures and accessibility
+--------------------------
 
-               {% for child in node.children %}
-                   {{ render_node(child) }}
-               {% endfor %}
-           </section>
+A figure embedded through ``from_figure`` is a bare plot div wrapped
+in the framework's figure marker, and it self-activates against the
+single Plotly.js load in the page head.  When the plugin gave the
+figure a description, the wrapper carries it as an accessibility
+label — ``role="img"`` with an ``aria-label`` — and assistive
+technology announces the description instead of the plot's
+graphics, which screen readers cannot use.  The label is the text
+alternative the framework requires of its own components; see the
+Plugins page for how to write one.  It is separate from, and
+additional to, any visible caption the plot itself carries.
 
-       {% endif %}
+Provenance and attribution
+--------------------------
 
-   {% endmacro %}
+The footer records what the manifest recorded: the producing
+workflow and its version, the workflow module and run identifiers
+when the manifest declares them, the manifest's schema version, and
+how many of the declared artifacts completed the pipeline.  Below
+it, the attribution line states that the report was generated by
+workflow-coda.  The footer carries no links — the
+self-containment promise binds the framework's own footer too.
 
-Component Rendering
--------------------
+Rendering a document
+--------------------
 
-There are two supported strategies for component content.
-
-Pre-rendered HTML
-^^^^^^^^^^^^^^^^^
-
-A plugin returns trusted HTML:
-
-.. code-block:: python
-
-   ReportComponent(
-       id="ordination.bray_curtis",
-       title="Bray-Curtis sample ordination",
-       kind="plot",
-       html=figure.to_html(
-           full_html=False,
-           include_plotlyjs=False,
-           config={"responsive": True},
-       ),
-   )
-
-This is suitable for Plotly-generated fragments and internal trusted templates.
-
-Template plus context
-^^^^^^^^^^^^^^^^^^^^^
-
-A plugin returns a component template path and a context dictionary.
+Rendering is one call returning the complete page as text; the
+caller writes it wherever it goes:
 
 .. code-block:: python
 
-   @dataclass
-   class ReportComponent:
-       id: str
-       title: str | None
-       kind: str
-       template: str
-       context: dict[str, Any]
-       available: bool = True
+   from pathlib import Path
 
-Example:
+   from workflow_coda.render import render_report
 
-.. code-block:: python
+   page = render_report(document)
+   Path("report.html").write_text(page, encoding="utf-8")
 
-   ReportComponent(
-       id="overview.kpis",
-       title=None,
-       kind="kpi_grid",
-       template="components/kpi_grid.html.jinja",
-       context={"kpis": kpis},
-   )
+See :doc:`../roadmap/layout` for the full pipeline from manifest to finished
+file.
 
-The report builder renders this component through a trusted Jinja environment
-before inserting it into the generic layout.
-
-The template-plus-context approach is preferred for reusable non-Plotly report
-components such as KPI grids, tables, notices, and metadata blocks.
-
-
-Theming
--------
-
-Reports are themed through *design tokens*: a small, validated set of
-semantic color values that is the single source of truth for every
-visual element of a report — page CSS, plugin-generated figures, and
-report JavaScript.  All colors are decided at report build time: the
-generated HTML is deterministic, and theming is testable in Python
-without a browser.
-
-A theme consists of:
-
-* ``name``: the theme's human-readable name.
-* ``colors``: a mapping of semantic tokens to ``#rrggbb`` colors.  Every
-  theme must provide the core tokens:
-
-  ``background``, ``surface``, ``text``, ``muted``, ``border``,
-  ``primary``, ``accent``, ``success``, ``warning``, ``danger``
-
-  Themes may declare additional tokens beyond the core set.
-* ``series``: an ordered categorical palette of at least two colors, for
-  plots and other repeated-color contexts.
-
-Tokens are lowercase kebab-case words.  The theme model is strict and
-frozen, like the manifest models: unknown structure and malformed colors
-fail validation, and a theme file that fails validation surfaces as a
-typed framework error at build time rather than a silently degraded
-report.  Typography, spacing, and layout are not theme tokens; they
-remain the responsibility of ``report.css``.
-
-Example theme file:
-
-.. code-block:: yaml
-
-   name: default
-   colors:
-     background: "#ffffff"
-     surface: "#f5f7fa"
-     text: "#212529"
-     muted: "#6c757d"
-     border: "#dee2e6"
-     primary: "#0d6efd"
-     accent: "#6610f2"
-     success: "#198754"
-     warning: "#ffc107"
-     danger: "#dc3545"
-   series:
-     - "#0d6efd"
-     - "#d63384"
-     - "#fd7e14"
-     - "#20c997"
-     - "#6610f2"
-
-The theme is injected at two places, both at build time:
-
-1. **CSS.**  The report template emits the theme as CSS custom properties
-   in a single ``:root`` block.  Token ``x`` becomes ``--wc-x``; the
-   series palette becomes ``--wc-series-1``, ``--wc-series-2``, ... with
-   as many variables as the palette has colors.  The ``--wc-`` prefix
-   avoids collisions with properties contributed by plugins or the
-   hosting page.
-
-   .. code-block:: css
-
-      :root {
-        --wc-background: #ffffff;
-        --wc-surface: #f5f7fa;
-        /* ... */
-        --wc-series-1: #0d6efd;
-        --wc-series-2: #d63384;
-      }
-
-   ``report.css`` references these custom properties exclusively and
-   contains no color literals.  Swapping a theme therefore restyles the
-   entire report without any CSS modification.
-
-2. **Plugins.**  The render context exposes the theme to every plugin, so
-   generated figures share the report's appearance:
-
-   .. code-block:: python
-
-      def render(self, context, parameters):
-          figure.update_layout(
-              colorway=list(context.theme.series),
-              font={"color": context.theme.colors["text"]},
-              paper_bgcolor=context.theme.colors["surface"],
-          )
-
-Division of responsibility:
-
-* *Theme authors extend* the token set.  ``report.css`` and plugins may
-  use non-core tokens opportunistically when the active theme provides
-  them.
-* *Plugins consume* the core tokens and the series palette.  Plugins
-  never declare tokens of their own, and never hard-code colors.
-
-This keeps themes and plugins orthogonal: a plugin renders correctly
-against any theme, and a theme restyles any plugin's output.
-
-Theme selection happens at build time.  The framework ships a built-in
-``default`` theme; selecting a custom theme file via the CLI is a planned
-feature of the CLI milestone.
-
-Dark mode is an explicit non-goal for the current milestones.  The token
-architecture does not preclude it — a dark palette could later be added
-as a second token set applied via a ``[data-theme]`` attribute or
-``prefers-color-scheme``, without changes to the plugin contract.  The
-non-goal is recorded here so that partial support is not added
-piecemeal before that decision.
+Rendering cannot fail on anything a report author wrote: the
+document is complete and validated before the renderer sees it.
+The one failure it can raise is environmental — the document
+contains figures but the ``plotly`` package is not installed — and
+the error names the fix.

@@ -131,3 +131,10 @@ Implemented for the manifest and artifact-store foundation:
   exceptions passing through), and declared-then-strict theme and
   asset loading; plus document-model guards for the entry, asset, and
   diagnostic contracts.
+* Report renderer: documents built directly as typed fixtures — page
+  skeleton and header, tabs and anchors, the honest card vocabulary,
+  escape and trust-boundary pins, conditional Plotly.js inlining
+  keyed on the framework figure marker, theme-to-CSS token
+  generation, diagnostics grouping, and the self-containment
+  invariant: attribute-scoped parsing asserts every href/src in a
+  worst-case page is embedded data or an in-page fragment.

@@ -35,3 +35,8 @@ Layout family
 --------------
 
 .. autoclass:: workflow_coda.errors.LayoutError
+
+Render family
+--------------
+
+.. autoclass:: workflow_coda.errors.RenderError

@@ -253,9 +253,12 @@ file, and the installed plugins:
 
    from workflow_coda.artifact_store import ArtifactStore
    from workflow_coda.builder import build_report
+   from workflow_coda.render import render_report
 
    store = ArtifactStore.from_manifest_file("artifacts/report_manifest.json")
    document = build_report(Path("report_layout.yaml"), store)
+   page = render_report(document)
+   Path("report.html").write_text(page, encoding="utf-8")
 
 The build:
 
@@ -284,6 +287,10 @@ What can fail, and whose fix it is:
   raises is caught, recorded as a failed entry in place — the
   section shows where the component would have been — and the
   details go to diagnostics.
+* ``RenderError`` — an environment failure at render time: the
+  document contains figures but the ``plotly`` package, whose
+  bundled Plotly.js the renderer inlines, is not installed.  Not an
+  authoring failure: install ``plotly`` and render again.
 
 The document's diagnostics carry two groups of entries.
 *Informational*: the report is complete and the entry explains
@@ -297,7 +304,8 @@ The document itself holds everything, resolved: the theme, the
 embedded assets, the manifest (for the provenance footer), and
 the sections with each component's render outcome or failure.  It
 holds no paths and no plugin references — nothing that only the
-build machine could resolve.
+build machine could resolve. The rendered page — what it contains and
+the promises it keeps — is described in :doc:rendering.
 
 Testing a layout
 ----------------
