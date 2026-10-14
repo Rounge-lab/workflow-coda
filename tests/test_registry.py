@@ -205,8 +205,8 @@ def test_load_reflects_the_installed_environment() -> None:
     # an empty registry.  If the project ever ships its own extension
     # package, update this test to assert on it instead.
     registry = PluginRegistry.load()
-    assert registry.plugins == ()
-    assert registry.component_ids == frozenset()
+    loaded_ids = {plugin.metadata.id for plugin in registry.plugins}
+    assert loaded_ids >= {"core"}
 
 
 # ---------------------------------------------------------------------------

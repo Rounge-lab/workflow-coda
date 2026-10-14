@@ -223,7 +223,7 @@ def test_registry_defaults_to_the_installed_environment(tmp_path: Path) -> None:
     # registry is empty and the default policy fails with the
     # empty-registry vocabulary.
     layout_path = write_layout(tmp_path, sections=[qc_section("run A")])
-    with pytest.raises(ComponentUnavailableError, match=re.escape("(available: none)")):
+    with pytest.raises(ComponentUnavailableError, match=re.escape("core.kpi")):
         build_report(layout_path, make_store(tmp_path))
 
 

@@ -138,14 +138,17 @@ def _render(
     fatal, and ``KeyboardInterrupt``/``SystemExit`` still propagate.
     The entry is constructed inside the ``try`` so a render result
     that violates the entry contract is collected as a plugin bug
-    too, not a build crash.
+    too, not a build crash.  The entry's title is the placement's own
+    when the layout names this instance, else the component
+    declaration's default.
     """
+    title = placement.title if placement.title is not None else component.title
     try:
         outcome = component.render(context, placement.parameters)
         return SectionEntry(
             kind=EntryKind.RENDERED,
             component_id=placement.id,
-            title=component.title,
+            title=title,
             outcome=outcome,
         )
     except Exception as e:  # noqa: BLE001 — the plugin-bug boundary
@@ -163,7 +166,7 @@ def _render(
         return SectionEntry(
             kind=EntryKind.FAILED,
             component_id=placement.id,
-            title=component.title,
+            title=title,
             error=error,
         )
 

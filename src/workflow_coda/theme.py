@@ -60,18 +60,30 @@ type ThemeToken = Annotated[
 #: Semantic color tokens that every theme must provide.
 CORE_COLOR_TOKENS: Final[frozenset[str]] = frozenset(
     {
+        "accent",
         "background",
+        "border",
+        "danger",
+        "muted",
+        "primary",
+        "success",
         "surface",
         "text",
-        "muted",
-        "border",
-        "primary",
-        "accent",
-        "success",
+        "text-dark",
+        "text-light",
         "warning",
-        "danger",
     }
 )
+
+
+def _relative_luminance(color: ColorHex) -> float:
+    """WCAG relative luminance of an ``#rrggbb`` color, in [0, 1]."""
+
+    def channel(value: float) -> float:
+        return value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4
+
+    red, green, blue = (channel(int(color[i : i + 2], 16) / 255) for i in (1, 3, 5))
+    return 0.2126 * red + 0.7152 * green + 0.0722 * blue
 
 
 class Theme(BaseModel):
@@ -120,6 +132,28 @@ class Theme(BaseModel):
             )
         return value
 
+    def text_on(self, *backgrounds: ColorHex) -> ColorHex:
+        """The theme's light or dark text color, whichever reads on *backgrounds*.
+
+        Compares WCAG contrast ratios of ``text-light`` and ``text-dark``
+        against the mean relative luminance of the given backgrounds, and
+        returns the stronger — text over a filled or gradient surface, a
+        colored header, or any future colored background stays readable
+        without the author choosing.  A gradient passes both stops; a
+        solid color passes one.  Ties resolve to ``text-dark``.
+        """
+        if not backgrounds:
+            raise ValueError("text_on requires at least one background color")
+        mean = sum(_relative_luminance(c) for c in backgrounds) / len(backgrounds)
+
+        def contrast(text: ColorHex) -> float:
+            luminance = _relative_luminance(text)
+            return (max(mean, luminance) + 0.05) / (min(mean, luminance) + 0.05)
+
+        light = self.colors["text-light"]
+        dark = self.colors["text-dark"]
+        return light if contrast(light) > contrast(dark) else dark
+
 
 #: The built-in ``default`` theme, used when no theme is explicitly
 #: selected at build time.
@@ -127,16 +161,18 @@ DEFAULT_THEME: Final[Theme] = Theme.model_validate(
     {
         "name": "default",
         "colors": {
+            "accent": "#6610f2",
             "background": "#ffffff",
+            "border": "#dee2e6",
+            "danger": "#dc3545",
+            "muted": "#6c757d",
+            "primary": "#0d6efd",
+            "success": "#198754",
             "surface": "#f5f7fa",
             "text": "#212529",
-            "muted": "#6c757d",
-            "border": "#dee2e6",
-            "primary": "#0d6efd",
-            "accent": "#6610f2",
-            "success": "#198754",
+            "text-dark": "#212529",
+            "text-light": "#ffffff",
             "warning": "#ffc107",
-            "danger": "#dc3545",
         },
         "series": ["#0d6efd", "#d63384", "#fd7e14", "#20c997", "#6610f2"],
     }
