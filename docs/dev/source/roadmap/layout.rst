@@ -244,8 +244,30 @@ no files that only the build machine could resolve.
 Building a report
 -----------------
 
-Building is one call — the manifest's artifact store, the layout
-file, and the installed plugins:
+The whole pipeline is one command: the manifest's artifact store,
+the report builder with the installed plugins, the renderer, and
+the written page:
+
+.. code-block:: console
+
+   $ workflow-coda build artifacts/report_manifest.json report_layout.yaml -o report.html
+
+Success is silent — the page lands at the output path
+(``report.html`` in the current directory when ``-o`` is omitted).
+Failure is spoken, never a traceback: everything the framework
+diagnosed — the list below — prints its teaching message on
+stderr and exits ``1``; a mis-invocation (an unknown flag, a
+missing input file, a manifest and layout swapped — the
+extension contracts catch it) prints the usage error and exits
+``2``; and the output destination is checked before the pipeline
+runs, so an unwritable destination costs a usage error's worth of
+nothing instead of a full render's work.
+
+Python API
+^^^^^^^^^^
+
+The same pipeline as library calls, for composing the report step into a larger
+Python process:
 
 .. code-block:: python
 
