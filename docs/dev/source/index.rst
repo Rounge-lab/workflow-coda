@@ -39,6 +39,7 @@ components, and renders a portable static HTML report.
    api/artifact_store
    api/theme
    api/context
+   api/text
    api/components
    api/plugins
    api/registry
@@ -47,3 +48,4 @@ components, and renders a portable static HTML report.
    api/builder
    api/report
    api/assets
+   api/render

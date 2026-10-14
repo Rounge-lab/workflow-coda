@@ -124,6 +124,18 @@ cannot get the embedding wrong.  Expected missing data is a status;
 plugin *bugs* are exceptions, which the report builder collects into
 the diagnostics section.
 
+Give every figure a description: pass it to ``from_figure`` —
+``from_figure(figure, description="Line chart: per-sample depth,
+all above 10x")``.  The description is the figure's accessibility
+label: what assistive technology announces instead of the plot's
+graphics, which screen readers cannot use.  It is optional in the
+API, and required for components shipped with workflow-coda and its
+semi-official extensions — that is the accessibility bar for
+framework-owned content.  Write a one-line summary of chart type,
+subject and key finding, not the component title repeated.  The
+label is separate from, and additional to, any visible caption the
+plot itself carries.
+
 The render context
 ------------------
 

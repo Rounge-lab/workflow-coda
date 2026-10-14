@@ -294,10 +294,13 @@ def build_report(
     return ReportDocument(
         title=layout.title,
         subtitle=layout.subtitle,
+        author=layout.author,
+        version=layout.version,
         theme=theme,
         logo=logo,
         favicon=favicon,
         manifest=manifest,
         sections=tuple(sections),
         diagnostics=tuple(diagnostics),
+        toc=layout.toc,
     )

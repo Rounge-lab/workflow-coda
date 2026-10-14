@@ -29,14 +29,16 @@ explanatory ``ValueError``, which the report builder reports as a plugin
 failure.
 """
 
+import html
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import Enum
-from typing import Final, Protocol, Self
+from typing import Any, Final, Protocol, Self
 
 from .artifact_store import JsonValue
 from .context import RenderContext
+from .text import has_visible_text
 
 _PLUGIN_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z][a-z0-9_]*$")
 """Shape of a valid plugin id: lowercase snake_case."""
@@ -46,6 +48,12 @@ COMPONENT_ID_PATTERN: Final[re.Pattern[str]] = re.compile(
 )
 """Shape of a valid component id: ``<plugin_id>.<component_name>`` — the
 contract shared by component declarations and layout placements."""
+
+FIGURE_DIV_CLASS: Final[str] = "coda-figure"
+"""The class :meth:`RenderedComponent.from_figure` wraps its embedded
+figure in: the framework's figure marker.  The report renderer keys
+Plotly.js inlining on it — the only html marker the framework scans
+component content for."""
 
 
 class ComponentStatus(Enum):
@@ -80,7 +88,11 @@ class SupportsToHtml(Protocol):
     """
 
     def to_html(
-        self, full_html: bool = ..., include_plotlyjs: bool | str = ...
+        self,
+        *,
+        full_html: bool,
+        include_plotlyjs: bool,
+        config: dict[str, Any] | None = None,
     ) -> str: ...
 
 
@@ -98,20 +110,6 @@ type ComponentRenderer = Callable[
 ]
 """A component's render callable: the report context and the component's
 layout parameters in, one typed outcome out."""
-
-
-def has_visible_text(text: str) -> bool:
-    """Whether *text* contains at least one non-whitespace character.
-
-    The shared predicate of the authoring-time strict-text rule: a
-    whitespace-only value is always an authoring mistake, whether it
-    lands in a plugin contract constructed in Python or a layout file
-    deserialized from YAML.  The component contracts apply it in their
-    ``__post_init__`` gates with contextual messages; the layout model
-    applies it through its ``VisibleText`` validator, where pydantic
-    supplies the field path.
-    """
-    return bool(text.strip())
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -205,19 +203,58 @@ class RenderedComponent:
         return cls(status=ComponentStatus.OK, html=html)
 
     @classmethod
-    def from_figure(cls, figure: SupportsToHtml) -> Self:
+    def from_figure(
+        cls, figure: SupportsToHtml, description: str | None = None
+    ) -> Self:
         """An ``OK`` component embedding a Plotly-shaped figure.
 
         The embedding flags live here, not in every plugin: the figure is
         embedded as a bare ``<div>`` (the wrapper template owns the page
-        chrome) and without its own Plotry.js bundle (the report page loads
-        Plotly.js exactly once).  Getting either wrong in a plugin is the
+        chrome), without its own Plotly.js bundle (the report page loads
+        Plotly.js exactly once), configured responsive (the plot resizes
+        with its card as the window does), and wrapped in the framework's
+        figure class — the marker the report renderer keys Plotly.js
+        inlining on.  Getting any of these wrong in a plugin is the
         classic bug this constructor makes impossible.
+
+        *description* is the figure's *accessibility label* — the text
+        assistive technology announces instead of the plot's SVG, which
+        screen readers cannot use.  Optional and deliberately separate
+        from any visible caption the plot itself carries: the label
+        answers "what is this" for non-sighted readers; the caption
+        says what the author wants everyone to see next to the plot.
+        When given, a one-line summary of chart type, subject and key
+        finding — "Line chart: per-sample depth, all above 10×" — not
+        a repetition of the component title; blank text is rejected.
+
+        The framework cannot judge whether a *meaningful* label was
+        written.  For components shipped with workflow-coda and its
+        semi-official extensions, the description is **required** —
+        that is the accessibility bar for framework-owned content,
+        stated in the documentation; third-party plugins are trusted
+        to write one, or not.
         """
-        return cls(
-            status=ComponentStatus.OK,
-            html=figure.to_html(full_html=False, include_plotlyjs=False),
+        html_out = (
+            f'<div class="{FIGURE_DIV_CLASS}" '
+            + (
+                f'role="img" aria-label="{html.escape(description, quote=True)}">'
+                if description is not None
+                else ">"
+            )
+            + figure.to_html(
+                full_html=False,
+                include_plotlyjs=False,
+                config={"responsive": True},
+            )
+            + "</div>"
         )
+        if description is not None and not has_visible_text(description):
+            raise ValueError(
+                "figure description must contain visible text — it is "
+                "the text alternative readers using assistive "
+                "technology get instead of the plot"
+            )
+        return cls(status=ComponentStatus.OK, html=html_out)
 
     @classmethod
     def unavailable(cls, message: str) -> Self:

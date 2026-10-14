@@ -112,3 +112,16 @@ class LayoutError(WorkflowCodaError):
     asset *declared* in a valid layout cannot be loaded at build time:
     same correction clock — fix the file, then build again.
     """
+
+
+class RenderError(WorkflowCodaError):
+    """A report could not be rendered from its document.
+
+    Raised only for environment failures: the document contains
+    figures but the ``plotly`` package — whose bundled Plotly.js the
+    renderer inlines — is not installed, or the framework's own chrome
+    is missing from the installation.  Never raised for anything a
+    report author wrote: the document is fully validated before
+    rendering, so the correction clock is the environment — install
+    or reinstall — not the layout, manifest, or plugins.
+    """

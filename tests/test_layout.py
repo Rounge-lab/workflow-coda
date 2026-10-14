@@ -117,22 +117,25 @@ def test_schema_version_is_required_and_must_be_known() -> None:
 
 def test_unknown_keys_rejected_at_every_level() -> None:
     # One concern, three levels: extra="forbid" on the layout, on each
-    # section, and on each placement.
+    # section, and on each placement.  The unknown keys are typos of
+    # real field names — the authoring mistake the strict models exist
+    # to catch — and typo-keys can never become real fields, so the
+    # fixture cannot rot.
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-        ReportLayout.model_validate(make_layout_payload(author="me"))
+        ReportLayout.model_validate(make_layout_payload(titel="Metagenomic analysis"))
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         layout_with(
             [
                 {
                     "title": "QC",
                     "components": [{"id": "example_bio.qc"}],
-                    "collapsed": True,
+                    "componets": [],
                 }
             ]
         )
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         layout_with(
-            [{"title": "QC", "components": [{"id": "example_bio.qc", "note": "hi"}]}]
+            [{"title": "QC", "components": [{"id": "example_bio.qc", "paramters": {}}]}]
         )
 
 
@@ -269,3 +272,59 @@ def test_layout_is_frozen() -> None:
         layout.title = "New title"  # type: ignore[misc]
     with pytest.raises(ValidationError, match="frozen"):
         layout.sections[0].components[0].id = "example.bio.other"  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# The table of contents toggle
+# ---------------------------------------------------------------------------
+
+
+def test_toc_defaults_to_true() -> None:
+    layout = ReportLayout.model_validate(make_layout_payload())
+    assert layout.toc is True
+
+
+def test_toc_explicit_false_round_trips() -> None:
+    layout = ReportLayout.model_validate(make_layout_payload(toc=False))
+    assert layout.toc is False
+
+
+def test_toc_rejects_non_boolean_values() -> None:
+    with pytest.raises(ValidationError, match="toc"):
+        ReportLayout.model_validate(make_layout_payload(toc="sometimes"))
+
+
+# ---------------------------------------------------------------------------
+# The author line
+# ---------------------------------------------------------------------------
+
+
+def test_author_is_optional_and_round_trips() -> None:
+    layout = ReportLayout.model_validate(make_layout_payload())
+    assert layout.author is None
+    layout = ReportLayout.model_validate(
+        make_layout_payload(author="The Genomics Group")
+    )
+    assert layout.author == "The Genomics Group"
+
+
+def test_author_requires_visible_text() -> None:
+    with pytest.raises(ValidationError, match="must contain visible text"):
+        ReportLayout.model_validate(make_layout_payload(author="  "))
+
+
+# ---------------------------------------------------------------------------
+# The report version
+# ---------------------------------------------------------------------------
+
+
+def test_version_is_optional_and_round_trips() -> None:
+    layout = ReportLayout.model_validate(make_layout_payload())
+    assert layout.version is None
+    layout = ReportLayout.model_validate(make_layout_payload(version="1.2.0"))
+    assert layout.version == "1.2.0"
+
+
+def test_version_requires_visible_text() -> None:
+    with pytest.raises(ValidationError, match="must contain visible text"):
+        ReportLayout.model_validate(make_layout_payload(version="  "))

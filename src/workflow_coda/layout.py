@@ -38,7 +38,8 @@ from typing import Annotated, Literal
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 from .artifact_store import JsonValue
-from .components import COMPONENT_ID_PATTERN, has_visible_text
+from .components import COMPONENT_ID_PATTERN
+from .text import has_visible_text
 
 LayoutSchemaVersion = Literal["0.1.0"]
 """The layout contract's own version.
@@ -156,6 +157,15 @@ class ReportLayout(BaseModel):
     subtitle: VisibleText | None = None
     """Optional one-line subtitle under the title."""
 
+    author: VisibleText | None = None
+    """Optional free-form author line shown in the report footer —
+    a person, a group, several names; whatever should be credited."""
+
+    version: VisibleText | None = None
+    """Optional free-form report version, shown in the header under
+    the title — "1.2.0", "v2", "draft", a date; whatever identifies
+    this revision of the report."""
+
     theme: VisibleText | None = None
     """Optional path to a theme file, relative to the layout file.
     Omitted means the built-in default theme."""
@@ -167,6 +177,11 @@ class ReportLayout(BaseModel):
     favicon: VisibleText | None = None
     """Optional path to a favicon image, relative to the layout file;
     embedded into the report at build time."""
+
+    toc: bool = True
+    """Whether the report includes a table of contents: a navigation
+    list linking to the report's sections.  The default is ``True``;
+    turn it off with ``toc: false``."""
 
     on_missing: MissingPolicy = MissingPolicy.FAIL
     """The default placement policy when a component id resolves to

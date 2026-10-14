@@ -634,3 +634,42 @@ def test_no_informational_diagnostics_when_everything_is_declared(
     assert document.diagnostics == ()
     assert document.logo is not None
     assert document.favicon is not None
+
+
+def test_the_layout_toc_flag_carries_to_the_document(tmp_path: Path) -> None:
+    layout_path = write_layout(tmp_path, sections=[qc_section("run A")])
+    document = build(tmp_path, layout_path, current_plugin())
+    assert document.toc is True
+
+    off_path = write_layout(tmp_path, toc=False, sections=[qc_section("run A")])
+    document = build(tmp_path, off_path, current_plugin())
+    assert document.toc is False
+
+
+def test_theme_fonts_flow_to_the_document(tmp_path: Path) -> None:
+    payload = DEFAULT_THEME.model_dump()
+    payload["font_heading"] = "Georgia, serif"
+    (tmp_path / "custom_theme.yaml").write_text(
+        yaml.safe_dump(payload), encoding="utf-8"
+    )
+    layout_path = write_layout(
+        tmp_path, theme="custom_theme.yaml", sections=[qc_section("run A")]
+    )
+    document = build(tmp_path, layout_path, current_plugin())
+    assert document.theme.font_heading == "Georgia, serif"
+
+
+def test_the_layout_author_carries_to_the_document(tmp_path: Path) -> None:
+    layout_path = write_layout(
+        tmp_path, author="The Genomics Group", sections=[qc_section("run A")]
+    )
+    document = build(tmp_path, layout_path, current_plugin())
+    assert document.author == "The Genomics Group"
+
+
+def test_the_layout_version_carries_to_the_document(tmp_path: Path) -> None:
+    layout_path = write_layout(
+        tmp_path, version="1.2.0", sections=[qc_section("run A")]
+    )
+    document = build(tmp_path, layout_path, current_plugin())
+    assert document.version == "1.2.0"

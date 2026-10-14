@@ -1,34 +1,13 @@
 """Tests for the component contracts: the render outcome."""
 
 import pytest
-from factories import make_component, make_metadata, noop_render
+from factories import make_component, make_metadata, noop_render, stub_figure
 from helpers import assert_frozen_dataclass
 
 from workflow_coda.components import (
     ComponentStatus,
     RenderedComponent,
-    has_visible_text,
 )
-
-
-class FakeFigure:
-    """Plotly-shaped figure for testing ``from_figure``.
-
-    Records the embedding flags so tests can pin the exact incantation
-    the constructor applies.
-    """
-
-    def __init__(self) -> None:
-        self.calls: list[dict[str, object]] = []
-
-    def to_html(
-        self, full_html: bool = True, include_plotlyjs: bool | str = "cdn"
-    ) -> str:
-        self.calls.append(
-            {"full_html": full_html, "include_plotlyjs": include_plotlyjs}
-        )
-        return '<div class="plotly-graph-div"></div>'
-
 
 # ---------------------------------------------------------------------------
 # ok outcomes
@@ -40,16 +19,6 @@ def test_from_html_yields_ok() -> None:
     assert rendered.status is ComponentStatus.OK
     assert rendered.html == "<p>Hello</p>"
     assert rendered.message is None
-
-
-def test_from_figure_applies_the_plotly_incantation() -> None:
-    # The embedding flags live in the constructor, not in every plugin:
-    # a bare <div> for the wrapper, no plotly.js bundle for the page.
-    figure = FakeFigure()
-    rendered = RenderedComponent.from_figure(figure)
-    assert rendered.status is ComponentStatus.OK
-    assert figure.calls == [{"full_html": False, "include_plotlyjs": False}]
-    assert rendered.html == '<div class="plotly-graph-div"></div>'
 
 
 def test_ok_requires_html() -> None:
@@ -65,6 +34,44 @@ def test_ok_rejects_blank_html() -> None:
 def test_ok_rejects_message() -> None:
     with pytest.raises(ValueError, match="takes no message"):
         RenderedComponent(status=ComponentStatus.OK, html="<p/>", message="hi")
+
+
+def test_from_figure_pins_the_embedding_flags() -> None:
+    figure = stub_figure()
+    outcome = RenderedComponent.from_figure(figure, description="Depth per sample")
+    assert outcome.status is ComponentStatus.OK
+    assert figure.full_html is False
+    assert figure.include_plotlyjs is False
+    assert figure.config == {"responsive": True}
+
+
+def test_from_figure_wraps_the_plot_in_the_framework_marker() -> None:
+    outcome = RenderedComponent.from_figure(
+        stub_figure("<div>the plot</div>"), description="Depth per sample"
+    )
+    assert outcome.html == (
+        '<div class="coda-figure" role="img" aria-label="Depth per sample">'
+        "<div>the plot</div></div>"
+    )
+
+
+def test_from_figure_without_description_wraps_unlabelled() -> None:
+    # Optional by design: the accessibility label is the plugin's
+    # decision — required for framework-owned components, trusted for
+    # third parties.  Omitted, the plot carries no role/aria-label.
+    outcome = RenderedComponent.from_figure(stub_figure("<div>the plot</div>"))
+    assert outcome.html == ('<div class="coda-figure" ><div>the plot</div></div>')
+
+
+def test_from_figure_requires_a_visible_description_when_given() -> None:
+    with pytest.raises(ValueError, match="must contain visible text"):
+        RenderedComponent.from_figure(stub_figure(), description="   ")
+
+
+def test_from_figure_escapes_the_description_for_the_attribute() -> None:
+    outcome = RenderedComponent.from_figure(stub_figure(), description='Say "10x"')
+    assert outcome.html is not None  # OK outcomes always carry html
+    assert 'aria-label="Say &quot;10x&quot;"' in outcome.html
 
 
 # ---------------------------------------------------------------------------
@@ -271,20 +278,3 @@ def test_metadata_is_frozen_and_hashable() -> None:
 def test_metadata_rejects_new_attributes() -> None:
     with pytest.raises(AttributeError):
         make_metadata().extra = "nope"  # type: ignore[attr-defined]
-
-
-@pytest.mark.parametrize(
-    "text, expected",
-    [
-        ("", False),
-        ("   ", False),
-        ("\t\n ", False),
-        ("x", True),
-        ("  provenance  ", True),
-        ("0", True),
-    ],
-)
-def test_has_visible_text(text: str, expected: bool) -> None:
-    # The shared predicate behind both the component gates and the
-    # layout model's VisibleText validator.
-    assert has_visible_text(text) is expected

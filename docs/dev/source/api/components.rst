@@ -5,7 +5,8 @@ Components
 
 .. autodata:: workflow_coda.components.COMPONENT_ID_PATTERN
 
-.. autofunction:: workflow_coda.components.has_visible_text
+.. autodata:: workflow_coda.components.FIGURE_DIV_CLASS
+   :no-value:
 
 .. autoclass:: workflow_coda.components.ComponentStatus
    :members:

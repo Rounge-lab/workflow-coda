@@ -186,3 +186,31 @@ def test_theme_compares_by_value() -> None:
     second = Theme.model_validate(make_theme_payload())
     assert first == second
     assert first is not DEFAULT_THEME
+
+
+def test_font_defaults_are_system_stacks() -> None:
+    assert "system-ui" in DEFAULT_THEME.font_body
+    assert "system-ui" in DEFAULT_THEME.font_heading
+
+
+def test_theme_fonts_override_and_round_trip() -> None:
+    payload = DEFAULT_THEME.model_dump()
+    payload["font_body"] = "Georgia, serif"
+    payload["font_heading"] = '"Helvetica Neue", Arial, sans-serif'
+    theme = Theme.model_validate(payload)
+    assert theme.font_body == "Georgia, serif"
+    assert theme.font_heading == '"Helvetica Neue", Arial, sans-serif'
+
+
+def test_theme_fonts_must_be_visible_text() -> None:
+    payload = DEFAULT_THEME.model_dump()
+    payload["font_body"] = "   "
+    with pytest.raises(ValidationError, match="must contain visible text"):
+        Theme.model_validate(payload)
+
+
+def test_theme_fonts_reject_fetched_files() -> None:
+    payload = DEFAULT_THEME.model_dump()
+    payload["font_body"] = "url(https://fonts.example.com/font.woff2)"
+    with pytest.raises(ValidationError, match="font-family names, not fetched"):
+        Theme.model_validate(payload)

@@ -8,6 +8,8 @@ Token aliases
 
 .. autodata:: workflow_coda.theme.ColorHex
 .. autodata:: workflow_coda.theme.ThemeToken
+.. autodata:: workflow_coda.theme.FontStack
+   :no-value:
 
 Core tokens
 -----------

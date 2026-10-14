@@ -11,6 +11,7 @@ authors = [
 readme = { file = "README.rst", content-type = "text/x-rst" }
 requires-python = ">=3.14"
 dependencies = [
+    "jinja2>=3.1",
     "pydantic>=2.13",
     "pyyaml>=6.0",
 ]
@@ -23,9 +24,10 @@ Issues = "https://github.com/sverre-branders/workflow-coda/issues"
 dev = [
     "build",
     "mypy>=2.4",
+    "plotly>=7.1",
     "pre-commit>=4.6",
-    "pytest>=9",
     "pytest-cov",
+    "pytest>=9",
     "ruff>=0.16",
     "types-pyyaml",
 ]
@@ -47,6 +49,9 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+workflow_coda = ["templates/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

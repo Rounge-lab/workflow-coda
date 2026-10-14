@@ -31,9 +31,11 @@ were rendered.
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import Final
 
-from .components import RenderedComponent, has_visible_text
+from .components import RenderedComponent
 from .manifest import ReportManifest
+from .text import has_visible_text
 from .theme import Theme
 
 
@@ -71,6 +73,25 @@ class DiagnosticKind(Enum):
     DEFAULT_THEME = "default_theme"
     LOGO_OMITTED = "logo_omitted"
     FAVICON_OMITTED = "favicon_omitted"
+
+    @property
+    def is_problem(self) -> bool:
+        """Whether diagnostics of this kind name a problem — rendered
+        in the diagnostics section's problem group, in the danger
+        color — versus informational notes, which explain omissions in
+        an otherwise complete report."""
+        return self in _PROBLEM_KINDS
+
+
+_PROBLEM_KINDS: Final[frozenset[DiagnosticKind]] = frozenset(
+    {
+        DiagnosticKind.PLUGIN_EXCLUDED,
+        DiagnosticKind.COMPONENT_MISSING,
+        DiagnosticKind.PLUGIN_BUG,
+    }
+)
+"""The kinds that name problems — mirrored from :class:`DiagnosticKind`'s
+own docstring, which is the contract."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -215,6 +236,12 @@ class ReportDocument:
     subtitle: str | None
     """The optional subtitle, from the layout."""
 
+    author: str | None
+    """The optional author line, from the layout."""
+
+    version: str | None
+    """The optional report version, from the layout."""
+
     theme: Theme
     """The loaded theme the report is rendered with."""
 
@@ -233,3 +260,8 @@ class ReportDocument:
     diagnostics: tuple[Diagnostic, ...]
     """Everything noteworthy the builder recorded, in occurrence
     order."""
+
+    toc: bool = True
+    """Whether the rendered report includes the table of contents; a
+    layout decision carried in the document so rendering needs
+    nothing else."""

@@ -74,6 +74,15 @@ The fields:
    contain visible text — a whitespace-only value here is always an
    authoring mistake.
 
+``author``
+   Optional free-form author line shown in the report footer — a
+   person, a group, several names; whatever should be credited.
+
+``version``
+   Optional free-form report version, shown in the report header
+   under the title — "1.2.0", "v2", "draft", a date; whatever
+   identifies this revision of the report.
+
 ``theme``
    Optional path to a theme file, relative to the layout file.
    Omitted, the report renders with the built-in default theme and
@@ -83,6 +92,12 @@ The fields:
 ``logo``, ``favicon``
    Optional paths to images, relative to the layout file, embedded
    into the report.  Same declared-or-diagnostic rule as the theme.
+
+``toc``
+   Whether the report includes a table of contents — a navigation
+   list linking to each section.  The default is ``true``.
+   ``toc: false`` turns it off (``toc: no`` also works — the one
+   place YAML's boolean ``no`` is exactly what you mean).
 
 ``on_missing``
    What happens when a placement names a component no loaded
@@ -238,9 +253,12 @@ file, and the installed plugins:
 
    from workflow_coda.artifact_store import ArtifactStore
    from workflow_coda.builder import build_report
+   from workflow_coda.render import render_report
 
    store = ArtifactStore.from_manifest_file("artifacts/report_manifest.json")
    document = build_report(Path("report_layout.yaml"), store)
+   page = render_report(document)
+   Path("report.html").write_text(page, encoding="utf-8")
 
 The build:
 
@@ -269,6 +287,10 @@ What can fail, and whose fix it is:
   raises is caught, recorded as a failed entry in place — the
   section shows where the component would have been — and the
   details go to diagnostics.
+* ``RenderError`` — an environment failure at render time: the
+  document contains figures but the ``plotly`` package, whose
+  bundled Plotly.js the renderer inlines, is not installed.  Not an
+  authoring failure: install ``plotly`` and render again.
 
 The document's diagnostics carry two groups of entries.
 *Informational*: the report is complete and the entry explains
@@ -282,7 +304,8 @@ The document itself holds everything, resolved: the theme, the
 embedded assets, the manifest (for the provenance footer), and
 the sections with each component's render outcome or failure.  It
 holds no paths and no plugin references — nothing that only the
-build machine could resolve.
+build machine could resolve. The rendered page — what it contains and
+the promises it keeps — is described in :doc:rendering.
 
 Testing a layout
 ----------------

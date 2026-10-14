@@ -1,5 +1,7 @@
 """Tests for the report document: the builder's output model."""
 
+from dataclasses import replace
+
 import pytest
 from factories import make_manifest_payload
 from helpers import assert_frozen_dataclass
@@ -52,6 +54,8 @@ def make_document() -> ReportDocument:
     informational diagnostic."""
     return ReportDocument(
         title="Metagenomic analysis",
+        author=None,
+        version=None,
         subtitle=None,
         theme=DEFAULT_THEME,
         logo=None,
@@ -306,6 +310,8 @@ def test_document_round_trip() -> None:
     document = make_document()
     assert document.title == "Metagenomic analysis"
     assert document.subtitle is None
+    assert document.author is None
+    assert document.version is None
     assert document.theme is DEFAULT_THEME
     assert document.logo is None
     assert document.favicon is None
@@ -330,3 +336,46 @@ def test_document_is_frozen_and_slotted() -> None:
     assert_frozen_dataclass(document, "title")
     with pytest.raises(AttributeError):
         document.extra = "nope"  # type: ignore[attr-defined]
+
+
+def test_document_carries_the_toc_flag() -> None:
+    document = make_document()
+    assert document.toc is True
+    without_toc = replace(document, toc=False)
+    assert without_toc.toc is False
+    assert without_toc != document
+
+
+def test_document_carries_the_author_line() -> None:
+    document = make_document()
+    assert document.author is None
+    authored = replace(document, author="The Genomics Group")
+    assert authored.author == "The Genomics Group"
+    assert authored != document
+
+
+def test_document_carries_the_report_version() -> None:
+    document = make_document()
+    assert document.version is None
+    versioned = replace(document, version="1.2.0")
+    assert versioned.version == "1.2.0"
+    assert versioned != document
+
+
+@pytest.mark.parametrize(
+    ("kind", "is_problem"),
+    [
+        (DiagnosticKind.PLUGIN_EXCLUDED, True),
+        (DiagnosticKind.COMPONENT_MISSING, True),
+        (DiagnosticKind.PLUGIN_BUG, True),
+        (DiagnosticKind.DEFAULT_THEME, False),
+        (DiagnosticKind.LOGO_OMITTED, False),
+        (DiagnosticKind.FAVICON_OMITTED, False),
+    ],
+)
+def test_diagnostic_kinds_split_into_problems_and_notes(
+    kind: DiagnosticKind, is_problem: bool
+) -> None:
+    # The diagnostics section renders problems first, in the danger
+    # color; informational notes after.  The enum carries the split.
+    assert kind.is_problem is is_problem
