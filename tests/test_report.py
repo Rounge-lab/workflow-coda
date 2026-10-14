@@ -360,3 +360,22 @@ def test_document_carries_the_report_version() -> None:
     versioned = replace(document, version="1.2.0")
     assert versioned.version == "1.2.0"
     assert versioned != document
+
+
+@pytest.mark.parametrize(
+    ("kind", "is_problem"),
+    [
+        (DiagnosticKind.PLUGIN_EXCLUDED, True),
+        (DiagnosticKind.COMPONENT_MISSING, True),
+        (DiagnosticKind.PLUGIN_BUG, True),
+        (DiagnosticKind.DEFAULT_THEME, False),
+        (DiagnosticKind.LOGO_OMITTED, False),
+        (DiagnosticKind.FAVICON_OMITTED, False),
+    ],
+)
+def test_diagnostic_kinds_split_into_problems_and_notes(
+    kind: DiagnosticKind, is_problem: bool
+) -> None:
+    # The diagnostics section renders problems first, in the danger
+    # color; informational notes after.  The enum carries the split.
+    assert kind.is_problem is is_problem

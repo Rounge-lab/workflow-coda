@@ -31,6 +31,7 @@ were rendered.
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import Final
 
 from .components import RenderedComponent
 from .manifest import ReportManifest
@@ -72,6 +73,25 @@ class DiagnosticKind(Enum):
     DEFAULT_THEME = "default_theme"
     LOGO_OMITTED = "logo_omitted"
     FAVICON_OMITTED = "favicon_omitted"
+
+    @property
+    def is_problem(self) -> bool:
+        """Whether diagnostics of this kind name a problem — rendered
+        in the diagnostics section's problem group, in the danger
+        color — versus informational notes, which explain omissions in
+        an otherwise complete report."""
+        return self in _PROBLEM_KINDS
+
+
+_PROBLEM_KINDS: Final[frozenset[DiagnosticKind]] = frozenset(
+    {
+        DiagnosticKind.PLUGIN_EXCLUDED,
+        DiagnosticKind.COMPONENT_MISSING,
+        DiagnosticKind.PLUGIN_BUG,
+    }
+)
+"""The kinds that name problems — mirrored from :class:`DiagnosticKind`'s
+own docstring, which is the contract."""
 
 
 @dataclass(frozen=True, slots=True)

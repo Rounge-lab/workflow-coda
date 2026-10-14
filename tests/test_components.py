@@ -1,5 +1,7 @@
 """Tests for the component contracts: the render outcome."""
 
+from typing import Any
+
 import pytest
 from factories import make_component, make_metadata, noop_render
 from helpers import assert_frozen_dataclass
@@ -10,23 +12,27 @@ from workflow_coda.components import (
 )
 
 
-class FakeFigure:
-    """Plotly-shaped figure for testing ``from_figure``.
+class _StubFigure:
+    """A minimal ``SupportsToHtml`` that records the embedding flags
+    it was called with."""
 
-    Records the embedding flags so tests can pin the exact incantation
-    the constructor applies.
-    """
-
-    def __init__(self) -> None:
-        self.calls: list[dict[str, object]] = []
+    def __init__(self, html: str = "<div>the plot</div>") -> None:
+        self._html = html
+        self.full_html: object = "unset"
+        self.include_plotlyjs: object = "unset"
+        self.config: object = "unset"
 
     def to_html(
-        self, full_html: bool = True, include_plotlyjs: bool | str = "cdn"
+        self,
+        *,
+        full_html: bool,
+        include_plotlyjs: bool,
+        config: dict[str, Any] | None = None,
     ) -> str:
-        self.calls.append(
-            {"full_html": full_html, "include_plotlyjs": include_plotlyjs}
-        )
-        return '<div class="plotly-graph-div"></div>'
+        self.full_html = full_html
+        self.include_plotlyjs = include_plotlyjs
+        self.config = config
+        return self._html
 
 
 # ---------------------------------------------------------------------------
@@ -39,16 +45,6 @@ def test_from_html_yields_ok() -> None:
     assert rendered.status is ComponentStatus.OK
     assert rendered.html == "<p>Hello</p>"
     assert rendered.message is None
-
-
-def test_from_figure_applies_the_plotly_incantation() -> None:
-    # The embedding flags live in the constructor, not in every plugin:
-    # a bare <div> for the wrapper, no plotly.js bundle for the page.
-    figure = FakeFigure()
-    rendered = RenderedComponent.from_figure(figure)
-    assert rendered.status is ComponentStatus.OK
-    assert figure.calls == [{"full_html": False, "include_plotlyjs": False}]
-    assert rendered.html == '<div class="plotly-graph-div"></div>'
 
 
 def test_ok_requires_html() -> None:
@@ -64,6 +60,26 @@ def test_ok_rejects_blank_html() -> None:
 def test_ok_rejects_message() -> None:
     with pytest.raises(ValueError, match="takes no message"):
         RenderedComponent(status=ComponentStatus.OK, html="<p/>", message="hi")
+
+
+def test_from_figure_pins_the_embedding_flags() -> None:
+    # The constructor owns the embedding decisions: not a full page,
+    # no own Plotly.js bundle, responsive so the plot resizes with its
+    # card.  Getting these wrong in a plugin is the classic bug
+    # from_figure exists to make impossible.
+    figure = _StubFigure()
+    outcome = RenderedComponent.from_figure(figure)
+    assert outcome.status is ComponentStatus.OK
+    assert figure.full_html is False
+    assert figure.include_plotlyjs is False
+    assert figure.config == {"responsive": True}
+
+
+def test_from_figure_wraps_the_plot_in_the_framework_marker() -> None:
+    # The wrapper class is the figure marker the report renderer keys
+    # Plotly.js inlining on.
+    outcome = RenderedComponent.from_figure(_StubFigure("<div>the plot</div>"))
+    assert outcome.html == ('<div class="coda-figure"><div>the plot</div></div>')
 
 
 # ---------------------------------------------------------------------------

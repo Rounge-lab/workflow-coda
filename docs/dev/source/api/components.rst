@@ -5,6 +5,9 @@ Components
 
 .. autodata:: workflow_coda.components.COMPONENT_ID_PATTERN
 
+.. autodata:: workflow_coda.components.FIGURE_DIV_CLASS
+   :no-value:
+
 .. autoclass:: workflow_coda.components.ComponentStatus
    :members:
    :undoc-members:

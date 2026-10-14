@@ -33,7 +33,7 @@ import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import Enum
-from typing import Final, Protocol, Self
+from typing import Any, Final, Protocol, Self
 
 from .artifact_store import JsonValue
 from .context import RenderContext
@@ -47,6 +47,12 @@ COMPONENT_ID_PATTERN: Final[re.Pattern[str]] = re.compile(
 )
 """Shape of a valid component id: ``<plugin_id>.<component_name>`` — the
 contract shared by component declarations and layout placements."""
+
+FIGURE_DIV_CLASS: Final[str] = "coda-figure"
+"""The class :meth:`RenderedComponent.from_figure` wraps its embedded
+figure in: the framework's figure marker.  The report renderer keys
+Plotly.js inlining on it — the only html marker the framework scans
+component content for."""
 
 
 class ComponentStatus(Enum):
@@ -81,7 +87,11 @@ class SupportsToHtml(Protocol):
     """
 
     def to_html(
-        self, full_html: bool = ..., include_plotlyjs: bool | str = ...
+        self,
+        *,
+        full_html: bool,
+        include_plotlyjs: bool,
+        config: dict[str, Any] | None = None,
     ) -> str: ...
 
 
@@ -197,13 +207,24 @@ class RenderedComponent:
 
         The embedding flags live here, not in every plugin: the figure is
         embedded as a bare ``<div>`` (the wrapper template owns the page
-        chrome) and without its own Plotry.js bundle (the report page loads
-        Plotly.js exactly once).  Getting either wrong in a plugin is the
+        chrome), without its own Plotly.js bundle (the report page loads
+        Plotly.js exactly once), configured responsive (the plot resizes
+        with its card as the window does), and wrapped in the framework's
+        figure class — the marker the report renderer keys Plotly.js
+        inlining on.  Getting any of these wrong in a plugin is the
         classic bug this constructor makes impossible.
         """
         return cls(
             status=ComponentStatus.OK,
-            html=figure.to_html(full_html=False, include_plotlyjs=False),
+            html=(
+                f'<div class="{FIGURE_DIV_CLASS}">'
+                + figure.to_html(
+                    full_html=False,
+                    include_plotlyjs=False,
+                    config={"responsive": True},
+                )
+                + "</div>"
+            ),
         )
 
     @classmethod
