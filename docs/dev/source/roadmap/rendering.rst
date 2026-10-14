@@ -128,3 +128,8 @@ document is complete and validated before the renderer sees it.
 The one failure it can raise is environmental — the document
 contains figures but the ``plotly`` package is not installed — and
 the error names the fix.
+
+From the command line, ``workflow-coda build`` runs the pipeline and
+writes the page in one step — see :doc:`../roadmap/layout` for the command and
+its failure surface; the renderer's one environmental error arrives
+there as its message and exit code ``1``, never a traceback.

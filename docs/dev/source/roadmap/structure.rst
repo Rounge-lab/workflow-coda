@@ -138,3 +138,18 @@ Implemented for the manifest and artifact-store foundation:
   generation, diagnostics grouping, and the self-containment
   invariant: attribute-scoped parsing asserts every href/src in a
   worst-case page is embedded data or an in-page fragment.
+* ``cli.py`` — the command line interface: the ``build`` command as
+  a thin edge over the library, owning the process boundary — exit
+  codes and streams;
+* ``cli_toolkit.py`` — the reusable argparse components: the help
+  style, the path argument types, the destination pre-flight —
+  importing nothing from the rest of the package, so other projects
+  can lift it wholesale;
+* Command line interface: driven in process with argument lists —
+  version and help on stdout, usage errors and extension contracts
+  at exit 2, the pipeline threading (each stage receives exactly
+  its predecessor's product), one end-to-end build through the real
+  store, builder, and renderer, the exit-1 family (broken content,
+  the destination pre-flight before the pipeline, the write-time
+  refusal), and the liftable toolkit pinned in a test file that
+  travels with it.
