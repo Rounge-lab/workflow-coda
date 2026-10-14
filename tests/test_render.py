@@ -6,9 +6,9 @@ import sys
 from html.parser import HTMLParser
 
 import pytest
-from factories import make_manifest_payload
+from factories import make_manifest_payload, stub_figure
 
-from workflow_coda.components import FIGURE_DIV_CLASS, RenderedComponent
+from workflow_coda.components import RenderedComponent
 from workflow_coda.errors import RenderError
 from workflow_coda.manifest import ArtifactStatus, ReportManifest
 from workflow_coda.render import render_report
@@ -22,6 +22,18 @@ from workflow_coda.report import (
     SectionEntry,
 )
 from workflow_coda.theme import DEFAULT_THEME, Theme
+
+
+def figure_entry() -> SectionEntry:
+    """A rendered entry carrying the framework figure marker — built
+    through the real constructor, so detection is pinned against the
+    actual construction path."""
+    outcome = RenderedComponent.from_figure(
+        stub_figure(), description="Depth per sample"
+    )
+    assert outcome.html is not None  # OK outcomes always carry html
+    return ok_entry(html=outcome.html)
+
 
 # ---------------------------------------------------------------------------
 # Fixtures: entries, assets, documents
@@ -40,13 +52,6 @@ def ok_entry(
         title=title,
         outcome=RenderedComponent.from_html(html),
     )
-
-
-def figure_entry() -> SectionEntry:
-    """A rendered entry carrying the framework figure marker — the
-    detection contract, constructed directly: detection keys on the
-    marker class, not on Plotly's own output."""
-    return ok_entry(html=f'<div class="{FIGURE_DIV_CLASS}"></div>')
 
 
 def unavailable_entry(message: str = "CheckV was not run") -> SectionEntry:
@@ -409,8 +414,6 @@ def test_custom_theme_tokens_and_series_length() -> None:
 
 
 def test_figures_inline_the_plotly_bundle_once() -> None:
-    # The same source the renderer reads — the installed package's
-    # bundled plotly.min.js — must appear in the page, whole.
     plotly_js = (
         importlib.resources.files("plotly") / "package_data" / "plotly.min.js"
     ).read_text(encoding="utf-8")

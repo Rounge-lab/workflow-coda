@@ -1,39 +1,13 @@
 """Tests for the component contracts: the render outcome."""
 
-from typing import Any
-
 import pytest
-from factories import make_component, make_metadata, noop_render
+from factories import make_component, make_metadata, noop_render, stub_figure
 from helpers import assert_frozen_dataclass
 
 from workflow_coda.components import (
     ComponentStatus,
     RenderedComponent,
 )
-
-
-class _StubFigure:
-    """A minimal ``SupportsToHtml`` that records the embedding flags
-    it was called with."""
-
-    def __init__(self, html: str = "<div>the plot</div>") -> None:
-        self._html = html
-        self.full_html: object = "unset"
-        self.include_plotlyjs: object = "unset"
-        self.config: object = "unset"
-
-    def to_html(
-        self,
-        *,
-        full_html: bool,
-        include_plotlyjs: bool,
-        config: dict[str, Any] | None = None,
-    ) -> str:
-        self.full_html = full_html
-        self.include_plotlyjs = include_plotlyjs
-        self.config = config
-        return self._html
-
 
 # ---------------------------------------------------------------------------
 # ok outcomes
@@ -63,12 +37,8 @@ def test_ok_rejects_message() -> None:
 
 
 def test_from_figure_pins_the_embedding_flags() -> None:
-    # The constructor owns the embedding decisions: not a full page,
-    # no own Plotly.js bundle, responsive so the plot resizes with its
-    # card.  Getting these wrong in a plugin is the classic bug
-    # from_figure exists to make impossible.
-    figure = _StubFigure()
-    outcome = RenderedComponent.from_figure(figure)
+    figure = stub_figure()
+    outcome = RenderedComponent.from_figure(figure, description="Depth per sample")
     assert outcome.status is ComponentStatus.OK
     assert figure.full_html is False
     assert figure.include_plotlyjs is False
@@ -76,10 +46,32 @@ def test_from_figure_pins_the_embedding_flags() -> None:
 
 
 def test_from_figure_wraps_the_plot_in_the_framework_marker() -> None:
-    # The wrapper class is the figure marker the report renderer keys
-    # Plotly.js inlining on.
-    outcome = RenderedComponent.from_figure(_StubFigure("<div>the plot</div>"))
-    assert outcome.html == ('<div class="coda-figure"><div>the plot</div></div>')
+    outcome = RenderedComponent.from_figure(
+        stub_figure("<div>the plot</div>"), description="Depth per sample"
+    )
+    assert outcome.html == (
+        '<div class="coda-figure" role="img" aria-label="Depth per sample">'
+        "<div>the plot</div></div>"
+    )
+
+
+def test_from_figure_without_description_wraps_unlabelled() -> None:
+    # Optional by design: the accessibility label is the plugin's
+    # decision — required for framework-owned components, trusted for
+    # third parties.  Omitted, the plot carries no role/aria-label.
+    outcome = RenderedComponent.from_figure(stub_figure("<div>the plot</div>"))
+    assert outcome.html == ('<div class="coda-figure" ><div>the plot</div></div>')
+
+
+def test_from_figure_requires_a_visible_description_when_given() -> None:
+    with pytest.raises(ValueError, match="must contain visible text"):
+        RenderedComponent.from_figure(stub_figure(), description="   ")
+
+
+def test_from_figure_escapes_the_description_for_the_attribute() -> None:
+    outcome = RenderedComponent.from_figure(stub_figure(), description='Say "10x"')
+    assert outcome.html is not None  # OK outcomes always carry html
+    assert 'aria-label="Say &quot;10x&quot;"' in outcome.html
 
 
 # ---------------------------------------------------------------------------

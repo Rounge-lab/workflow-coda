@@ -29,6 +29,7 @@ explanatory ``ValueError``, which the report builder reports as a plugin
 failure.
 """
 
+import html
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -202,7 +203,9 @@ class RenderedComponent:
         return cls(status=ComponentStatus.OK, html=html)
 
     @classmethod
-    def from_figure(cls, figure: SupportsToHtml) -> Self:
+    def from_figure(
+        cls, figure: SupportsToHtml, description: str | None = None
+    ) -> Self:
         """An ``OK`` component embedding a Plotly-shaped figure.
 
         The embedding flags live here, not in every plugin: the figure is
@@ -213,19 +216,45 @@ class RenderedComponent:
         figure class — the marker the report renderer keys Plotly.js
         inlining on.  Getting any of these wrong in a plugin is the
         classic bug this constructor makes impossible.
+
+        *description* is the figure's *accessibility label* — the text
+        assistive technology announces instead of the plot's SVG, which
+        screen readers cannot use.  Optional and deliberately separate
+        from any visible caption the plot itself carries: the label
+        answers "what is this" for non-sighted readers; the caption
+        says what the author wants everyone to see next to the plot.
+        When given, a one-line summary of chart type, subject and key
+        finding — "Line chart: per-sample depth, all above 10×" — not
+        a repetition of the component title; blank text is rejected.
+
+        The framework cannot judge whether a *meaningful* label was
+        written.  For components shipped with workflow-coda and its
+        semi-official extensions, the description is **required** —
+        that is the accessibility bar for framework-owned content,
+        stated in the documentation; third-party plugins are trusted
+        to write one, or not.
         """
-        return cls(
-            status=ComponentStatus.OK,
-            html=(
-                f'<div class="{FIGURE_DIV_CLASS}">'
-                + figure.to_html(
-                    full_html=False,
-                    include_plotlyjs=False,
-                    config={"responsive": True},
-                )
-                + "</div>"
-            ),
+        html_out = (
+            f'<div class="{FIGURE_DIV_CLASS}" '
+            + (
+                f'role="img" aria-label="{html.escape(description, quote=True)}">'
+                if description is not None
+                else ">"
+            )
+            + figure.to_html(
+                full_html=False,
+                include_plotlyjs=False,
+                config={"responsive": True},
+            )
+            + "</div>"
         )
+        if description is not None and not has_visible_text(description):
+            raise ValueError(
+                "figure description must contain visible text — it is "
+                "the text alternative readers using assistive "
+                "technology get instead of the plot"
+            )
+        return cls(status=ComponentStatus.OK, html=html_out)
 
     @classmethod
     def unavailable(cls, message: str) -> Self:

@@ -10,6 +10,7 @@ import json
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from workflow_coda.artifact_store import JsonValue
 from workflow_coda.components import (
@@ -282,3 +283,37 @@ def make_layout_payload(**overrides: JsonValue) -> dict[str, JsonValue]:
     }
     payload.update(overrides)
     return payload
+
+
+# ---------------------------------------------------------------------------
+# Figure factories
+# ---------------------------------------------------------------------------
+
+
+def stub_figure(html: str = "<div>the plot</div>") -> StubFigure:
+    """A minimal ``SupportsToHtml`` that records the embedding flags it
+    was called with; the default figure fixture for figure tests."""
+    return StubFigure(html)
+
+
+class StubFigure:
+    """Minimal ``SupportsToHtml`` for tests: records the embedding
+    flags from_figure must pass, returns canned html."""
+
+    def __init__(self, html: str = "<div>the plot</div>") -> None:
+        self._html = html
+        self.full_html: object = "unset"
+        self.include_plotlyjs: object = "unset"
+        self.config: object = "unset"
+
+    def to_html(
+        self,
+        *,
+        full_html: bool,
+        include_plotlyjs: bool,
+        config: dict[str, Any] | None = None,
+    ) -> str:
+        self.full_html = full_html
+        self.include_plotlyjs = include_plotlyjs
+        self.config = config
+        return self._html
