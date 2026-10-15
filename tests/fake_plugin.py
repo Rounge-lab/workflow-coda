@@ -9,6 +9,7 @@ registry's load-failure paths.
 
 from workflow_coda.components import (
     ComponentParameters,
+    PlacementInfo,
     PluginMetadata,
     RenderedComponent,
     ReportComponent,
@@ -18,7 +19,7 @@ from workflow_coda.plugins import ReportPlugin
 
 
 def _render_noop(
-    _context: RenderContext, _parameters: ComponentParameters
+    _context: RenderContext, _info: PlacementInfo, _parameters: ComponentParameters
 ) -> RenderedComponent:
     """The do-nothing renderer; every outcome is a skip."""
     return RenderedComponent.skipped()

@@ -14,7 +14,12 @@ from pathlib import Path
 import pytest
 
 from workflow_coda.artifact_store import ArtifactStore, JsonValue
-from workflow_coda.components import ComponentParameters, ComponentStatus
+from workflow_coda.components import (
+    ComponentParameters,
+    ComponentStatus,
+    PlacementInfo,
+    RenderedComponent,
+)
 from workflow_coda.context import RenderContext
 from workflow_coda.core.kpi import render_kpi
 from workflow_coda.theme import DEFAULT_THEME
@@ -30,6 +35,19 @@ _DEFAULT_STATS: JsonValue = {
     "samples": {"a": 30, "b": 41},
 }
 """The default artifact payload: scalars at several depths and shapes."""
+
+
+def _info(title: str = "Key metric") -> PlacementInfo:
+    """The placement info the builder hands every render call: the
+    resolved instance title."""
+    return PlacementInfo(title=title)
+
+
+def _render(
+    context: RenderContext, parameters: ComponentParameters
+) -> RenderedComponent:
+    """Render under the default placement info."""
+    return render_kpi(context, _info(), parameters)
 
 
 def _write_bundle(
@@ -82,7 +100,7 @@ def _kpi(overrides: ComponentParameters | None = None) -> ComponentParameters:
 
 def _html(context: RenderContext, parameters: ComponentParameters) -> str:
     """The rendered OK body, with the OK asserted at the call."""
-    outcome = render_kpi(context, parameters)
+    outcome = _render(context, parameters)
     assert outcome.status is ComponentStatus.OK
     assert outcome.html is not None
     return outcome.html
@@ -92,7 +110,7 @@ def _unavailable_message(
     context: RenderContext, parameters: ComponentParameters
 ) -> str:
     """The rendered unavailable notice, status asserted at the call."""
-    outcome = render_kpi(context, parameters)
+    outcome = _render(context, parameters)
     assert outcome.status is ComponentStatus.UNAVAILABLE
     assert outcome.message is not None
     return outcome.message
@@ -111,7 +129,7 @@ def test_required_parameters_must_be_given(tmp_path: Path, missing: str) -> None
     params: dict[str, JsonValue] = {"artifact": _STATS_TYPE, "key": "depth"}
     del params[missing]
     with pytest.raises(ValueError, match=f"parameter {missing!r} is required"):
-        render_kpi(context, params)
+        render_kpi(context, _info(), params)
 
 
 @pytest.mark.parametrize(
@@ -129,7 +147,7 @@ def test_required_text_rejects_non_strings(
 ) -> None:
     context = _context(_write_bundle(tmp_path))
     with pytest.raises(ValueError, match="must be a non-empty string"):
-        render_kpi(context, _kpi({name: value}))
+        render_kpi(context, _info(), _kpi({name: value}))
 
 
 @pytest.mark.parametrize(
@@ -148,7 +166,7 @@ def test_closed_vocabularies_and_decimals_teach(
 ) -> None:
     context = _context(_write_bundle(tmp_path))
     with pytest.raises(ValueError, match=pin):
-        render_kpi(context, _kpi({name: value}))
+        render_kpi(context, _info(), _kpi({name: value}))
 
 
 @pytest.mark.parametrize(
@@ -169,7 +187,7 @@ def test_threshold_shapes_teach(
     # name, which would otherwise judge nothing, silently.
     context = _context(_write_bundle(tmp_path))
     with pytest.raises(ValueError, match=pin):
-        render_kpi(context, _kpi({"thresholds": thresholds}))
+        render_kpi(context, _info(), _kpi({"thresholds": thresholds}))
 
 
 def test_color_grammar_matches_the_variant(tmp_path: Path) -> None:
@@ -177,25 +195,25 @@ def test_color_grammar_matches_the_variant(tmp_path: Path) -> None:
     # pair belongs to gradient alone, fill needs a color source.
     context = _context(_write_bundle(tmp_path))
     with pytest.raises(ValueError, match="variant 'gradient' requires 'color'"):
-        render_kpi(context, _kpi({"variant": "gradient"}))
+        render_kpi(context, _info(), _kpi({"variant": "gradient"}))
     with pytest.raises(ValueError, match="only variant 'gradient' accepts"):
-        render_kpi(context, _kpi({"color": ["primary", "accent"]}))
+        render_kpi(context, _info(), _kpi({"color": ["primary", "accent"]}))
     with pytest.raises(ValueError, match="variant 'fill' requires 'color'"):
-        render_kpi(context, _kpi({"variant": "fill"}))
+        render_kpi(context, _info(), _kpi({"variant": "fill"}))
 
 
 def test_color_must_be_theme_vocabulary(tmp_path: Path) -> None:
     context = _context(_write_bundle(tmp_path))
     with pytest.raises(ValueError, match="must be a theme token this theme declares"):
-        render_kpi(context, _kpi({"color": "shiny"}))
+        render_kpi(context, _info(), _kpi({"color": "shiny"}))
     with pytest.raises(ValueError, match="this theme's series palette has"):
-        render_kpi(context, _kpi({"color": "series-9"}))
+        render_kpi(context, _info(), _kpi({"color": "series-9"}))
 
 
 def test_unknown_icon_teaches(tmp_path: Path) -> None:
     context = _context(_write_bundle(tmp_path))
     with pytest.raises(ValueError, match="unknown icon"):
-        render_kpi(context, _kpi({"icon": "core-nope"}))
+        render_kpi(context, _info(), _kpi({"icon": "core-nope"}))
 
 
 # ---------------------------------------------------------------------------
@@ -243,13 +261,15 @@ def test_key_must_name_a_scalar(tmp_path: Path, key: str) -> None:
     # pointing 'key' at them is an authoring mistake.
     context = _context(_write_bundle(tmp_path))
     with pytest.raises(ValueError, match="does not name a scalar"):
-        render_kpi(context, _kpi({"key": key}))
+        render_kpi(context, _info(), _kpi({"key": key}))
 
 
 def test_thresholds_refuse_text_values(tmp_path: Path) -> None:
     context = _context(_write_bundle(tmp_path))
     with pytest.raises(ValueError, match="thresholds cannot compare text"):
-        render_kpi(context, _kpi({"key": "label", "thresholds": {"ok": {"above": 1}}}))
+        render_kpi(
+            context, _info(), _kpi({"key": "label", "thresholds": {"ok": {"above": 1}}})
+        )
 
 
 def test_non_json_artifact_is_a_layout_mistake(tmp_path: Path) -> None:
@@ -257,7 +277,7 @@ def test_non_json_artifact_is_a_layout_mistake(tmp_path: Path) -> None:
         _write_bundle(tmp_path, fmt="tsv", content="depth\tcount\n12.4\t8\n")
     )
     with pytest.raises(ValueError, match="core.kpi reads JSON artifacts"):
-        render_kpi(context, _kpi())
+        render_kpi(context, _info(), _kpi())
 
 
 # ---------------------------------------------------------------------------
@@ -417,3 +437,33 @@ def test_caption_renders_under_the_value(tmp_path: Path) -> None:
     context = _context(_write_bundle(tmp_path))
     html = _html(context, _kpi({"caption": "Falling fast"}))
     assert '<p class="coda-kpi__caption">Falling fast</p>' in html
+
+
+# ---------------------------------------------------------------------------
+# Tile chrome: the KPI paints its own card
+# ---------------------------------------------------------------------------
+
+
+def test_the_resolved_title_paints_the_tile(tmp_path: Path) -> None:
+    # The KPI is a TILE component: it paints its own card, the
+    # placement's resolved title included — the title arrives
+    # through PlacementInfo, never the parameters, and paints
+    # above the value.
+    context = _context(_write_bundle(tmp_path))
+    default = _html(context, _kpi())
+    assert '<p class="coda-kpi__title">Key metric</p>' in default
+    assert default.index("coda-kpi__title") < default.index("coda-kpi__value")
+    overridden = render_kpi(context, PlacementInfo(title="Mean depth"), _kpi())
+    assert overridden.status is ComponentStatus.OK
+    assert overridden.html is not None
+    assert '<p class="coda-kpi__title">Mean depth</p>' in overridden.html
+
+
+def test_the_title_escapes_html(tmp_path: Path) -> None:
+    # The resolved title is layout-authored text inside a data page:
+    # markup in it renders as visible text.
+    context = _context(_write_bundle(tmp_path))
+    outcome = render_kpi(context, PlacementInfo(title="Depth <b>at</b>"), _kpi())
+    assert outcome.status is ComponentStatus.OK
+    assert outcome.html is not None
+    assert "&lt;b&gt;at&lt;/b&gt;" in outcome.html

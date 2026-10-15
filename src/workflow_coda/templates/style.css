@@ -88,8 +88,11 @@ body {
   opacity: 0.85;
 }
 
-/* --- Section tabs ------------------------------------------------------ */
+/* --- Tab navigation ----------------------------------------------------- */
 
+/* The tab bar is generated from the document's tabs: role=tablist
+   buttons driving role=tabpanel panels.  A single-tab report renders
+   no bar at all. */
 .coda-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -97,17 +100,26 @@ body {
   gap: 0.15rem 0.35rem;
 }
 
-.coda-tabs a {
-  color: inherit;
+.coda-tab {
+  font: inherit;
   font-size: 0.95rem;
-  text-decoration: none;
+  color: inherit;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
   padding: 0.35rem 0.6rem;
-  border-radius: 4px;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
 }
 
-.coda-tabs a:hover,
-.coda-tabs a:focus {
+.coda-tab:hover,
+.coda-tab:focus {
   background: var(--coda-accent);
+}
+
+.coda-tab[aria-selected="true"] {
+  border-bottom-color: currentColor;
+  font-weight: 600;
 }
 
 /* --- Page body ---------------------------------------------------------- */
@@ -120,11 +132,11 @@ body {
 
 /* --- Sections and cards ------------------------------------------------- */
 
-.coda-section {
+.coda-tabpanel {
   margin-top: 2.5rem;
 }
 
-.coda-section > h2,
+.coda-tabpanel > h2,
 .coda-diagnostics > h2 {
   font-family: var(--coda-font-heading);
   font-size: 1.5rem;
@@ -176,13 +188,29 @@ body {
 
 /* --- KPI cards ----------------------------------------------------------- */
 
-/* One headline number: the plugin-supplied coda-kpi body inside the
-   framework's card.  The text variant renders on the card surface;
-   fill and gradient paint a plate that runs to the card's inner
-   edges — the value-box look. */
+/* One headline number as its own card: the KPI is a TILE component,
+   so it paints everything — title, value, plate, corners — and the
+   renderer wraps it in a bare .coda-tile.  The default paint is the
+   surface card look; fill and gradient override background and ink
+   inline, and their plate reaches every edge because the KPI *is*
+   the card — the old full-bleed hack is gone. */
+
+.coda-tile {
+  margin: 1rem 0; /* stack rhythm, same as cards; ratio parents zero it */
+}
 
 .coda-kpi {
   position: relative; /* the corner icon pins against it */
+  background: var(--coda-surface);
+  border: 1px solid var(--coda-border);
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+}
+
+.coda-kpi__title {
+  font-family: var(--coda-font-heading);
+  font-size: 1.1rem;
+  margin: 0 0 0.5rem;
 }
 
 .coda-kpi__value {
@@ -222,17 +250,6 @@ body {
   opacity: 0.6;
 }
 
-/* Plate variants: full bleed to the card's inner edges, rounded to
-   sit inside the card's own corners.  The body-scoped selectors
-   out-specify the card body's first/last-child margin rules, which
-   would otherwise pin the plate back inside the padding. */
-.coda-card-body > .coda-kpi--fill,
-.coda-card-body > .coda-kpi--gradient {
-  margin: 0 -1.25rem -1rem;
-  padding: 1rem 1.25rem;
-  border-radius: 0 0 5px 5px;
-}
-
 /* On a plate, the caption rides the computed ink. */
 .coda-kpi--fill .coda-kpi__caption,
 .coda-kpi--gradient .coda-kpi__caption {
@@ -240,10 +257,81 @@ body {
   opacity: 0.85;
 }
 
+/* --- Composition: rows, grids, groups ----------------------------------- */
+
+/* Ratio layouts: one generated class per distinct split (emitted by
+   the renderer above this file) carries the column ratios; the
+   structure lives here.  Grid items stretch to equal row heights by
+   default, so side-by-side cards align. */
+.coda-row,
+.coda-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+/* Composition children drop the stack's card margins; the grid's gap
+   does the spacing. */
+.coda-row > *,
+.coda-grid > * {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* A group box: the visual "these belong together". */
+.coda-group {
+  border: 1px solid var(--coda-border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+.coda-group > h3 {
+  font-family: var(--coda-font-heading);
+  font-size: 0.95rem;
+  color: var(--coda-muted);
+  margin: 0 0 0.75rem;
+}
+
+/* --- Interactive tab state ----------------------------------------------- */
+
+/* The report's inline script adds .coda-js to <html> first thing, so
+   no-JS readers (and the DOM before the script runs) see the full
+   stacked document: every panel, every heading.  With script, the
+   selected panel is the visible one, and the panel h2 hides — the
+   tab button already carries the title. */
+.coda-js .coda-tabpanel[aria-hidden="true"] {
+  display: none;
+}
+
+.coda-js .coda-tabpanel > h2 {
+  display: none;
+}
+
+/* Printing a report shows every tab, stacked — save-to-PDF is a
+   first-class reader. */
+@media print {
+  .coda-tabs {
+    display: none;
+  }
+
+  .coda-tabpanel {
+    display: block !important;
+  }
+
+  .coda-tabpanel > h2 {
+    display: block !important;
+  }
+}
+
 /* --- Diagnostics --------------------------------------------------------- */
 
 .coda-diagnostics {
   margin-top: 2.5rem;
+}
+
+.coda-diagnostics__empty {
+  margin: 0.35rem 0;
+  color: var(--coda-muted);
 }
 
 .coda-diagnostics h3 {

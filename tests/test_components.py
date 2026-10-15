@@ -5,7 +5,9 @@ from factories import make_component, make_metadata, noop_render, stub_figure
 from helpers import assert_frozen_dataclass
 
 from workflow_coda.components import (
+    ComponentChrome,
     ComponentStatus,
+    PlacementInfo,
     RenderedComponent,
 )
 
@@ -154,6 +156,47 @@ def test_rendered_component_rejects_new_attributes() -> None:
 
 
 # ---------------------------------------------------------------------------
+# PlacementInfo: the render call's placement facts
+# ---------------------------------------------------------------------------
+
+
+def test_placement_info_round_trip() -> None:
+    info = PlacementInfo(title="Mean depth")
+    assert info.title == "Mean depth"
+
+
+def test_placement_infos_compare_by_value_and_hash() -> None:
+    # The builder resolves one per render call; value semantics keep
+    # equality pins honest.
+    assert PlacementInfo(title="Mean depth") == PlacementInfo(title="Mean depth")
+    assert hash(PlacementInfo(title="x")) == hash(PlacementInfo(title="x"))
+    assert PlacementInfo(title="x") != PlacementInfo(title="y")
+
+
+def test_placement_info_is_frozen_and_slotted() -> None:
+    info = PlacementInfo(title="Mean depth")
+    assert_frozen_dataclass(info, "title")
+    with pytest.raises(AttributeError):
+        info.extra = "nope"  # type: ignore[attr-defined]
+
+
+# ---------------------------------------------------------------------------
+# ComponentChrome: who paints a component's chrome
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("value", "member"),
+    [("card", ComponentChrome.CARD), ("tile", ComponentChrome.TILE)],
+)
+def test_component_chrome_wire_values(value: str, member: ComponentChrome) -> None:
+    # Lowercase wire values, like the status and diagnostic kinds:
+    # they name vocabulary in messages and CSS classes.
+    assert member.value == value
+    assert ComponentChrome(value) is member
+
+
+# ---------------------------------------------------------------------------
 # ReportComponent declarations
 # ---------------------------------------------------------------------------
 
@@ -169,6 +212,17 @@ def test_component_defaults_round_trip() -> None:
 def test_component_accepts_description() -> None:
     component = make_component(description="Per-sample QC summary")
     assert component.description == "Per-sample QC summary"
+
+
+def test_component_defaults_to_card_chrome() -> None:
+    # The default keeps every existing declaration valid; TILE is a
+    # declaration, never a surprise.
+    assert make_component().chrome is ComponentChrome.CARD
+
+
+def test_component_accepts_tile_chrome() -> None:
+    component = make_component(chrome=ComponentChrome.TILE)
+    assert component.chrome is ComponentChrome.TILE
 
 
 @pytest.mark.parametrize(

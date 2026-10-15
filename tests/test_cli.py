@@ -262,11 +262,11 @@ def _write_pluginless_layout(tmp_path: Path) -> Path:
     test stays plugin-independent while the component's absence still
     reaches the document."""
     payload = make_layout_payload()
-    sections = payload["sections"]
-    assert isinstance(sections, list)
-    for section in sections:
-        assert isinstance(section, dict)
-        components = section["components"]
+    tabs = payload["tabs"]
+    assert isinstance(tabs, list)
+    for tab in tabs:
+        assert isinstance(tab, dict)
+        components = tab["components"]
         assert isinstance(components, list)
         for placement in components:
             assert isinstance(placement, dict)  # loud on shape surprises

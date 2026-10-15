@@ -1,61 +1,9 @@
 {# Chrome macros: presentation only, no data decisions.
 
-   The card macro holds the trust boundary's single plugin-owned raw
-   point: a rendered entry's html is marked safe there (plugins are
-   installed code — trusted).  Every other value in these macros is
-   autoescaped framework text. #}
-
-
-{# One section entry: a rendered component (its html, or its
-   unavailability notice) — or a failed render's error in place.
-   A skipped outcome renders nothing at all. #}
-{% macro card(entry) %}
-  {% if entry.kind.name == "RENDERED" %}
-    {% if entry.outcome.status.name == "OK" %}
-      <article class="coda-card" data-component="{{ entry.component_id }}">
-        <h3>{{ entry.title }}</h3>
-        <div class="coda-card-body">{{ entry.outcome.html | safe }}</div>
-      </article>
-    {% elif entry.outcome.status.name == "UNAVAILABLE" %}
-      <article class="coda-card coda-card--notice" data-component="{{ entry.component_id }}">
-        <h3>{{ entry.title }}</h3>
-        <p>{{ entry.outcome.message }}</p>
-      </article>
-    {% endif %}
-  {% elif entry.kind.name == "FAILED" %}
-    <article class="coda-card coda-card--failure" data-component="{{ entry.component_id }}">
-      <h3>{{ entry.title }}</h3>
-      <p>{{ entry.error }}</p>
-    </article>
-  {% endif %}
-{% endmacro %}
-
-
-{# The diagnostics section: problems first, then informational
-   notes — each a kind badge plus the message.  The builder's
-   messages already name their subject, so the subject is not
-   printed a second time. #}
-{% macro diagnostics_block(problems, informational) %}
-<section class="coda-diagnostics" id="diagnostics">
-  <h2>Diagnostics</h2>
-  {% if problems %}
-  <h3>Problems</h3>
-  {% for diagnostic in problems %}
-  <p class="coda-diagnostic">
-    <span class="coda-badge coda-badge--{{ diagnostic.kind.value }}">{{ diagnostic.kind.value }}</span>{{ diagnostic.message }}
-  </p>
-  {% endfor %}
-  {% endif %}
-  {% if informational %}
-  <h3>Notes</h3>
-  {% for diagnostic in informational %}
-  <p class="coda-diagnostic">
-    <span class="coda-badge coda-badge--{{ diagnostic.kind.value }}">{{ diagnostic.kind.value }}</span>{{ diagnostic.message }}
-  </p>
-  {% endfor %}
-  {% endif %}
-</section>
-{% endmacro %}
+   The card and diagnostics macros moved into the renderer's tree
+   walk in layout schema 0.2.0 — the node tree dispatches on
+   dataclass shape, which belongs in Python.  The footer stayed a
+   macro because it is flat and framework-owned. #}
 
 
 {# The report footer: author, the manifest's provenance, and the

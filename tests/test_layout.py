@@ -1,5 +1,7 @@
-"""Tests for the report layout model: shape validation."""
+"""Tests for the report layout model: shape validation — the 0.2.0
+grammar of tabs and composition nodes."""
 
+import re
 from datetime import date
 
 import pytest
@@ -8,15 +10,26 @@ from pydantic import ValidationError
 
 from workflow_coda.artifact_store import JsonValue
 from workflow_coda.layout import (
+    CardNode,
     ComponentPlacement,
+    DiagnosticsNode,
+    GridLayout,
     MissingPolicy,
     ReportLayout,
+    RowNode,
 )
 
 
-def layout_with(sections: JsonValue) -> ReportLayout:
-    """Validate a payload whose ``sections`` are replaced wholesale."""
-    return ReportLayout.model_validate(make_layout_payload(sections=sections))
+def layout_with(tabs: JsonValue) -> ReportLayout:
+    """Validate a payload whose ``tabs`` are replaced wholesale."""
+    return ReportLayout.model_validate(make_layout_payload(tabs=tabs))
+
+
+def kpi(**overrides: JsonValue) -> dict[str, JsonValue]:
+    """A placement node for the factory's component."""
+    node: dict[str, JsonValue] = {"id": "example_bio.qc"}
+    node.update(overrides)
+    return node
 
 
 # ---------------------------------------------------------------------------
@@ -26,19 +39,21 @@ def layout_with(sections: JsonValue) -> ReportLayout:
 
 def test_valid_layout_loads_with_defaults() -> None:
     layout = ReportLayout.model_validate(make_layout_payload())
-    assert layout.schema_version == "0.1.0"
+    assert layout.schema_version == "0.2.0"
     assert layout.title == "Metagenomic analysis"
     assert layout.subtitle is None
     assert layout.theme is None
     assert layout.logo is None
     assert layout.favicon is None
     assert layout.on_missing is MissingPolicy.FAIL
-    (section,) = layout.sections
-    assert section.title == "Quality control"
-    (placement,) = section.components
+    (tab,) = layout.tabs
+    assert tab.title == "Quality control"
+    (placement,) = tab.components
+    assert isinstance(placement, ComponentPlacement)
     assert placement.id == "example_bio.qc"
     assert placement.parameters == {}
     assert placement.on_missing is None
+    assert placement.title is None
 
 
 def test_optional_identity_fields_round_trip() -> None:
@@ -64,6 +79,252 @@ def test_placement_constructs_directly_with_defaults() -> None:
     assert placement.on_missing is None
 
 
+def test_placement_title_overrides_the_default() -> None:
+    layout = layout_with([{"title": "QC", "components": [kpi(title="Mean depth")]}])
+    (placement,) = layout.tabs[0].components
+    assert isinstance(placement, ComponentPlacement)
+    assert placement.title == "Mean depth"
+
+
+# ---------------------------------------------------------------------------
+# The composition grammar
+# ---------------------------------------------------------------------------
+
+
+def test_row_loads_with_split_ratios() -> None:
+    layout = layout_with(
+        [
+            {
+                "title": "QC",
+                "components": [
+                    {"type": "row", "split": [2, 1], "children": [kpi(), kpi()]}
+                ],
+            }
+        ]
+    )
+    (node,) = layout.tabs[0].components
+    assert isinstance(node, RowNode)
+    assert node.split == (2.0, 1.0)
+    assert len(node.children) == 2
+
+
+def test_row_defaults_to_equal_widths_without_split() -> None:
+    layout = layout_with(
+        [{"title": "QC", "components": [{"type": "row", "children": [kpi(), kpi()]}]}]
+    )
+    (node,) = layout.tabs[0].components
+    assert isinstance(node, RowNode)
+    assert node.split is None
+
+
+def test_row_split_must_match_children() -> None:
+    with pytest.raises(ValidationError, match="one ratio per child"):
+        layout_with(
+            [
+                {
+                    "title": "QC",
+                    "components": [
+                        {"type": "row", "split": [1, 1, 1], "children": [kpi(), kpi()]}
+                    ],
+                }
+            ]
+        )
+
+
+@pytest.mark.parametrize("bad", [0, -1, "1", "x"])
+def test_split_ratios_must_be_positive_numbers(bad: JsonValue) -> None:
+    with pytest.raises(ValidationError, match="split ratios must be"):
+        layout_with(
+            [
+                {
+                    "title": "QC",
+                    "components": [
+                        {"type": "row", "split": [bad, 1], "children": [kpi(), kpi()]}
+                    ],
+                }
+            ]
+        )
+
+
+def test_split_ratios_reject_yaml_booleans() -> None:
+    # A bare yes/no in a ratio list is a boolean in YAML 1.1 — it
+    # would silently coerce to 1.0/0.0; the grammar refuses it first.
+    with pytest.raises(ValidationError, match="parsed this entry as a boolean"):
+        layout_with(
+            [
+                {
+                    "title": "QC",
+                    "components": [
+                        {"type": "row", "split": [True, 1], "children": [kpi(), kpi()]}
+                    ],
+                }
+            ]
+        )
+
+
+def test_splits_need_at_least_two_ratios() -> None:
+    with pytest.raises(ValidationError, match="at least two ratios"):
+        layout_with(
+            [
+                {
+                    "title": "QC",
+                    "components": [
+                        {"type": "row", "split": [1], "children": [kpi(), kpi()]}
+                    ],
+                }
+            ]
+        )
+
+
+def test_grid_requires_column_ratios() -> None:
+    with pytest.raises(ValidationError, match="split"):
+        layout_with(
+            [{"title": "QC", "components": [{"type": "grid", "children": [kpi()]}]}]
+        )
+
+
+def test_grid_flows_children_into_ratio_columns() -> None:
+    # A grid's split gives columns, not children: three children in
+    # two columns leaves a short last row — valid by design.
+    layout = layout_with(
+        [
+            {
+                "title": "QC",
+                "components": [
+                    {"type": "grid", "split": [1, 1], "children": [kpi(), kpi(), kpi()]}
+                ],
+            }
+        ]
+    )
+    (node,) = layout.tabs[0].components
+    assert isinstance(node, GridLayout)
+    assert node.split == (1.0, 1.0)
+    assert len(node.children) == 3
+
+
+def test_card_defaults_to_a_titled_stack() -> None:
+    layout = layout_with(
+        [{"title": "QC", "components": [{"type": "card", "children": [kpi()]}]}]
+    )
+    (node,) = layout.tabs[0].components
+    assert isinstance(node, CardNode)
+    assert node.title is None
+    assert node.layout == "stack"
+    assert node.split is None
+
+
+def test_card_row_layout_takes_a_split() -> None:
+    layout = layout_with(
+        [
+            {
+                "title": "QC",
+                "components": [
+                    {
+                        "type": "card",
+                        "title": "Group",
+                        "layout": "row",
+                        "split": [2, 1],
+                        "children": [kpi(), kpi()],
+                    }
+                ],
+            }
+        ]
+    )
+    (node,) = layout.tabs[0].components
+    assert isinstance(node, CardNode)
+    assert node.title == "Group"
+    assert node.layout == "row"
+    assert node.split == (2.0, 1.0)
+
+
+def test_card_stack_rejects_a_split() -> None:
+    with pytest.raises(ValidationError, match="a stack ignores 'split'"):
+        layout_with(
+            [
+                {
+                    "title": "QC",
+                    "components": [
+                        {"type": "card", "split": [1, 1], "children": [kpi(), kpi()]}
+                    ],
+                }
+            ]
+        )
+
+
+def test_diagnostics_node_carries_no_keys() -> None:
+    layout = layout_with([{"title": "QC", "components": [{"type": "diagnostics"}]}])
+    (node,) = layout.tabs[0].components
+    assert isinstance(node, DiagnosticsNode)
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        layout_with(
+            [{"title": "QC", "components": [{"type": "diagnostics", "title": "x"}]}]
+        )
+
+
+# ---------------------------------------------------------------------------
+# Node dispatch: the grammar's front door
+# ---------------------------------------------------------------------------
+
+
+def test_a_node_is_a_placement_or_a_composition_never_both() -> None:
+    with pytest.raises(ValidationError, match="never both"):
+        layout_with(
+            [{"title": "QC", "components": [{"id": "example_bio.qc", "type": "row"}]}]
+        )
+
+
+def test_a_node_needs_id_or_type() -> None:
+    with pytest.raises(
+        ValidationError,
+        match=re.escape("needs either 'id' (to place a component) or 'type'"),
+    ):
+        layout_with([{"title": "QC", "components": [{"parameters": {}}]}])
+
+
+def test_unknown_composition_types_teach_the_vocabulary() -> None:
+    with pytest.raises(ValidationError, match="unknown composition type 'hero'"):
+        layout_with([{"title": "QC", "components": [{"type": "hero"}]}])
+
+
+def test_non_mapping_nodes_are_refused() -> None:
+    with pytest.raises(ValidationError, match="must be a mapping"):
+        layout_with([{"title": "QC", "components": ["just a string"]}])
+
+
+def test_nodes_nest_through_every_level() -> None:
+    # The grammar composes the way frames do: a card holding a
+    # placement, a row, and a diagnostics marker inside that row.
+    layout = layout_with(
+        [
+            {
+                "title": "QC",
+                "components": [
+                    {
+                        "type": "card",
+                        "title": "Group",
+                        "layout": "grid",
+                        "split": [1, 1],
+                        "children": [
+                            kpi(),
+                            {
+                                "type": "row",
+                                "split": [3, 1],
+                                "children": [kpi(), {"type": "diagnostics"}],
+                            },
+                        ],
+                    }
+                ],
+            }
+        ]
+    )
+    (card,) = layout.tabs[0].components
+    assert isinstance(card, CardNode)
+    assert card.layout == "grid"
+    row = card.children[1]
+    assert isinstance(row, RowNode)
+    assert isinstance(row.children[1], DiagnosticsNode)
+
+
 # ---------------------------------------------------------------------------
 # Visible-text gates
 # ---------------------------------------------------------------------------
@@ -80,7 +341,7 @@ def test_empty_title_rejected() -> None:
         ReportLayout.model_validate(make_layout_payload(title=""))
 
 
-def test_section_titles_require_visible_text() -> None:
+def test_tab_titles_require_visible_text() -> None:
     with pytest.raises(ValidationError, match="must contain visible text"):
         layout_with([{"title": "  ", "components": [{"id": "example_bio.qc"}]}])
 
@@ -95,8 +356,6 @@ def test_section_titles_require_visible_text() -> None:
     ["qc", "example.bio.qc", "Example.qc", "example.QC", "", ".qc"],
 )
 def test_placements_require_component_id_shape(id: str) -> None:
-    # The grammar itself is pinned in test_components; these pin that
-    # the placement path enforces the shared pattern.
     with pytest.raises(ValidationError, match="not a component id"):
         layout_with([{"title": "QC", "components": [{"id": id}]}])
 
@@ -106,8 +365,11 @@ def test_schema_version_is_required_and_must_be_known() -> None:
     del payload["schema_version"]
     with pytest.raises(ValidationError, match="schema_version"):
         ReportLayout.model_validate(payload)
-    with pytest.raises(ValidationError, match="schema_version"):
+    with pytest.raises(ValidationError, match="Input should be '0.2.0'"):
         ReportLayout.model_validate(make_layout_payload(schema_version="9.9.9"))
+    # 0.1.0 is rejected here too; the loader teaches the migration.
+    with pytest.raises(ValidationError, match="Input should be '0.2.0'"):
+        ReportLayout.model_validate(make_layout_payload(schema_version="0.1.0"))
 
 
 # ---------------------------------------------------------------------------
@@ -116,20 +378,23 @@ def test_schema_version_is_required_and_must_be_known() -> None:
 
 
 def test_unknown_keys_rejected_at_every_level() -> None:
-    # One concern, three levels: extra="forbid" on the layout, on each
-    # section, and on each placement.  The unknown keys are typos of
-    # real field names — the authoring mistake the strict models exist
-    # to catch — and typo-keys can never become real fields, so the
-    # fixture cannot rot.
+    # One concern, four levels: the layout, each tab, each node, and
+    # each placement.  The unknown keys are typos of real field names
+    # — the authoring mistake the strict models exist to catch — and
+    # typo-keys can never become real fields, so the fixture cannot
+    # rot.
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         ReportLayout.model_validate(make_layout_payload(titel="Metagenomic analysis"))
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        layout_with(
+            [{"title": "QC", "components": [{"id": "example_bio.qc"}], "componets": []}]
+        )
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         layout_with(
             [
                 {
                     "title": "QC",
-                    "components": [{"id": "example_bio.qc"}],
-                    "componets": [],
+                    "components": [{"type": "row", "childrn": [], "children": [kpi()]}],
                 }
             ]
         )
@@ -139,9 +404,9 @@ def test_unknown_keys_rejected_at_every_level() -> None:
         )
 
 
-def test_empty_sections_rejected() -> None:
+def test_empty_tabs_rejected() -> None:
     with pytest.raises(ValidationError, match="at least 1 item"):
-        ReportLayout.model_validate(make_layout_payload(sections=[]))
+        ReportLayout.model_validate(make_layout_payload(tabs=[]))
 
 
 def test_empty_component_lists_rejected() -> None:
@@ -149,27 +414,30 @@ def test_empty_component_lists_rejected() -> None:
         layout_with([{"title": "QC", "components": []}])
 
 
+def test_the_toc_key_is_gone() -> None:
+    # 0.2.0 removed the toc toggle: tabs are the navigation.  A stale
+    # toc key is the likeliest leftover from a migrated file, so the
+    # strict model refuses it like any unknown key.
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        ReportLayout.model_validate(make_layout_payload(toc=False))
+
+
 # ---------------------------------------------------------------------------
 # Ordering and duplicate placements
 # ---------------------------------------------------------------------------
 
 
-def test_sections_preserve_declaration_order() -> None:
+def test_tabs_preserve_declaration_order() -> None:
     layout = layout_with(
         [
             {"title": "Quality control", "components": [{"id": "example_bio.qc"}]},
             {"title": "Taxonomy", "components": [{"id": "example_bio.taxonomy"}]},
         ]
     )
-    assert [section.title for section in layout.sections] == [
-        "Quality control",
-        "Taxonomy",
-    ]
+    assert [tab.title for tab in layout.tabs] == ["Quality control", "Taxonomy"]
 
 
 def test_same_component_may_be_placed_twice() -> None:
-    # A placement is an instance, not a reference: one component with
-    # two parameterizations is a feature, not a conflict.
     layout = layout_with(
         [
             {
@@ -181,8 +449,12 @@ def test_same_component_may_be_placed_twice() -> None:
             }
         ]
     )
-    (section,) = layout.sections
-    assert [p.parameters["min_depth"] for p in section.components] == [10, 50]
+    (tab,) = layout.tabs
+    depths = []
+    for node in tab.components:
+        assert isinstance(node, ComponentPlacement)
+        depths.append(node.parameters["min_depth"])
+    assert depths == [10, 50]
 
 
 # ---------------------------------------------------------------------------
@@ -201,16 +473,25 @@ def test_on_missing_rejects_unknown_values() -> None:
         ReportLayout.model_validate(make_layout_payload(on_missing="explode"))
 
 
-def test_placement_on_missing_overrides_the_layout_default() -> None:
+def test_placement_on_missing_travels_into_composition_nodes() -> None:
     layout = layout_with(
         [
             {
                 "title": "QC",
-                "components": [{"id": "example_bio.qc", "on_missing": "skip"}],
+                "components": [
+                    {
+                        "type": "row",
+                        "children": [{"id": "example_bio.qc", "on_missing": "skip"}],
+                    }
+                ],
             }
         ]
     )
-    assert layout.sections[0].components[0].on_missing is MissingPolicy.SKIP
+    row = layout.tabs[0].components[0]
+    assert isinstance(row, RowNode)
+    placement = row.children[0]
+    assert isinstance(placement, ComponentPlacement)
+    assert placement.on_missing is MissingPolicy.SKIP
 
 
 # ---------------------------------------------------------------------------
@@ -236,13 +517,12 @@ def test_parameters_preserve_json_values_exactly() -> None:
             }
         ]
     )
-    assert layout.sections[0].components[0].parameters == parameters
+    (placement,) = layout.tabs[0].components
+    assert isinstance(placement, ComponentPlacement)
+    assert placement.parameters == parameters
 
 
 def test_parameters_reject_non_json_values() -> None:
-    # YAML's richer types (dates, sets, binary) are rejected by the
-    # model itself, with the field named.  The loader tests pin the
-    # same rejection through a real YAML file.
     with pytest.raises(ValidationError, match="parameters.when"):
         layout_with(
             [
@@ -266,36 +546,16 @@ def test_parameters_reject_non_json_values() -> None:
 
 def test_layout_is_frozen() -> None:
     layout = ReportLayout.model_validate(make_layout_payload())
-    # mypy's pydantic plugin already flags frozen-field writes at type
-    # time; the ignores let the test pin the runtime ValidationError.
     with pytest.raises(ValidationError, match="frozen"):
         layout.title = "New title"  # type: ignore[misc]
+    (placement,) = layout.tabs[0].components
+    assert isinstance(placement, ComponentPlacement)
     with pytest.raises(ValidationError, match="frozen"):
-        layout.sections[0].components[0].id = "example.bio.other"  # type: ignore[misc]
+        placement.id = "example.bio.other"  # type: ignore[misc]
 
 
 # ---------------------------------------------------------------------------
-# The table of contents toggle
-# ---------------------------------------------------------------------------
-
-
-def test_toc_defaults_to_true() -> None:
-    layout = ReportLayout.model_validate(make_layout_payload())
-    assert layout.toc is True
-
-
-def test_toc_explicit_false_round_trips() -> None:
-    layout = ReportLayout.model_validate(make_layout_payload(toc=False))
-    assert layout.toc is False
-
-
-def test_toc_rejects_non_boolean_values() -> None:
-    with pytest.raises(ValidationError, match="toc"):
-        ReportLayout.model_validate(make_layout_payload(toc="sometimes"))
-
-
-# ---------------------------------------------------------------------------
-# The author line
+# The author and version lines
 # ---------------------------------------------------------------------------
 
 
@@ -311,11 +571,6 @@ def test_author_is_optional_and_round_trips() -> None:
 def test_author_requires_visible_text() -> None:
     with pytest.raises(ValidationError, match="must contain visible text"):
         ReportLayout.model_validate(make_layout_payload(author="  "))
-
-
-# ---------------------------------------------------------------------------
-# The report version
-# ---------------------------------------------------------------------------
 
 
 def test_version_is_optional_and_round_trips() -> None:

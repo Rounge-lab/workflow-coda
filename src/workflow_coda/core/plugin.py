@@ -10,7 +10,7 @@ of truth.
 
 from importlib import metadata
 
-from ..components import PluginMetadata, ReportComponent
+from ..components import ComponentChrome, PluginMetadata, ReportComponent
 from ..plugins import ReportPlugin
 from .kpi import render_kpi
 
@@ -19,6 +19,7 @@ _KPI = ReportComponent(
     title="Key metric",
     description="One artifact-backed headline number.",
     render=render_kpi,
+    chrome=ComponentChrome.TILE,
 )
 """The core plugin's single component; the roster grows per milestone."""
 
