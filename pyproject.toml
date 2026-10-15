@@ -43,6 +43,9 @@ docs = [
 [project.scripts]
 workflow-coda = "workflow_coda.cli:main"
 
+[project.entry-points."workflow_coda.plugins"]
+core = "workflow_coda.core.plugin:get_plugin"
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 include-package-data = true
@@ -51,7 +54,7 @@ include-package-data = true
 where = ["src"]
 
 [tool.setuptools.package-data]
-workflow_coda = ["templates/*"]
+workflow_coda = ["templates/*", "assets/icons/*.svg"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -97,14 +97,21 @@ class ComponentPlacement(BaseModel):
 
     A placement is an *instance*, not a reference: the same component
     id may appear any number of times, in the same or different
-    sections, each with its own parameters.  The builder renders each
-    placement independently.
+    sections, each with its own tile and parameters.  The builder
+    renders each placement independently.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     id: Annotated[str, AfterValidator(_require_component_id_shape)]
     """The component id, as declared by a plugin."""
+
+    title: VisibleText | None = None
+    """Optional title for *this instance*, overriding the component
+    declaration's ``title``.  The declaration's title is the plugin's
+    default — one name for every placement of the component; a
+    per-placement ``title`` names this instance, so a row of KPIs can
+    each carry their own heading.  Absent means inherit."""
 
     parameters: dict[str, JsonValue] = {}
     """Transport: values pass to the component's render call exactly as
