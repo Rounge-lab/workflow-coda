@@ -4,9 +4,8 @@
  * All colors and fonts come from CSS custom properties in the ":root"
  * block the renderer generates from the report's theme, emitted above
  * this file: one --coda-<token> property per theme color token
- * (background, surface, text, muted, border, primary, accent,
- * success, warning, danger — plus any additional tokens the theme
- * declares), --coda-series-N for the categorical palette, and the two
+ * (the core tokens — plus any additional tokens the theme declares),
+ * --coda-series-N for the categorical palette, and the two
  * font stacks.  The framework owns this namespace: classes are
  * coda-*, properties are --coda-*, so plugin-supplied html cannot
  * collide with the chrome — and may use the custom properties
@@ -173,6 +172,72 @@ body {
 .coda-card--failure > p {
   color: var(--coda-muted);
   margin: 0;
+}
+
+/* --- KPI cards ----------------------------------------------------------- */
+
+/* One headline number: the plugin-supplied coda-kpi body inside the
+   framework's card.  The text variant renders on the card surface;
+   fill and gradient paint a plate that runs to the card's inner
+   edges — the value-box look. */
+
+.coda-kpi {
+  position: relative; /* the corner icon pins against it */
+}
+
+.coda-kpi__value {
+  margin: 0;
+  font-family: var(--coda-font-heading);
+  font-size: 2.25rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.coda-kpi__unit {
+  font-size: 0.45em; /* relative to the value: shrinks with it */
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.coda-kpi__caption {
+  margin: 0.35rem 0 0;
+  font-size: 0.875rem;
+  color: var(--coda-muted);
+}
+
+/* Icons inherit the ink of the text around them; nudge them onto the
+   x-height so inline placement reads centered. */
+.coda-icon {
+  display: inline-block;
+  vertical-align: -0.125em;
+}
+
+/* The corner icon sits in the card's top right, scaled up and dimmed. */
+.coda-kpi__corner {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.5rem;
+  font-size: 1.5rem;
+  line-height: 1;
+  opacity: 0.6;
+}
+
+/* Plate variants: full bleed to the card's inner edges, rounded to
+   sit inside the card's own corners.  The body-scoped selectors
+   out-specify the card body's first/last-child margin rules, which
+   would otherwise pin the plate back inside the padding. */
+.coda-card-body > .coda-kpi--fill,
+.coda-card-body > .coda-kpi--gradient {
+  margin: 0 -1.25rem -1rem;
+  padding: 1rem 1.25rem;
+  border-radius: 0 0 5px 5px;
+}
+
+/* On a plate, the caption rides the computed ink. */
+.coda-kpi--fill .coda-kpi__caption,
+.coda-kpi--gradient .coda-kpi__caption {
+  color: inherit;
+  opacity: 0.85;
 }
 
 /* --- Diagnostics --------------------------------------------------------- */

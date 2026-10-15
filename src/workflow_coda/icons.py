@@ -207,7 +207,7 @@ def load_icon(name: str) -> Icon:
     """
     if _ICON_NAME_PATTERN.fullmatch(name) is None:
         raise ValueError(
-            f"icon names are lowercase kebab-case (e.g. 'arrow-up'), got {name!r}"
+            f"icon names are lowercase kebab-case (e.g. 'core-arrow-up'), got {name!r}"
         )
     names = icon_names()
     if name not in names:
