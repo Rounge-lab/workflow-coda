@@ -95,6 +95,7 @@ def test_entry_kind_wire_values(value: str, member: EntryKind) -> None:
     [
         ("plugin_excluded", DiagnosticKind.PLUGIN_EXCLUDED),
         ("component_missing", DiagnosticKind.COMPONENT_MISSING),
+        ("component_unavailable", DiagnosticKind.COMPONENT_UNAVAILABLE),
         ("plugin_bug", DiagnosticKind.PLUGIN_BUG),
         ("default_theme", DiagnosticKind.DEFAULT_THEME),
         ("logo_omitted", DiagnosticKind.LOGO_OMITTED),
@@ -448,6 +449,7 @@ def test_document_carries_the_report_version() -> None:
         (DiagnosticKind.PLUGIN_EXCLUDED, True),
         (DiagnosticKind.COMPONENT_MISSING, True),
         (DiagnosticKind.PLUGIN_BUG, True),
+        (DiagnosticKind.COMPONENT_UNAVAILABLE, False),
         (DiagnosticKind.DEFAULT_THEME, False),
         (DiagnosticKind.LOGO_OMITTED, False),
         (DiagnosticKind.FAVICON_OMITTED, False),

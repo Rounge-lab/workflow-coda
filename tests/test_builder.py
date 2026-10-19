@@ -20,6 +20,7 @@ from workflow_coda.artifact_store import ArtifactStore, JsonValue
 from workflow_coda.builder import build_report
 from workflow_coda.components import (
     ComponentParameters,
+    ComponentStatus,
     PlacementInfo,
     RenderContext,
     RenderedComponent,
@@ -77,6 +78,44 @@ def _interrupting_render(
     _context: RenderContext, _info: PlacementInfo, _parameters: ComponentParameters
 ) -> RenderedComponent:
     raise KeyboardInterrupt
+
+
+def _unavailable_render(
+    _context: RenderContext, _info: PlacementInfo, _parameters: ComponentParameters
+) -> RenderedComponent:
+    return RenderedComponent.unavailable("the pipeline produced no data")
+
+
+def _skipping_render(
+    _context: RenderContext, _info: PlacementInfo, _parameters: ComponentParameters
+) -> RenderedComponent:
+    return RenderedComponent.skipped()
+
+
+def unavailable_plugin() -> ReportPlugin:
+    """Its render returns unavailable: data absence as a run fact."""
+    return make_plugin(
+        metadata=make_metadata(id="dataless"),
+        components=(
+            make_component(
+                id="dataless.quality",
+                title="Dataless metric",
+                render=_unavailable_render,
+            ),
+        ),
+    )
+
+
+def skipping_plugin() -> ReportPlugin:
+    """Its render returns skipped: the plugin's deliberate nothing."""
+    return make_plugin(
+        metadata=make_metadata(id="silent"),
+        components=(
+            make_component(
+                id="silent.quality", title="Silent metric", render=_skipping_render
+            ),
+        ),
+    )
 
 
 def current_plugin() -> ReportPlugin:
@@ -329,6 +368,167 @@ def test_excluded_plugin_noticed_with_the_version_story(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Unavailable outcomes, under each policy
+# ---------------------------------------------------------------------------
+
+
+def test_unavailable_notices_by_default(tmp_path: Path) -> None:
+    # The default preserves today's behavior: the entry stands, the
+    # renderer paints the notice card, and the ledger records nothing.
+    layout_path = write_layout(
+        tmp_path, tabs=[{"title": "QC", "components": [{"id": "dataless.quality"}]}]
+    )
+    document = build(tmp_path, layout_path, unavailable_plugin())
+    (tab,) = document.tabs
+    (entry,) = tab.nodes
+    assert isinstance(entry, ComponentEntry)
+    assert entry.kind is EntryKind.RENDERED
+    assert entry.outcome is not None
+    assert entry.outcome.status is ComponentStatus.UNAVAILABLE
+    assert diagnostic_subjects(document, DiagnosticKind.COMPONENT_UNAVAILABLE) == []
+
+
+def test_unavailable_skip_omits_and_records_the_note(tmp_path: Path) -> None:
+    # The component leaves the page, not the ledger — and it is a
+    # note: expected pipeline behavior, rendered in the notes group.
+    layout_path = write_layout(
+        tmp_path,
+        on_unavailable="skip",
+        tabs=[{"title": "QC", "components": [{"id": "dataless.quality"}]}],
+    )
+    document = build(tmp_path, layout_path, unavailable_plugin())
+    assert document.tabs == ()
+    (note,) = diagnostics_of(document, DiagnosticKind.COMPONENT_UNAVAILABLE)
+    assert note.subject == "dataless.quality"
+    assert "omitted" in note.message
+    assert "the pipeline produced no data" in note.message
+    assert note.kind.is_problem is False
+
+
+def test_unavailable_skip_collapses_emptied_compositions(tmp_path: Path) -> None:
+    # The walk's upward collapse is shared machinery: a row whose
+    # children all skip produces no node, and the emptied tab drops
+    # — the notes already explain why.
+    layout_path = write_layout(
+        tmp_path,
+        on_unavailable="skip",
+        tabs=[
+            {
+                "title": "QC",
+                "components": [
+                    {
+                        "type": "row",
+                        "children": [
+                            {"id": "dataless.quality"},
+                            {"id": "dataless.quality"},
+                        ],
+                    }
+                ],
+            }
+        ],
+    )
+    document = build(tmp_path, layout_path, unavailable_plugin())
+    assert document.tabs == ()
+    assert len(diagnostic_subjects(document, DiagnosticKind.COMPONENT_UNAVAILABLE)) == 2
+
+
+def test_partial_unavailable_skip_keeps_the_survivors(tmp_path: Path) -> None:
+    layout_path = write_layout(
+        tmp_path,
+        on_unavailable="skip",
+        tabs=[
+            {
+                "title": "QC",
+                "components": [
+                    {
+                        "type": "row",
+                        "split": [2, 1],
+                        "children": [
+                            {"id": "dataless.quality"},
+                            {"id": "current.quality", "parameters": {"label": "A"}},
+                        ],
+                    }
+                ],
+            }
+        ],
+    )
+    document = build(tmp_path, layout_path, current_plugin(), unavailable_plugin())
+    (node,) = document.tabs[0].nodes
+    assert isinstance(node, RowEntry)
+    assert len(node.children) == 1
+    assert diagnostic_subjects(document, DiagnosticKind.COMPONENT_UNAVAILABLE) == [
+        "dataless.quality"
+    ]
+
+
+def test_unavailable_fail_refuses_the_build(tmp_path: Path) -> None:
+    layout_path = write_layout(
+        tmp_path,
+        on_unavailable="fail",
+        tabs=[{"title": "QC", "components": [{"id": "dataless.quality"}]}],
+    )
+    with pytest.raises(
+        ComponentUnavailableError,
+        match=re.escape("the layout places component 'dataless.quality'")
+        + ".*"
+        + re.escape("the pipeline produced no data"),
+    ):
+        build(tmp_path, layout_path, unavailable_plugin())
+
+
+def test_skip_does_not_govern_plugin_bugs(tmp_path: Path) -> None:
+    # A bug is not a data fact: even under on_unavailable: skip, the
+    # failure card stands and the plugin_bug diagnostic is recorded.
+    layout_path = write_layout(
+        tmp_path,
+        on_unavailable="skip",
+        tabs=[{"title": "QC", "components": [{"id": "broken.quality"}]}],
+    )
+    document = build(tmp_path, layout_path, broken_plugin())
+    (tab,) = document.tabs
+    (entry,) = tab.nodes
+    assert isinstance(entry, ComponentEntry)
+    assert entry.kind is EntryKind.FAILED
+    assert diagnostic_subjects(document, DiagnosticKind.PLUGIN_BUG) == [
+        "broken.quality"
+    ]
+
+
+def test_skip_does_not_govern_deliberate_skips(tmp_path: Path) -> None:
+    # A plugin's own SKIPPED outcome already renders nothing; the
+    # policy adds no diagnostic for it.
+    layout_path = write_layout(
+        tmp_path,
+        on_unavailable="skip",
+        tabs=[{"title": "QC", "components": [{"id": "silent.quality"}]}],
+    )
+    document = build(tmp_path, layout_path, skipping_plugin())
+    (entry,) = document.tabs[0].nodes
+    assert isinstance(entry, ComponentEntry)
+    assert entry.outcome is not None
+    assert entry.outcome.status is ComponentStatus.SKIPPED
+    assert diagnostic_subjects(document, DiagnosticKind.COMPONENT_UNAVAILABLE) == []
+
+
+def test_on_missing_does_not_govern_unavailable_data(tmp_path: Path) -> None:
+    # The orthogonality your sanity run discovered, pinned: an
+    # installed component under on_missing: skip still notices its
+    # missing data — resolution succeeded, so the resolution policy
+    # has nothing to say.
+    layout_path = write_layout(
+        tmp_path,
+        on_missing="skip",
+        tabs=[{"title": "QC", "components": [{"id": "dataless.quality"}]}],
+    )
+    document = build(tmp_path, layout_path, unavailable_plugin())
+    (tab,) = document.tabs
+    (entry,) = tab.nodes
+    assert isinstance(entry, ComponentEntry)
+    assert entry.outcome is not None
+    assert entry.outcome.status is ComponentStatus.UNAVAILABLE
+
+
+# ---------------------------------------------------------------------------
 # Per-placement policy overrides
 # ---------------------------------------------------------------------------
 
@@ -365,6 +565,48 @@ def test_placement_notice_overrides_the_layout_fail(tmp_path: Path) -> None:
     assert diagnostic_subjects(document, DiagnosticKind.COMPONENT_MISSING) == [
         "nope.nothing"
     ]
+
+
+def test_placement_on_unavailable_fail_overrides_the_layout_notice(
+    tmp_path: Path,
+) -> None:
+    layout_path = write_layout(
+        tmp_path,
+        on_unavailable="notice",
+        tabs=[
+            {
+                "title": "QC",
+                "components": [{"id": "dataless.quality", "on_unavailable": "fail"}],
+            }
+        ],
+    )
+    with pytest.raises(
+        ComponentUnavailableError,
+        match=re.escape("the layout places component 'dataless.quality'"),
+    ):
+        build(tmp_path, layout_path, unavailable_plugin())
+
+
+def test_placement_on_unavailable_notice_overrides_the_layout_skip(
+    tmp_path: Path,
+) -> None:
+    layout_path = write_layout(
+        tmp_path,
+        on_unavailable="skip",
+        tabs=[
+            {
+                "title": "QC",
+                "components": [{"id": "dataless.quality", "on_unavailable": "notice"}],
+            }
+        ],
+    )
+    document = build(tmp_path, layout_path, unavailable_plugin())
+    (tab,) = document.tabs
+    (entry,) = tab.nodes
+    assert isinstance(entry, ComponentEntry)
+    assert entry.outcome is not None
+    assert entry.outcome.status is ComponentStatus.UNAVAILABLE
+    assert diagnostic_subjects(document, DiagnosticKind.COMPONENT_UNAVAILABLE) == []
 
 
 # ---------------------------------------------------------------------------

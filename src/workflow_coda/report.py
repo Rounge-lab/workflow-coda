@@ -70,7 +70,10 @@ class DiagnosticKind(Enum):
     ``PLUGIN_EXCLUDED``, ``COMPONENT_MISSING``, and ``PLUGIN_BUG`` name
     problems: plugins gated out by the manifest's schema version,
     placements whose component id resolved to nothing under the
-    ``notice`` policy, and render calls that raised.  ``DEFAULT_THEME``,
+    ``notice`` policy, and render calls that raised.
+    ``COMPONENT_UNAVAILABLE`` is a note: an omission under the on_unavailable: skip
+    policy — the run, not the author, left the component's data absent; a note, because
+    expected pipeline behavior.  ``DEFAULT_THEME``,
     ``LOGO_OMITTED``, and ``FAVICON_OMITTED`` are informational: the
     report is complete, and the message explains how to add what was
     left out.
@@ -79,6 +82,7 @@ class DiagnosticKind(Enum):
     PLUGIN_EXCLUDED = "plugin_excluded"
     COMPONENT_MISSING = "component_missing"
     PLUGIN_BUG = "plugin_bug"
+    COMPONENT_UNAVAILABLE = "component_unavailable"
     DEFAULT_THEME = "default_theme"
     LOGO_OMITTED = "logo_omitted"
     FAVICON_OMITTED = "favicon_omitted"

@@ -41,7 +41,7 @@ from pydantic import ValidationError
 
 from .artifact_store import ArtifactStore
 from .assets import embed_asset
-from .components import PlacementInfo, ReportComponent
+from .components import ComponentStatus, PlacementInfo, ReportComponent
 from .context import RenderContext
 from .errors import ComponentUnavailableError, LayoutError
 from .layout import (
@@ -52,6 +52,7 @@ from .layout import (
     LayoutNode,
     MissingPolicy,
     RowNode,
+    UnavailablePolicy,
 )
 from .layout_loader import UniqueKeySafeLoader, load_layout
 from .manifest import ManifestSchemaVersion
@@ -207,11 +208,65 @@ class _WalkState:
     diagnostics: list[Diagnostic]
     """The builder's growing ledger."""
 
-    policy: MissingPolicy
+    missing_policy: MissingPolicy
     """The layout-level ``on_missing`` default."""
+
+    unavailable_policy: UnavailablePolicy
+    """The layout-level ``on_unavailable`` default."""
 
     schema_version: ManifestSchemaVersion
     """The manifest's schema version, for the teaching messages."""
+
+
+def _triage_unavailable(
+    state: _WalkState, placement: ComponentPlacement, entry: ComponentEntry
+) -> ComponentEntry | None:
+    """Apply the ``on_unavailable`` policy to an unavailable outcome.
+
+    The second placement gate, post-render: the component resolved,
+    its render ran, and the outcome says the data is missing.
+    ``notice`` keeps the entry — the renderer paints the notice card
+    with the outcome's message; ``skip`` drops the node and records
+    the omission as an informational diagnostic, so the ledger
+    remembers what the page does not show and a collapsed tab is
+    already explained; ``fail`` refuses the build, carrying the
+    outcome's own teaching message.  Plugin bugs (``FAILED`` entries)
+    and deliberate ``SKIPPED`` outcomes are never governed: bugs are
+    always collected in place, and an intentional skip already
+    renders nothing.
+    """
+    if entry.kind is not EntryKind.RENDERED:
+        return entry  # a plugin bug, not a data fact
+    outcome = entry.outcome
+    assert outcome is not None  # the RENDERED pairing
+    if outcome.status is not ComponentStatus.UNAVAILABLE:
+        return entry
+    policy = (
+        placement.on_unavailable
+        if placement.on_unavailable is not None
+        else state.unavailable_policy
+    )
+    if policy is UnavailablePolicy.NOTICE:
+        return entry
+    if policy is UnavailablePolicy.SKIP:
+        state.diagnostics.append(
+            Diagnostic(
+                kind=DiagnosticKind.COMPONENT_UNAVAILABLE,
+                subject=placement.id,
+                message=(
+                    f"component {placement.id!r} omitted: its render "
+                    f"returned unavailable — {outcome.message}"
+                ),
+            )
+        )
+        return None
+    raise ComponentUnavailableError(
+        f"the layout places component {placement.id!r} with "
+        f"on_unavailable: fail, but its render returned unavailable: "
+        f"{outcome.message} — this report considers the component "
+        f"fundamentally required; rerun the pipeline stage that "
+        f"produces its data, or set on_unavailable: notice or skip"
+    )
 
 
 def _resolve_placement(
@@ -226,7 +281,8 @@ def _resolve_placement(
     """
     if placement.id in state.gated:
         _, component = state.gated[placement.id]
-        return _render(component, placement, state.context, state.diagnostics)
+        entry = _render(component, placement, state.context, state.diagnostics)
+        return _triage_unavailable(state, placement, entry)
     if placement.id in state.full:
         plugin, _ = state.full[placement.id]
         versions = ", ".join(sorted(plugin.metadata.supported_schema_versions))
@@ -246,14 +302,18 @@ def _resolve_placement(
         )
         subject = placement.id
         kind = DiagnosticKind.COMPONENT_MISSING
-    policy = placement.on_missing if placement.on_missing is not None else state.policy
-    if policy is MissingPolicy.FAIL:
+    missing_policy = (
+        placement.on_missing
+        if placement.on_missing is not None
+        else state.missing_policy
+    )
+    if missing_policy is MissingPolicy.FAIL:
         raise ComponentUnavailableError(
             f"the layout places component {placement.id!r}, "
             f"but {reason} — correct the id, install a plugin "
             f"that offers it, or set on_missing: notice or skip"
         )
-    if policy is MissingPolicy.NOTICE:
+    if missing_policy is MissingPolicy.NOTICE:
         state.diagnostics.append(
             Diagnostic(
                 kind=kind,
@@ -368,7 +428,8 @@ def build_report(
         full=full,
         context=context,
         diagnostics=diagnostics,
-        policy=layout.on_missing,
+        missing_policy=layout.on_missing,
+        unavailable_policy=layout.on_unavailable,
         schema_version=manifest.schema_version,
     )
 

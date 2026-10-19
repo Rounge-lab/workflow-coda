@@ -12,7 +12,8 @@ registry.
 
 The grammar has two kinds of node, told apart by shape.  A node
 carrying ``id`` is a *placement*: one component instance with its
-optional title, parameters, and missing-policy.  A node carrying
+optional title, parameters, and placement policies (on_missing,
+on_unavailable).  A node carrying
 ``type`` is a *composition node*: ``row`` lays its children side by
 side under optional width ratios, ``grid`` flows children row-major
 into ratio-given columns, ``card`` groups its children in an
@@ -123,6 +124,34 @@ class MissingPolicy(Enum):
     SKIP = "skip"
 
 
+class UnavailablePolicy(Enum):
+    """The placement policy when a component's render returns an
+    ``unavailable`` outcome — its data is missing.
+
+    The second of the two placement gates: ``on_missing`` governs
+    component *resolution* (does the environment offer the
+    component?); this governs the *outcome* (did the pipeline
+    produce the component's data?).  Missing data is expected
+    pipeline behavior — a branch not taken, a partial run — so the
+    default is ``notice``, not ``fail``.
+
+    ``notice``
+        The framework's notice card carries the outcome's message in
+        place.  The default.
+    ``skip``
+        The component is omitted from the report; the diagnostics
+        record the omission as a note, with the outcome's message.
+    ``fail``
+        The build refuses: the report considers this component's
+        data fundamentally required, and the report does not exist
+        without it.
+    """
+
+    NOTICE = "notice"
+    SKIP = "skip"
+    FAIL = "fail"
+
+
 class ComponentPlacement(BaseModel):
     """One component instance placed in the composition.
 
@@ -156,6 +185,10 @@ class ComponentPlacement(BaseModel):
     on_missing: MissingPolicy | None = None
     """Per-placement override of the layout-level ``on_missing``; not
     given means inherit."""
+
+    on_unavailable: UnavailablePolicy | None = None
+    """The policy when this component's render returns unavailable
+    (its data is missing); given means inherit the layout default."""
 
 
 def _require_positive_ratios(value: object) -> object:
@@ -452,6 +485,11 @@ class ReportLayout(BaseModel):
     on_missing: MissingPolicy = MissingPolicy.FAIL
     """The default placement policy when a component id resolves to
     nothing; per-placement ``on_missing`` overrides it."""
+
+    on_unavailable: UnavailablePolicy = UnavailablePolicy.NOTICE
+    """The default placement policy when a component's render returns
+    unavailable (its data is missing); per-placement
+    ``on_unavailable`` overrides it."""
 
     tabs: tuple[ReportTab, ...] = Field(min_length=1)
     """The report's tabs, in declaration order; each becomes one tab

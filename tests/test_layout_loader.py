@@ -13,6 +13,7 @@ from workflow_coda.layout import (
     MissingPolicy,
     ReportLayout,
     RowNode,
+    UnavailablePolicy,
 )
 from workflow_coda.layout_loader import load_layout
 
@@ -116,6 +117,22 @@ def test_composition_loads_through_a_file(tmp_path: Path) -> None:
     assert node.split == (3.0, 1.0)
     assert isinstance(node.children[0], ComponentPlacement)
     assert isinstance(node.children[1], DiagnosticsNode)
+
+
+def test_on_unavailable_round_trips_through_a_file(tmp_path: Path) -> None:
+    text = MINIMAL_YAML.replace(
+        'schema_version: "0.2.0"', 'schema_version: "0.2.0"\non_unavailable: skip'
+    )
+    layout = load_layout(write_layout(tmp_path, text))
+    assert layout.on_unavailable is UnavailablePolicy.SKIP
+
+
+def test_boolean_in_on_unavailable_explains_too(tmp_path: Path) -> None:
+    text = MINIMAL_YAML.replace(
+        'schema_version: "0.2.0"', 'schema_version: "0.2.0"\non_unavailable: no'
+    )
+    with pytest.raises(LayoutError, match="YAML parsed this as the boolean False"):
+        load_layout(write_layout(tmp_path, text))
 
 
 # ---------------------------------------------------------------------------

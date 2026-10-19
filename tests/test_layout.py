@@ -17,6 +17,7 @@ from workflow_coda.layout import (
     MissingPolicy,
     ReportLayout,
     RowNode,
+    UnavailablePolicy,
 )
 
 
@@ -46,6 +47,7 @@ def test_valid_layout_loads_with_defaults() -> None:
     assert layout.logo is None
     assert layout.favicon is None
     assert layout.on_missing is MissingPolicy.FAIL
+    assert layout.on_unavailable is UnavailablePolicy.NOTICE
     (tab,) = layout.tabs
     assert tab.title == "Quality control"
     (placement,) = tab.components
@@ -53,6 +55,7 @@ def test_valid_layout_loads_with_defaults() -> None:
     assert placement.id == "example_bio.qc"
     assert placement.parameters == {}
     assert placement.on_missing is None
+    assert placement.on_unavailable is None
     assert placement.title is None
 
 
@@ -458,7 +461,7 @@ def test_same_component_may_be_placed_twice() -> None:
 
 
 # ---------------------------------------------------------------------------
-# The missing policy
+# The placement policy
 # ---------------------------------------------------------------------------
 
 
@@ -492,6 +495,42 @@ def test_placement_on_missing_travels_into_composition_nodes() -> None:
     placement = row.children[0]
     assert isinstance(placement, ComponentPlacement)
     assert placement.on_missing is MissingPolicy.SKIP
+
+
+@pytest.mark.parametrize("policy", list(UnavailablePolicy))
+def test_on_unavailable_accepts_every_policy_value(policy: UnavailablePolicy) -> None:
+    layout = ReportLayout.model_validate(
+        make_layout_payload(on_unavailable=policy.value)
+    )
+    assert layout.on_unavailable is policy
+
+
+def test_on_unavailable_rejects_unknown_values() -> None:
+    with pytest.raises(ValidationError, match="on_unavailable"):
+        ReportLayout.model_validate(make_layout_payload(on_unavailable="explode"))
+
+
+def test_placement_on_unavailable_travels_into_composition_nodes() -> None:
+    layout = layout_with(
+        [
+            {
+                "title": "QC",
+                "components": [
+                    {
+                        "type": "row",
+                        "children": [
+                            {"id": "example_bio.qc", "on_unavailable": "skip"}
+                        ],
+                    }
+                ],
+            }
+        ]
+    )
+    row = layout.tabs[0].components[0]
+    assert isinstance(row, RowNode)
+    placement = row.children[0]
+    assert isinstance(placement, ComponentPlacement)
+    assert placement.on_unavailable is UnavailablePolicy.SKIP
 
 
 # ---------------------------------------------------------------------------
