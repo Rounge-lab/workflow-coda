@@ -19,6 +19,9 @@ location inside it, the problem, and the fix.  Four failure families:
   the value ``False``, not the word "no".  When a boolean lands in a
   text or policy field, the loader explains the quoting rule instead of
   showing pydantic's opaque "Input should be a valid string".
+* **Schema version**: a layout written against an older layout
+  schema (``0.1.0``) fails with the migration spelled out — the file
+  format is versioned, and old files are taught forward, not parsed.
 
 YAML semantics are otherwise standard and unmodified: booleans in
 ``parameters`` (``show_legend: true``) are correct YAML and pass
@@ -130,6 +133,9 @@ def _example_key(parsed: object, location: tuple[int | str, ...]) -> str | None:
 
 def _describe_violation(parsed: object, error: ErrorDetails) -> str:
     """One validation problem as a single teaching line."""
+    message = error["msg"]
+    if message.startswith("Value error, "):
+        message = message.removeprefix("Value error, ")
     if isinstance(error["input"], bool):
         example_key = _example_key(parsed, error["loc"])
         example = f', e.g. {example_key}: "yes"' if example_key is not None else ""
@@ -137,9 +143,9 @@ def _describe_violation(parsed: object, error: ErrorDetails) -> str:
             f"{_format_location(error['loc'])}: YAML parsed this as the "
             f"boolean {error['input']} — bare true/false/yes/no/on/off "
             "are booleans in YAML, not words. Quote the word to make it "
-            f"text{example}. ({error['msg']})"
+            f"text{example}. ({message})"
         )
-    return f"{_format_location(error['loc'])}: {error['msg']}"
+    return f"{_format_location(error['loc'])}: {message}"
 
 
 def load_layout(path: Path) -> ReportLayout:
@@ -170,12 +176,26 @@ def load_layout(path: Path) -> ReportLayout:
         if parsed is None:
             found = "nothing (the file is empty)"
         elif isinstance(parsed, list):
-            found = "a list — did the first section line lose its 'title:' key?"
+            found = "a list — did the first tab line lose its 'title:' key?"
         else:
             found = f"a single {type(parsed).__name__} value"
         raise LayoutError(
             f"{path}: the layout file must be a mapping of settings "
             f"(title:, sections:, ...), but it contains {found}"
+        )
+    declared_version = parsed.get("schema_version")
+    if isinstance(declared_version, str) and declared_version != "0.2.0":
+        if declared_version == "0.1.0":
+            raise LayoutError(
+                f"{path}: this layout declares schema_version 0.1.0, but "
+                "this workflow-coda reads layout schema 0.2.0 — migrate "
+                "the file: rename 'sections:' to 'tabs:', remove the "
+                "'toc:' key (tabs are the navigation), and set "
+                'schema_version: "0.2.0"'
+            )
+        raise LayoutError(
+            f'{path}: the layout\'s schema_version must be "0.2.0", but '
+            f"this file declares {declared_version!r}"
         )
     try:
         return ReportLayout.model_validate(parsed)

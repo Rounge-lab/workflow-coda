@@ -7,6 +7,7 @@ per-module test files (test_core_kpi.py)."""
 
 from importlib import metadata
 
+from workflow_coda.components import ComponentChrome
 from workflow_coda.core.kpi import render_kpi
 from workflow_coda.core.plugin import get_plugin
 
@@ -25,6 +26,7 @@ def test_core_plugin_identity() -> None:
     assert component.title == "Key metric"
     assert component.description == "One artifact-backed headline number."
     assert component.render is render_kpi
+    assert component.chrome is ComponentChrome.TILE
 
 
 def test_core_plugin_constructs_fresh_each_call() -> None:

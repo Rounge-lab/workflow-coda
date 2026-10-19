@@ -15,11 +15,20 @@ Its parameter grammar follows the honest-data law:
   colors resolve from the report's theme (token names or series
   entries — never literals), and icons load from the framework's
   shipped, sanitized set, so the report stays self-contained.
+* the vocabulary is closed: unknown parameter keys teach at the
+  parse boundary — typos with a closest-match suggestion, and
+  placement keys (``on_unavailable`` and friends) with the
+  instruction to move them out of ``parameters:``;
 
-
-The card's *title* is not a parameter: the chrome renders it — the
-placement's own ``title`` when the layout names this instance, the
-component declaration's default otherwise.
+The card's *title* is not a parameter, and neither is it framework
+chrome: the KPI is a ``TILE`` component and paints its own card —
+the placement's resolved title (the layout's own ``title`` for this
+instance, the declaration's default otherwise) arrives through
+:class:`~workflow_coda.components.PlacementInfo`, and the framework
+contributes only the ``data-component`` wrapper around the healthy
+outcome.  Degradation is the framework's: an unavailable KPI
+teaches in the notice card, whose heading is the same resolved
+title.
 
 Two failure families, kept distinct:
 
@@ -48,7 +57,12 @@ from enum import Enum
 from typing import Final
 
 from ..artifact_store import JsonValue
-from ..components import ComponentParameters, RenderedComponent
+from ..components import (
+    ComponentParameters,
+    PlacementInfo,
+    RenderedComponent,
+    reject_unknown_parameters,
+)
 from ..context import RenderContext
 from ..errors import ArtifactUnavailableError
 from ..icons import Icon, load_icon
@@ -58,6 +72,23 @@ from ..theme import ColorHex, Theme
 _VARIANTS: Final[frozenset[str]] = frozenset({"text", "fill", "gradient"})
 """The plate styles: plain text on the card, a solid color plate, or
 a two-color gradient plate."""
+
+_KPI_PARAMETERS: Final[frozenset[str]] = frozenset(
+    {
+        "artifact",
+        "caption",
+        "color",
+        "decimals",
+        "icon",
+        "icon_position",
+        "key",
+        "thresholds",
+        "unit",
+        "variant",
+    }
+)
+"""core.kpi's accepted parameter vocabulary: the closed set
+:func:`_parse_spec` reads, for the unknown-key teaching."""
 
 _ICON_POSITIONS: Final[frozenset[str]] = frozenset({"inline", "corner"})
 """Where the icon renders: in the value line, or pinned to the card's
@@ -336,8 +367,11 @@ def _parse_spec(parameters: ComponentParameters) -> _KpiSpec:
     The shape half of the honest-data law: this function touches no
     theme, store, or icon set — every malformed parameter, including
     the variant/color consistency rules below, raises its teaching
-    ``ValueError`` here, before any data is read.
+    ``ValueError`` here, before any data is read.  The vocabulary is
+    closed and checked first: unknown keys — typos, and placement
+    keys nested by accident — teach before any known key is read.
     """
+    reject_unknown_parameters("core.kpi", parameters, _KPI_PARAMETERS)
     spec = _KpiSpec(
         artifact_type=_required_text(parameters, "artifact"),
         key=_required_text(parameters, "key"),
@@ -460,17 +494,21 @@ def _icon_html(icon: Icon | None, position: str) -> tuple[str, str]:
 
 def _assemble_markup(
     spec: _KpiSpec,
+    title: str,
     icon: Icon | None,
     value: str | int | float,
     status: KpiStatus | None,
     palette: _Palette,
 ) -> str:
-    """Emit the KPI body: the plate wrapper, the value line, the caption.
+    """Emit the KPI card: the plate wrapper, the title, the value
+    line, the caption.
 
     Pure string assembly — every decision is already made; all
-    author- or artifact-sourced text escapes here.
+    author- or artifact-sourced text, the resolved title included,
+    escapes here.
     """
     inline_icon, corner_icon = _icon_html(icon, spec.icon_position)
+    title_html = f'<p class="coda-kpi__title">{html.escape(title)}</p>'
     unit_html = (
         f' <span class="coda-kpi__unit">{html.escape(spec.unit)}</span>'
         if spec.unit is not None
@@ -505,6 +543,7 @@ def _assemble_markup(
     return (
         f'<div class="{classes}"{wrapper_style}>'
         f"{corner_icon}"
+        f"{title_html}"
         f'<p class="coda-kpi__value"{value_style}>'
         f"{html.escape(_format_value(value, spec.decimals))}{unit_html}"
         f"{inline_icon}"
@@ -515,19 +554,23 @@ def _assemble_markup(
 
 
 def render_kpi(
-    context: RenderContext, parameters: ComponentParameters
+    context: RenderContext,
+    info: PlacementInfo,
+    parameters: ComponentParameters,
 ) -> RenderedComponent:
     """Render one headline number: data from the store, policy from
-    the layout, color from the theme, icons from the framework.
+    the layout, color from the theme, icons from the framework — the
+    whole card, the resolved title included, because the KPI is a
+    ``TILE`` component.
 
     The orchestrator only sequences the stories: parse the placement's
     parameters (:func:`_parse_spec`), read the artifact value
     (:func:`_read_value`), apply the threshold policy
     (:func:`_assign_status`), resolve colors against the theme
     (:func:`_resolve_palette`), and assemble the markup
-    (:func:`_assemble_markup`).  Each helper owns its own errors;
-    missing data converts to an unavailable notice here, where the
-    outcome vocabulary lives.
+    (:func:`_assemble_markup`) around the placement's resolved title.
+    Each helper owns its own errors; missing data converts to an
+    unavailable notice here, where the outcome vocabulary lives.
     """
     spec = _parse_spec(parameters)
     icon = load_icon(spec.icon_name) if spec.icon_name is not None else None
@@ -538,5 +581,5 @@ def render_kpi(
     status = _assign_status(value, spec.thresholds)
     palette = _resolve_palette(context.theme, spec, status)
     return RenderedComponent.from_html(
-        _assemble_markup(spec, icon, value, status, palette)
+        _assemble_markup(spec, info.title, icon, value, status, palette)
     )

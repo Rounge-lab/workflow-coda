@@ -6,23 +6,27 @@ import pytest
 from factories import make_manifest_payload
 from helpers import assert_frozen_dataclass
 
-from workflow_coda.components import RenderedComponent
+from workflow_coda.components import ComponentChrome, RenderedComponent
 from workflow_coda.manifest import ReportManifest
 from workflow_coda.report import (
+    CardEntry,
+    ComponentEntry,
     Diagnostic,
     DiagnosticKind,
-    DocumentSection,
+    DiagnosticsEntry,
+    DocumentTab,
     EmbeddedAsset,
     EntryKind,
+    GridEntry,
     ReportDocument,
-    SectionEntry,
+    RowEntry,
 )
 from workflow_coda.theme import DEFAULT_THEME
 
 
-def rendered_entry(component_id: str = "example_bio.qc") -> SectionEntry:
+def rendered_entry(component_id: str = "example_bio.qc") -> ComponentEntry:
     """A valid rendered entry: the shape the builder emits on success."""
-    return SectionEntry(
+    return ComponentEntry(
         kind=EntryKind.RENDERED,
         component_id=component_id,
         title="Sample quality",
@@ -30,9 +34,9 @@ def rendered_entry(component_id: str = "example_bio.qc") -> SectionEntry:
     )
 
 
-def failed_entry(component_id: str = "example_bio.qc") -> SectionEntry:
+def failed_entry(component_id: str = "example_bio.qc") -> ComponentEntry:
     """A valid failed entry: the shape the builder emits on a plugin bug."""
-    return SectionEntry(
+    return ComponentEntry(
         kind=EntryKind.FAILED,
         component_id=component_id,
         title="Sample quality",
@@ -50,7 +54,7 @@ def make_asset(
 
 
 def make_document() -> ReportDocument:
-    """A minimal complete document: one section, one entry, one
+    """A minimal complete document: one tab, one node, one
     informational diagnostic."""
     return ReportDocument(
         title="Metagenomic analysis",
@@ -61,9 +65,7 @@ def make_document() -> ReportDocument:
         logo=None,
         favicon=None,
         manifest=ReportManifest.model_validate(make_manifest_payload()),
-        sections=(
-            DocumentSection(title="Quality control", entries=(rendered_entry(),)),
-        ),
+        tabs=(DocumentTab(title="Quality control", nodes=(rendered_entry(),)),),
         diagnostics=(
             Diagnostic(
                 kind=DiagnosticKind.DEFAULT_THEME,
@@ -93,6 +95,7 @@ def test_entry_kind_wire_values(value: str, member: EntryKind) -> None:
     [
         ("plugin_excluded", DiagnosticKind.PLUGIN_EXCLUDED),
         ("component_missing", DiagnosticKind.COMPONENT_MISSING),
+        ("component_unavailable", DiagnosticKind.COMPONENT_UNAVAILABLE),
         ("plugin_bug", DiagnosticKind.PLUGIN_BUG),
         ("default_theme", DiagnosticKind.DEFAULT_THEME),
         ("logo_omitted", DiagnosticKind.LOGO_OMITTED),
@@ -105,7 +108,7 @@ def test_diagnostic_kind_wire_values(value: str, member: DiagnosticKind) -> None
 
 
 # ---------------------------------------------------------------------------
-# SectionEntry pairing
+# ComponentEntry pairing
 # ---------------------------------------------------------------------------
 
 
@@ -128,7 +131,7 @@ def test_failed_entry_round_trip() -> None:
 
 def test_rendered_entry_requires_its_outcome() -> None:
     with pytest.raises(ValueError, match="must carry its outcome"):
-        SectionEntry(
+        ComponentEntry(
             kind=EntryKind.RENDERED,
             component_id="example_bio.qc",
             title="Sample quality",
@@ -140,7 +143,7 @@ def test_rendered_entry_requires_a_real_outcome() -> None:
     # garbage must become a collected plugin bug at the boundary, not
     # a document that chokes the rendering layer later.
     with pytest.raises(ValueError, match="must be a RenderedComponent"):
-        SectionEntry(
+        ComponentEntry(
             kind=EntryKind.RENDERED,
             component_id="example_bio.qc",
             title="Sample quality",
@@ -150,7 +153,7 @@ def test_rendered_entry_requires_a_real_outcome() -> None:
 
 def test_rendered_entry_takes_no_error() -> None:
     with pytest.raises(ValueError, match="takes no error"):
-        SectionEntry(
+        ComponentEntry(
             kind=EntryKind.RENDERED,
             component_id="example_bio.qc",
             title="Sample quality",
@@ -161,13 +164,13 @@ def test_rendered_entry_takes_no_error() -> None:
 
 def test_failed_entry_requires_a_visible_error() -> None:
     with pytest.raises(ValueError, match="must carry a visible error message"):
-        SectionEntry(
+        ComponentEntry(
             kind=EntryKind.FAILED,
             component_id="example_bio.qc",
             title="Sample quality",
         )
     with pytest.raises(ValueError, match="must carry a visible error message"):
-        SectionEntry(
+        ComponentEntry(
             kind=EntryKind.FAILED,
             component_id="example_bio.qc",
             title="Sample quality",
@@ -177,7 +180,7 @@ def test_failed_entry_requires_a_visible_error() -> None:
 
 def test_failed_entry_takes_no_outcome() -> None:
     with pytest.raises(ValueError, match="takes no outcome"):
-        SectionEntry(
+        ComponentEntry(
             kind=EntryKind.FAILED,
             component_id="example_bio.qc",
             title="Sample quality",
@@ -188,7 +191,7 @@ def test_failed_entry_takes_no_outcome() -> None:
 
 def test_entry_kind_must_be_a_member() -> None:
     with pytest.raises(ValueError, match="kind must be an EntryKind member"):
-        SectionEntry(
+        ComponentEntry(
             kind="rendered",  # type: ignore[arg-type]
             component_id="example_bio.qc",
             title="Sample quality",
@@ -206,6 +209,12 @@ def test_entries_are_frozen_and_slotted() -> None:
     assert_frozen_dataclass(entry, "title")
     with pytest.raises(AttributeError):
         entry.extra = "nope"  # type: ignore[attr-defined]
+
+
+def test_component_entry_defaults_to_card_chrome() -> None:
+    # The default keeps every CARD-era construction valid; TILE is a
+    # declaration, never a surprise.
+    assert rendered_entry().chrome is ComponentChrome.CARD
 
 
 # ---------------------------------------------------------------------------
@@ -274,31 +283,110 @@ def test_diagnostic_is_frozen_and_slotted() -> None:
 
 
 # ---------------------------------------------------------------------------
-# DocumentSection
+# DocumentTab
 # ---------------------------------------------------------------------------
 
 
-def test_section_round_trip_and_permits_no_entries() -> None:
-    section = DocumentSection(title="Quality control", entries=(rendered_entry(),))
-    assert section.title == "Quality control"
-    assert len(section.entries) == 1
-    # Empty sections are model-legal: the notice policy can resolve away
-    # every placement; dropping them is builder policy, tested there.
-    assert DocumentSection(title="Empty", entries=()).entries == ()
+def test_tab_round_trip_and_rejects_empty_nodes() -> None:
+    # The inversion from the old section rule: the builder now drops
+    # emptied tabs, so a document tab always carries at least one
+    # node — the model enforces what the walk guarantees.
+    node_tab = DocumentTab(title="Quality control", nodes=(rendered_entry(),))
+    assert node_tab.title == "Quality control"
+    assert len(node_tab.nodes) == 1
+    with pytest.raises(ValueError, match="a document tab takes at least one node"):
+        DocumentTab(title="Empty", nodes=())
 
 
-def test_section_value_semantics() -> None:
-    first = DocumentSection(title="QC", entries=(rendered_entry(),))
-    second = DocumentSection(title="QC", entries=(rendered_entry(),))
+def test_tab_value_semantics() -> None:
+    first = DocumentTab(title="QC", nodes=(rendered_entry(),))
+    second = DocumentTab(title="QC", nodes=(rendered_entry(),))
     assert first == second
     assert hash(first) == hash(second)
 
 
-def test_section_is_frozen_and_slotted() -> None:
-    section = DocumentSection(title="QC", entries=(rendered_entry(),))
-    assert_frozen_dataclass(section, "title")
+def test_tab_is_frozen_and_slotted() -> None:
+    node_tab = DocumentTab(title="QC", nodes=(rendered_entry(),))
+    assert_frozen_dataclass(node_tab, "title")
     with pytest.raises(AttributeError):
-        section.extra = "nope"  # type: ignore[attr-defined]
+        node_tab.extra = "nope"  # type: ignore[attr-defined]
+
+
+# ---------------------------------------------------------------------------
+# Composition entries: markers, rows, grids, groups
+# ---------------------------------------------------------------------------
+
+
+def test_diagnostics_marker_is_an_empty_value() -> None:
+    # The marker carries no data, so it cannot drift from the ledger
+    # it points at; any two markers are the same value.
+    assert DiagnosticsEntry() == DiagnosticsEntry()
+    assert hash(DiagnosticsEntry()) == hash(DiagnosticsEntry())
+    with pytest.raises(AttributeError):
+        DiagnosticsEntry().extra = "nope"  # type: ignore[attr-defined]
+
+
+def test_row_round_trip_and_optional_split() -> None:
+    row = RowEntry(split=None, children=(rendered_entry(), rendered_entry()))
+    assert row.split is None  # equal widths, decided at render time
+    assert len(row.children) == 2
+
+
+def test_row_rejects_empty_children() -> None:
+    with pytest.raises(ValueError, match="a row entry takes at least one child"):
+        RowEntry(split=(1.0, 1.0), children=())
+
+
+def test_grid_round_trip_and_required_split() -> None:
+    # A grid without column ratios is just a stack: the field is
+    # required, not defaulted.
+    with pytest.raises(TypeError):
+        GridEntry(children=(rendered_entry(),))  # type: ignore[call-arg]
+    grid = GridEntry(split=(1.0, 2.0), children=(rendered_entry(),) * 3)
+    assert grid.split == (1.0, 2.0)
+    assert len(grid.children) == 3
+
+
+def test_grid_rejects_empty_children() -> None:
+    with pytest.raises(ValueError, match="a grid entry takes at least one child"):
+        GridEntry(split=(1.0, 1.0), children=())
+
+
+def test_card_round_trip() -> None:
+    card = CardEntry(
+        title="Group",
+        layout="row",
+        split=(2.0, 1.0),
+        children=(rendered_entry(), rendered_entry()),
+    )
+    assert card.title == "Group"
+    assert card.layout == "row"
+    assert card.split == (2.0, 1.0)
+    assert len(card.children) == 2
+
+
+def test_card_rejects_empty_children() -> None:
+    with pytest.raises(ValueError, match="a card entry takes at least one child"):
+        CardEntry(title=None, layout="stack", split=None, children=())
+
+
+def test_composition_entries_compare_by_value() -> None:
+    row = RowEntry(split=(1.0, 1.0), children=(rendered_entry(),))
+    same = RowEntry(split=(1.0, 1.0), children=(rendered_entry(),))
+    assert row == same
+    assert hash(row) == hash(same)
+    assert row != RowEntry(split=(2.0, 1.0), children=(rendered_entry(),))
+
+
+def test_composition_entries_are_frozen_and_slotted() -> None:
+    row = RowEntry(split=(1.0, 1.0), children=(rendered_entry(),))
+    assert_frozen_dataclass(row, "split")
+    card = CardEntry(
+        title=None, layout="stack", split=None, children=(rendered_entry(),)
+    )
+    assert_frozen_dataclass(card, "layout")
+    with pytest.raises(AttributeError):
+        row.extra = "nope"  # type: ignore[attr-defined]
 
 
 # ---------------------------------------------------------------------------
@@ -316,10 +404,11 @@ def test_document_round_trip() -> None:
     assert document.logo is None
     assert document.favicon is None
     assert document.manifest == ReportManifest.model_validate(make_manifest_payload())
-    (section,) = document.sections
-    assert section.title == "Quality control"
-    (entry,) = section.entries
-    assert entry.kind is EntryKind.RENDERED
+    (node_tab,) = document.tabs
+    assert node_tab.title == "Quality control"
+    (node,) = node_tab.nodes
+    assert isinstance(node, ComponentEntry)
+    assert node.kind is EntryKind.RENDERED
     (diagnostic,) = document.diagnostics
     assert diagnostic.kind is DiagnosticKind.DEFAULT_THEME
 
@@ -336,14 +425,6 @@ def test_document_is_frozen_and_slotted() -> None:
     assert_frozen_dataclass(document, "title")
     with pytest.raises(AttributeError):
         document.extra = "nope"  # type: ignore[attr-defined]
-
-
-def test_document_carries_the_toc_flag() -> None:
-    document = make_document()
-    assert document.toc is True
-    without_toc = replace(document, toc=False)
-    assert without_toc.toc is False
-    assert without_toc != document
 
 
 def test_document_carries_the_author_line() -> None:
@@ -368,6 +449,7 @@ def test_document_carries_the_report_version() -> None:
         (DiagnosticKind.PLUGIN_EXCLUDED, True),
         (DiagnosticKind.COMPONENT_MISSING, True),
         (DiagnosticKind.PLUGIN_BUG, True),
+        (DiagnosticKind.COMPONENT_UNAVAILABLE, False),
         (DiagnosticKind.DEFAULT_THEME, False),
         (DiagnosticKind.LOGO_OMITTED, False),
         (DiagnosticKind.FAVICON_OMITTED, False),
@@ -376,6 +458,7 @@ def test_document_carries_the_report_version() -> None:
 def test_diagnostic_kinds_split_into_problems_and_notes(
     kind: DiagnosticKind, is_problem: bool
 ) -> None:
-    # The diagnostics section renders problems first, in the danger
-    # color; informational notes after.  The enum carries the split.
+    # The placed diagnostics panel renders problems first, in the
+    # danger color; informational notes after.  The enum carries the
+    # split.
     assert kind.is_problem is is_problem

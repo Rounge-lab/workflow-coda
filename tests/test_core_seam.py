@@ -2,11 +2,14 @@
 
 One bundle, one layout placing core.kpi twice — one healthy placement
 with a title override, a threshold policy, and an icon; one untitled
-placement against a failed artifact — built through the installed
-environment's entry point (no injected registry anywhere): CLI →
-builder → registry → component → renderer → the written page.  This
-is the seam proof M6 owes since 2c: framework-owned content rendering
-through the full pipeline."""
+placement against a failed artifact — plus a placed diagnostics
+panel, built through the installed environment's entry point (no
+injected registry anywhere): CLI → builder → registry → component →
+renderer → the written page.  The seam proof: framework-owned content
+rendering through the full pipeline, through the tab grammar, in both
+chrome modes — the healthy TILE's self-painted card and the degraded
+tile's framework notice card — with the diagnostics panel placed
+where the layout chose."""
 
 import html
 import json
@@ -51,13 +54,14 @@ def _write_bundle(tmp_path: Path) -> Path:
 
 
 def _write_layout(tmp_path: Path) -> Path:
-    """A layout placing core.kpi twice: once titled, statused, and
-    iconed; once untitled against the failed artifact — pinning both
-    title behaviors (override and declaration default) in one page."""
+    """A 0.2.0 tab layout placing core.kpi twice — once titled,
+    statused, and iconed; once untitled against the failed artifact —
+    and the diagnostics panel in its own tab: the M7 grammar, end to
+    end."""
     layout = """\
-schema_version: "0.1.0"
+schema_version: "0.2.0"
 title: Sample QC
-sections:
+tabs:
   - title: Headlines
     components:
       - id: core.kpi
@@ -74,6 +78,9 @@ sections:
         parameters:
           artifact: org.example.failed
           key: depth
+  - title: Diagnostics
+    components:
+      - type: diagnostics
 """
     path = tmp_path / "layout.yaml"
     path.write_text(layout, encoding="utf-8")
@@ -88,23 +95,36 @@ def test_core_kpi_renders_through_the_cli(tmp_path: Path) -> None:
     main(["build", str(manifest), str(layout), "-o", str(output)])
 
     page = output.read_text(encoding="utf-8")
-    # The placement's own title, then the declaration default.
-    assert "<h3>Mean depth</h3>" in page
-    assert "<h3>Key metric</h3>" in page
-    # The healthy KPI: value, status ink and class, sanitized icon.
+    # The tab grammar end to end: a bar of two buttons driving two
+    # panels, and the tab script inlined to wire them — no figures,
+    # so no Plotly.js alongside it.
+    assert '<nav class="coda-tabs" role="tablist"' in page
+    assert 'id="tabbtn-1-headlines"' in page
+    assert 'id="tabbtn-2-diagnostics"' in page
+    assert '<section class="coda-tabpanel" id="1-headlines" role="tabpanel"' in page
+    assert '<section class="coda-tabpanel" id="2-diagnostics" role="tabpanel"' in page
+    assert page.count("<script>") == 1
+    assert 'document.documentElement.classList.add("coda-js")' in page
+    # The healthy placement: a TILE that painted its own card — the
+    # resolved title, the value, the status ink and class, the icon.
+    assert '<article class="coda-tile" data-component="core.kpi">' in page
+    assert '<p class="coda-kpi__title">Mean depth</p>' in page
     assert ">12.4" in page
     assert 'style="color: #198754;"' in page
     assert "coda-kpi--ok" in page
     assert 'class="coda-icon"' in page
     assert 'aria-hidden="true"' in page
-    # The failed-artifact KPI renders as a notice through the real
-    # template, carrying the store's own teaching message.  The page
-    # is escaped markup — the message's quoting quotes render as
-    # &#39; on disk — so the pin unescapes first: content, not bytes.
+    # The degraded placement: an unavailable TILE teaches in the
+    # framework's notice card, the declaration's default title its
+    # heading — chrome mode is independent of degradation.
     assert "coda-card--notice" in page
+    assert "<h3>Key metric</h3>" in page
+    # The message's quoting renders as &#39; on disk — the pin
+    # unescapes first: content, not bytes.
     assert "declared with status 'failed'" in html.unescape(page)
-    # Both cards name their component: a placement is an instance.
+    # Both placements name their component: a placement is an instance.
     assert page.count('data-component="core.kpi"') == 2
-    # A figure-free report inlines no Plotly.js — self-containment
-    # without dead weight.
-    assert "<script" not in page
+    # The placed diagnostics panel: the build's informational notes,
+    # rendered in the tab the layout chose for them.
+    assert '<section class="coda-diagnostics"' in page
+    assert "no theme file declared in the layout" in page

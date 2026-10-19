@@ -10,37 +10,46 @@ have to reconstruct.
 Two properties shape the model:
 
 **Registry-free.**  Component ids are resolved before the document
-exists.  Every section entry carries what rendering needs — the
-component's declared title and its render outcome or failure — so
-rendering never consults the plugin registry again.  The theme is
-loaded, and the logo and favicon are already embedded as data URIs:
-the built report is one self-contained page, holding no paths that
-only the build machine could resolve.
+exists.  The document's *content tree* mirrors the layout's
+composition: tabs hold nodes; row, grid, and card nodes hold children;
+and every placement resolves into a :class:`ComponentEntry` carrying
+what rendering needs — the resolved title and the render outcome or
+failure — so rendering never consults the plugin registry again.  A
+diagnostics node in the layout becomes a :class:`DiagnosticsEntry`
+marker: the builder records the diagnostics themselves on the
+document as it builds, and the renderer fills the marker from the
+complete ledger — a plugin bug in the last tab exists by the time
+rendering runs, wherever the marker sits.  The theme is loaded, and
+the logo and favicon are already embedded as data URIs: the built
+report is one self-contained page, holding no paths that only the
+build machine could resolve.
 
 **Degradation is still data.**  The outcome model continues unchanged:
-a ``rendered`` entry carries its
+a rendered component entry carries its
 :class:`~workflow_coda.components.RenderedComponent` with the ``ok``,
 ``unavailable``, and ``skipped`` statuses intact, and a ``failed``
-entry records a plugin bug the builder caught — the section shows
-where the component would have been, and diagnostics carry the
-details.  Unresolved placements produce no entry at all: the
-``on_missing`` policy has already turned them into a build failure
-or diagnostics, so an entry exists for exactly the placements that
-were rendered.
+entry records a plugin bug the builder caught — the tree shows where
+the component would have been, and diagnostics carry the details.
+Unresolved placements produce no node at all: the ``on_missing``
+policy has already turned them into a build failure or diagnostics.
+Collapse travels upward: a composition whose children all resolve
+away produces no node either, so empty rows, cards, and tabs drop
+out of the document — the diagnostics already explain why.
 """
 
 from dataclasses import dataclass
 from enum import Enum
 from typing import Final
 
-from .components import RenderedComponent
+from .components import ComponentChrome, RenderedComponent
+from .layout import CardLayoutKind
 from .manifest import ReportManifest
 from .text import has_visible_text
 from .theme import Theme
 
 
 class EntryKind(Enum):
-    """Why a section entry exists.
+    """Why a component entry exists.
 
     ``RENDERED``
         The component's render call returned an outcome; the entry's
@@ -48,7 +57,7 @@ class EntryKind(Enum):
     ``FAILED``
         The render call raised — a plugin bug.  The builder caught it,
         recorded the details in diagnostics, and placed this entry so
-        the section shows *where* the component would have been.
+        the tree shows *where* the component would have been.
     """
 
     RENDERED = "rendered"
@@ -61,7 +70,10 @@ class DiagnosticKind(Enum):
     ``PLUGIN_EXCLUDED``, ``COMPONENT_MISSING``, and ``PLUGIN_BUG`` name
     problems: plugins gated out by the manifest's schema version,
     placements whose component id resolved to nothing under the
-    ``notice`` policy, and render calls that raised.  ``DEFAULT_THEME``,
+    ``notice`` policy, and render calls that raised.
+    ``COMPONENT_UNAVAILABLE`` is a note: an omission under the on_unavailable: skip
+    policy — the run, not the author, left the component's data absent; a note, because
+    expected pipeline behavior.  ``DEFAULT_THEME``,
     ``LOGO_OMITTED``, and ``FAVICON_OMITTED`` are informational: the
     report is complete, and the message explains how to add what was
     left out.
@@ -70,6 +82,7 @@ class DiagnosticKind(Enum):
     PLUGIN_EXCLUDED = "plugin_excluded"
     COMPONENT_MISSING = "component_missing"
     PLUGIN_BUG = "plugin_bug"
+    COMPONENT_UNAVAILABLE = "component_unavailable"
     DEFAULT_THEME = "default_theme"
     LOGO_OMITTED = "logo_omitted"
     FAVICON_OMITTED = "favicon_omitted"
@@ -77,9 +90,9 @@ class DiagnosticKind(Enum):
     @property
     def is_problem(self) -> bool:
         """Whether diagnostics of this kind name a problem — rendered
-        in the diagnostics section's problem group, in the danger
-        color — versus informational notes, which explain omissions in
-        an otherwise complete report."""
+        in the problem group, in the danger color — versus
+        informational notes, which explain omissions in an otherwise
+        complete report."""
         return self in _PROBLEM_KINDS
 
 
@@ -95,8 +108,8 @@ own docstring, which is the contract."""
 
 
 @dataclass(frozen=True, slots=True)
-class SectionEntry:
-    """One placed component's result within a section.
+class ComponentEntry:
+    """One placed component's result within the tree.
 
     The field pairing is enforced: a ``RENDERED`` entry carries its
     outcome and no error; a ``FAILED`` entry carries a visible error
@@ -110,7 +123,16 @@ class SectionEntry:
     """The placed component's globally unique id."""
 
     title: str
-    """The component's declared title, for the card chrome."""
+    """The resolved instance title: the placement's own when the layout
+    names it, the component declaration's default otherwise."""
+
+    chrome: ComponentChrome = ComponentChrome.CARD
+    """Who painted this component's chrome: a ``CARD`` component is
+    wrapped by the renderer in the framework's card vocabulary; a
+    ``TILE`` component painted its own card, and the renderer
+    contributes only the ``data-component`` wrapper.  Degradation —
+    an unavailable or failed render — is the framework's own
+    notice/failure vocabulary in both modes."""
 
     outcome: RenderedComponent | None = None
     """The render outcome; set if and only if kind is ``RENDERED``."""
@@ -122,35 +144,115 @@ class SectionEntry:
     def __post_init__(self) -> None:
         if not isinstance(self.kind, EntryKind):
             raise ValueError(
-                f"section entry {self.component_id!r}: kind must be an EntryKind member"
+                f"component entry {self.component_id!r}: kind must be an EntryKind member"
             )
         if self.kind is EntryKind.RENDERED:
             if self.outcome is None:
                 raise ValueError(
-                    f"section entry {self.component_id!r}: a rendered "
+                    f"component entry {self.component_id!r}: a rendered "
                     f"entry must carry its outcome"
                 )
             if not isinstance(self.outcome, RenderedComponent):
                 raise ValueError(
-                    f"section entry {self.component_id!r}: a rendered "
+                    f"component entry {self.component_id!r}: a rendered "
                     f"entry's outcome must be a RenderedComponent"
                 )
             if self.error is not None:
                 raise ValueError(
-                    f"section entry {self.component_id!r}: a rendered "
+                    f"component entry {self.component_id!r}: a rendered "
                     f"entry takes no error"
                 )
         elif self.kind is EntryKind.FAILED:
             if self.error is None or not has_visible_text(self.error):
                 raise ValueError(
-                    f"section entry {self.component_id!r}: a failed entry "
+                    f"component entry {self.component_id!r}: a failed entry "
                     f"must carry a visible error message"
                 )
             if self.outcome is not None:
                 raise ValueError(
-                    f"section entry {self.component_id!r}: a failed entry "
+                    f"component entry {self.component_id!r}: a failed entry "
                     f"takes no outcome"
                 )
+
+
+@dataclass(frozen=True, slots=True)
+class DiagnosticsEntry:
+    """A placed diagnostics panel: a marker the renderer fills.
+
+    The builder records diagnostics on the document as it builds; this
+    node only marks *where* the panel renders.  It carries no data, so
+    the marker cannot drift out of sync with the ledger it points at.
+    """
+
+
+@dataclass(frozen=True, slots=True)
+class RowEntry:
+    """A composed row: children side by side under width ratios."""
+
+    split: tuple[float, ...] | None
+    """One ratio per child, or ``None`` for equal widths."""
+
+    children: tuple[DocumentNode, ...]
+
+    def __post_init__(self) -> None:
+        if not self.children:
+            raise ValueError("a row entry takes at least one child")
+
+
+@dataclass(frozen=True, slots=True)
+class GridEntry:
+    """A composed grid: children flowed row-major into ratio columns."""
+
+    split: tuple[float, ...]
+    """The column ratios."""
+
+    children: tuple[DocumentNode, ...]
+
+    def __post_init__(self) -> None:
+        if not self.children:
+            raise ValueError("a grid entry takes at least one child")
+
+
+@dataclass(frozen=True, slots=True)
+class CardEntry:
+    """A composed card: a titled grouping with its own arrangement."""
+
+    title: str | None
+    """The grouping's optional title."""
+
+    layout: CardLayoutKind
+    """How the card arranges its children: stack, row, or grid."""
+
+    split: tuple[float, ...] | None
+    """The row or grid ratios; ``None`` for a stack or equal widths."""
+
+    children: tuple[DocumentNode, ...]
+
+    def __post_init__(self) -> None:
+        if not self.children:
+            raise ValueError("a card entry takes at least one child")
+
+
+DocumentNode = ComponentEntry | DiagnosticsEntry | RowEntry | GridEntry | CardEntry
+"""One node of the document's content tree, wherever nodes go."""
+
+
+@dataclass(frozen=True, slots=True)
+class DocumentTab:
+    """One rendered report tab: its title and content tree, in order.
+
+    The builder drops tabs whose trees collapse to nothing, so a
+    document tab always carries at least one node.
+    """
+
+    title: str
+    """The tab's heading — its label in the tab bar."""
+
+    nodes: tuple[DocumentNode, ...]
+
+    def __post_init__(self) -> None:
+        if not self.nodes:
+            raise ValueError("a document tab takes at least one node")
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,7 +284,7 @@ class EmbeddedAsset:
 
 @dataclass(frozen=True, slots=True)
 class Diagnostic:
-    """One line of the report's diagnostics section.
+    """One line of the report's diagnostics ledger.
 
     ``subject`` names what the diagnostic is about (a plugin id, a
     component id, an asset path); ``message`` is the complete
@@ -206,28 +308,15 @@ class Diagnostic:
 
 
 @dataclass(frozen=True, slots=True)
-class DocumentSection:
-    """A rendered report section: its title and entries, in order.
-
-    Entries may be empty: the ``notice`` policy can resolve away every
-    placement in a section.  Whether the builder keeps or drops such a
-    section is builder policy, not model policy.
-    """
-
-    title: str
-    entries: tuple[SectionEntry, ...]
-
-
-@dataclass(frozen=True, slots=True)
 class ReportDocument:
-    """One complete report: identity, theme, assets, sections,
+    """One complete report: identity, theme, assets, tabs,
     diagnostics.
 
     Every field is resolved and render-ready: the theme is loaded,
     the assets are embedded, the manifest reference carries the
-    provenance the footer renders, and sections hold placed results in
-    layout order.  Nothing here reaches back to the filesystem or the
-    plugin registry at render time.
+    provenance the footer renders, and tabs hold the walked content
+    tree in layout order.  Nothing here reaches back to the
+    filesystem or the plugin registry at render time.
     """
 
     title: str
@@ -254,14 +343,10 @@ class ReportDocument:
     manifest: ReportManifest
     """The report's validated manifest, for the provenance footer."""
 
-    sections: tuple[DocumentSection, ...]
-    """The report's sections, in layout order."""
+    tabs: tuple[DocumentTab, ...]
+    """The report's tabs, in layout order; each becomes one tab
+    panel, and the tab bar is generated from them."""
 
     diagnostics: tuple[Diagnostic, ...]
     """Everything noteworthy the builder recorded, in occurrence
-    order."""
-
-    toc: bool = True
-    """Whether the rendered report includes the table of contents; a
-    layout decision carried in the document so rendering needs
-    nothing else."""
+    order — rendered wherever the layout places a diagnostics node."""

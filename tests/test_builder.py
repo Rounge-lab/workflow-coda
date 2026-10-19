@@ -20,6 +20,8 @@ from workflow_coda.artifact_store import ArtifactStore, JsonValue
 from workflow_coda.builder import build_report
 from workflow_coda.components import (
     ComponentParameters,
+    ComponentStatus,
+    PlacementInfo,
     RenderContext,
     RenderedComponent,
 )
@@ -27,7 +29,17 @@ from workflow_coda.errors import ComponentUnavailableError, LayoutError
 from workflow_coda.manifest import ReportManifest
 from workflow_coda.plugins import ReportPlugin
 from workflow_coda.registry import PluginRegistry
-from workflow_coda.report import Diagnostic, DiagnosticKind, EntryKind, ReportDocument
+from workflow_coda.report import (
+    CardEntry,
+    ComponentEntry,
+    Diagnostic,
+    DiagnosticKind,
+    DiagnosticsEntry,
+    EntryKind,
+    GridEntry,
+    ReportDocument,
+    RowEntry,
+)
 from workflow_coda.theme import DEFAULT_THEME
 
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
@@ -40,7 +52,7 @@ ICO_MAGIC = b"\x00\x00\x01\x00"
 
 
 def _echo_label(
-    _context: RenderContext, parameters: ComponentParameters
+    _context: RenderContext, _info: PlacementInfo, parameters: ComponentParameters
 ) -> RenderedComponent:
     """Render the placement's ``label`` parameter, proving parameters
     travel per placement through the builder."""
@@ -48,13 +60,13 @@ def _echo_label(
 
 
 def _raising_render(
-    _context: RenderContext, _parameters: ComponentParameters
+    _context: RenderContext, _info: PlacementInfo, _parameters: ComponentParameters
 ) -> RenderedComponent:
     raise ValueError("boom")
 
 
 def _garbage_render(
-    _context: RenderContext, _parameters: ComponentParameters
+    _context: RenderContext, _info: PlacementInfo, _parameters: ComponentParameters
 ) -> RenderedComponent:
     # Deliberate contract violation: a render result that is not a
     # RenderedComponent — the builder must collect it as a plugin bug,
@@ -63,9 +75,47 @@ def _garbage_render(
 
 
 def _interrupting_render(
-    _context: RenderContext, _parameters: ComponentParameters
+    _context: RenderContext, _info: PlacementInfo, _parameters: ComponentParameters
 ) -> RenderedComponent:
     raise KeyboardInterrupt
+
+
+def _unavailable_render(
+    _context: RenderContext, _info: PlacementInfo, _parameters: ComponentParameters
+) -> RenderedComponent:
+    return RenderedComponent.unavailable("the pipeline produced no data")
+
+
+def _skipping_render(
+    _context: RenderContext, _info: PlacementInfo, _parameters: ComponentParameters
+) -> RenderedComponent:
+    return RenderedComponent.skipped()
+
+
+def unavailable_plugin() -> ReportPlugin:
+    """Its render returns unavailable: data absence as a run fact."""
+    return make_plugin(
+        metadata=make_metadata(id="dataless"),
+        components=(
+            make_component(
+                id="dataless.quality",
+                title="Dataless metric",
+                render=_unavailable_render,
+            ),
+        ),
+    )
+
+
+def skipping_plugin() -> ReportPlugin:
+    """Its render returns skipped: the plugin's deliberate nothing."""
+    return make_plugin(
+        metadata=make_metadata(id="silent"),
+        components=(
+            make_component(
+                id="silent.quality", title="Silent metric", render=_skipping_render
+            ),
+        ),
+    )
 
 
 def current_plugin() -> ReportPlugin:
@@ -161,8 +211,8 @@ def write_asset(tmp_path: Path, name: str, data: bytes) -> None:
     (tmp_path / name).write_bytes(data)
 
 
-def qc_section(label: str) -> dict[str, JsonValue]:
-    """A section placing ``current.quality`` with a label parameter."""
+def qc_tab(label: str) -> dict[str, JsonValue]:
+    """A tab placing ``current.quality`` with a label parameter."""
     return {
         "title": "Quality control",
         "components": [{"id": "current.quality", "parameters": {"label": label}}],
@@ -189,7 +239,7 @@ def diagnostic_subjects(document: ReportDocument, kind: DiagnosticKind) -> list[
 
 def test_builds_the_minimal_report_document(tmp_path: Path) -> None:
     store = make_store(tmp_path)
-    layout_path = write_layout(tmp_path, sections=[qc_section("run A")])
+    layout_path = write_layout(tmp_path, tabs=[qc_tab("run A")])
     document = build_report(layout_path, store, PluginRegistry((current_plugin(),)))
     assert document.title == "Metagenomic analysis"
     assert document.subtitle is None
@@ -199,9 +249,10 @@ def test_builds_the_minimal_report_document(tmp_path: Path) -> None:
     # The manifest is the store's own, not a copy: the document and the
     # store cannot disagree.
     assert document.manifest is store.manifest
-    (section,) = document.sections
-    assert section.title == "Quality control"
-    (entry,) = section.entries
+    (tab,) = document.tabs
+    assert tab.title == "Quality control"
+    (entry,) = tab.nodes
+    assert isinstance(entry, ComponentEntry)
     assert entry.kind is EntryKind.RENDERED
     assert entry.component_id == "current.quality"
     assert entry.title == "Sample quality"
@@ -218,11 +269,7 @@ def test_builds_the_minimal_report_document(tmp_path: Path) -> None:
 
 
 def test_registry_defaults_to_the_installed_environment(tmp_path: Path) -> None:
-    # No plugins are installed in this environment (the environment
-    # fact the registry's own loading test pins), so the default
-    # registry is empty and the default policy fails with the
-    # empty-registry vocabulary.
-    layout_path = write_layout(tmp_path, sections=[qc_section("run A")])
+    layout_path = write_layout(tmp_path, tabs=[qc_tab("run A")])
     with pytest.raises(ComponentUnavailableError, match=re.escape("core.kpi")):
         build_report(layout_path, make_store(tmp_path))
 
@@ -235,7 +282,7 @@ def test_registry_defaults_to_the_installed_environment(tmp_path: Path) -> None:
 def test_unknown_component_fails_by_default(tmp_path: Path) -> None:
     layout_path = write_layout(
         tmp_path,
-        sections=[{"title": "QC", "components": [{"id": "nope.nothing"}]}],
+        tabs=[{"title": "QC", "components": [{"id": "nope.nothing"}]}],
     )
     with pytest.raises(
         ComponentUnavailableError,
@@ -250,7 +297,7 @@ def test_unknown_component_noticed_and_omitted(tmp_path: Path) -> None:
     layout_path = write_layout(
         tmp_path,
         on_missing="notice",
-        sections=[
+        tabs=[
             {
                 "title": "QC",
                 "components": [
@@ -261,8 +308,9 @@ def test_unknown_component_noticed_and_omitted(tmp_path: Path) -> None:
         ],
     )
     document = build(tmp_path, layout_path, current_plugin())
-    (section,) = document.sections
-    (entry,) = section.entries
+    (tab,) = document.tabs
+    (entry,) = tab.nodes
+    assert isinstance(entry, ComponentEntry)
     assert entry.component_id == "current.quality"
     assert diagnostic_subjects(document, DiagnosticKind.COMPONENT_MISSING) == [
         "nope.nothing"
@@ -278,10 +326,10 @@ def test_unknown_component_skipped_silently(tmp_path: Path) -> None:
     layout_path = write_layout(
         tmp_path,
         on_missing="skip",
-        sections=[{"title": "QC", "components": [{"id": "nope.nothing"}]}],
+        tabs=[{"title": "QC", "components": [{"id": "nope.nothing"}]}],
     )
     document = build(tmp_path, layout_path, current_plugin())
-    assert document.sections == ()
+    assert document.tabs == ()
     assert diagnostic_subjects(document, DiagnosticKind.COMPONENT_MISSING) == []
 
 
@@ -293,7 +341,7 @@ def test_unknown_component_skipped_silently(tmp_path: Path) -> None:
 def test_excluded_plugin_fails_with_the_version_story(tmp_path: Path) -> None:
     layout_path = write_layout(
         tmp_path,
-        sections=[{"title": "Old", "components": [{"id": "stale.old"}]}],
+        tabs=[{"title": "Old", "components": [{"id": "stale.old"}]}],
     )
     with pytest.raises(
         ComponentUnavailableError,
@@ -309,14 +357,175 @@ def test_excluded_plugin_noticed_with_the_version_story(tmp_path: Path) -> None:
     layout_path = write_layout(
         tmp_path,
         on_missing="notice",
-        sections=[{"title": "Old", "components": [{"id": "stale.old"}]}],
+        tabs=[{"title": "Old", "components": [{"id": "stale.old"}]}],
     )
     document = build(tmp_path, layout_path, current_plugin(), stale_plugin())
-    assert document.sections == ()
+    assert document.tabs == ()
     assert diagnostic_subjects(document, DiagnosticKind.PLUGIN_EXCLUDED) == ["stale"]
     (excluded,) = diagnostics_of(document, DiagnosticKind.PLUGIN_EXCLUDED)
     assert "0.0.9" in excluded.message
     assert "'0.1.0'" in excluded.message
+
+
+# ---------------------------------------------------------------------------
+# Unavailable outcomes, under each policy
+# ---------------------------------------------------------------------------
+
+
+def test_unavailable_notices_by_default(tmp_path: Path) -> None:
+    # The default preserves today's behavior: the entry stands, the
+    # renderer paints the notice card, and the ledger records nothing.
+    layout_path = write_layout(
+        tmp_path, tabs=[{"title": "QC", "components": [{"id": "dataless.quality"}]}]
+    )
+    document = build(tmp_path, layout_path, unavailable_plugin())
+    (tab,) = document.tabs
+    (entry,) = tab.nodes
+    assert isinstance(entry, ComponentEntry)
+    assert entry.kind is EntryKind.RENDERED
+    assert entry.outcome is not None
+    assert entry.outcome.status is ComponentStatus.UNAVAILABLE
+    assert diagnostic_subjects(document, DiagnosticKind.COMPONENT_UNAVAILABLE) == []
+
+
+def test_unavailable_skip_omits_and_records_the_note(tmp_path: Path) -> None:
+    # The component leaves the page, not the ledger — and it is a
+    # note: expected pipeline behavior, rendered in the notes group.
+    layout_path = write_layout(
+        tmp_path,
+        on_unavailable="skip",
+        tabs=[{"title": "QC", "components": [{"id": "dataless.quality"}]}],
+    )
+    document = build(tmp_path, layout_path, unavailable_plugin())
+    assert document.tabs == ()
+    (note,) = diagnostics_of(document, DiagnosticKind.COMPONENT_UNAVAILABLE)
+    assert note.subject == "dataless.quality"
+    assert "omitted" in note.message
+    assert "the pipeline produced no data" in note.message
+    assert note.kind.is_problem is False
+
+
+def test_unavailable_skip_collapses_emptied_compositions(tmp_path: Path) -> None:
+    # The walk's upward collapse is shared machinery: a row whose
+    # children all skip produces no node, and the emptied tab drops
+    # — the notes already explain why.
+    layout_path = write_layout(
+        tmp_path,
+        on_unavailable="skip",
+        tabs=[
+            {
+                "title": "QC",
+                "components": [
+                    {
+                        "type": "row",
+                        "children": [
+                            {"id": "dataless.quality"},
+                            {"id": "dataless.quality"},
+                        ],
+                    }
+                ],
+            }
+        ],
+    )
+    document = build(tmp_path, layout_path, unavailable_plugin())
+    assert document.tabs == ()
+    assert len(diagnostic_subjects(document, DiagnosticKind.COMPONENT_UNAVAILABLE)) == 2
+
+
+def test_partial_unavailable_skip_keeps_the_survivors(tmp_path: Path) -> None:
+    layout_path = write_layout(
+        tmp_path,
+        on_unavailable="skip",
+        tabs=[
+            {
+                "title": "QC",
+                "components": [
+                    {
+                        "type": "row",
+                        "split": [2, 1],
+                        "children": [
+                            {"id": "dataless.quality"},
+                            {"id": "current.quality", "parameters": {"label": "A"}},
+                        ],
+                    }
+                ],
+            }
+        ],
+    )
+    document = build(tmp_path, layout_path, current_plugin(), unavailable_plugin())
+    (node,) = document.tabs[0].nodes
+    assert isinstance(node, RowEntry)
+    assert len(node.children) == 1
+    assert diagnostic_subjects(document, DiagnosticKind.COMPONENT_UNAVAILABLE) == [
+        "dataless.quality"
+    ]
+
+
+def test_unavailable_fail_refuses_the_build(tmp_path: Path) -> None:
+    layout_path = write_layout(
+        tmp_path,
+        on_unavailable="fail",
+        tabs=[{"title": "QC", "components": [{"id": "dataless.quality"}]}],
+    )
+    with pytest.raises(
+        ComponentUnavailableError,
+        match=re.escape("the layout places component 'dataless.quality'")
+        + ".*"
+        + re.escape("the pipeline produced no data"),
+    ):
+        build(tmp_path, layout_path, unavailable_plugin())
+
+
+def test_skip_does_not_govern_plugin_bugs(tmp_path: Path) -> None:
+    # A bug is not a data fact: even under on_unavailable: skip, the
+    # failure card stands and the plugin_bug diagnostic is recorded.
+    layout_path = write_layout(
+        tmp_path,
+        on_unavailable="skip",
+        tabs=[{"title": "QC", "components": [{"id": "broken.quality"}]}],
+    )
+    document = build(tmp_path, layout_path, broken_plugin())
+    (tab,) = document.tabs
+    (entry,) = tab.nodes
+    assert isinstance(entry, ComponentEntry)
+    assert entry.kind is EntryKind.FAILED
+    assert diagnostic_subjects(document, DiagnosticKind.PLUGIN_BUG) == [
+        "broken.quality"
+    ]
+
+
+def test_skip_does_not_govern_deliberate_skips(tmp_path: Path) -> None:
+    # A plugin's own SKIPPED outcome already renders nothing; the
+    # policy adds no diagnostic for it.
+    layout_path = write_layout(
+        tmp_path,
+        on_unavailable="skip",
+        tabs=[{"title": "QC", "components": [{"id": "silent.quality"}]}],
+    )
+    document = build(tmp_path, layout_path, skipping_plugin())
+    (entry,) = document.tabs[0].nodes
+    assert isinstance(entry, ComponentEntry)
+    assert entry.outcome is not None
+    assert entry.outcome.status is ComponentStatus.SKIPPED
+    assert diagnostic_subjects(document, DiagnosticKind.COMPONENT_UNAVAILABLE) == []
+
+
+def test_on_missing_does_not_govern_unavailable_data(tmp_path: Path) -> None:
+    # The orthogonality your sanity run discovered, pinned: an
+    # installed component under on_missing: skip still notices its
+    # missing data — resolution succeeded, so the resolution policy
+    # has nothing to say.
+    layout_path = write_layout(
+        tmp_path,
+        on_missing="skip",
+        tabs=[{"title": "QC", "components": [{"id": "dataless.quality"}]}],
+    )
+    document = build(tmp_path, layout_path, unavailable_plugin())
+    (tab,) = document.tabs
+    (entry,) = tab.nodes
+    assert isinstance(entry, ComponentEntry)
+    assert entry.outcome is not None
+    assert entry.outcome.status is ComponentStatus.UNAVAILABLE
 
 
 # ---------------------------------------------------------------------------
@@ -328,7 +537,7 @@ def test_placement_fail_overrides_the_layout_notice(tmp_path: Path) -> None:
     layout_path = write_layout(
         tmp_path,
         on_missing="notice",
-        sections=[
+        tabs=[
             {
                 "title": "QC",
                 "components": [{"id": "nope.nothing", "on_missing": "fail"}],
@@ -345,7 +554,7 @@ def test_placement_fail_overrides_the_layout_notice(tmp_path: Path) -> None:
 def test_placement_notice_overrides_the_layout_fail(tmp_path: Path) -> None:
     layout_path = write_layout(
         tmp_path,
-        sections=[
+        tabs=[
             {
                 "title": "QC",
                 "components": [{"id": "nope.nothing", "on_missing": "notice"}],
@@ -358,6 +567,48 @@ def test_placement_notice_overrides_the_layout_fail(tmp_path: Path) -> None:
     ]
 
 
+def test_placement_on_unavailable_fail_overrides_the_layout_notice(
+    tmp_path: Path,
+) -> None:
+    layout_path = write_layout(
+        tmp_path,
+        on_unavailable="notice",
+        tabs=[
+            {
+                "title": "QC",
+                "components": [{"id": "dataless.quality", "on_unavailable": "fail"}],
+            }
+        ],
+    )
+    with pytest.raises(
+        ComponentUnavailableError,
+        match=re.escape("the layout places component 'dataless.quality'"),
+    ):
+        build(tmp_path, layout_path, unavailable_plugin())
+
+
+def test_placement_on_unavailable_notice_overrides_the_layout_skip(
+    tmp_path: Path,
+) -> None:
+    layout_path = write_layout(
+        tmp_path,
+        on_unavailable="skip",
+        tabs=[
+            {
+                "title": "QC",
+                "components": [{"id": "dataless.quality", "on_unavailable": "notice"}],
+            }
+        ],
+    )
+    document = build(tmp_path, layout_path, unavailable_plugin())
+    (tab,) = document.tabs
+    (entry,) = tab.nodes
+    assert isinstance(entry, ComponentEntry)
+    assert entry.outcome is not None
+    assert entry.outcome.status is ComponentStatus.UNAVAILABLE
+    assert diagnostic_subjects(document, DiagnosticKind.COMPONENT_UNAVAILABLE) == []
+
+
 # ---------------------------------------------------------------------------
 # Placement instances and section assembly
 # ---------------------------------------------------------------------------
@@ -368,7 +619,7 @@ def test_the_same_component_places_twice_with_its_own_parameters(
 ) -> None:
     layout_path = write_layout(
         tmp_path,
-        sections=[
+        tabs=[
             {
                 "title": "QC",
                 "components": [
@@ -379,18 +630,20 @@ def test_the_same_component_places_twice_with_its_own_parameters(
         ],
     )
     document = build(tmp_path, layout_path, current_plugin())
-    (section,) = document.sections
+    (tab,) = document.tabs
     htmls = [
-        entry.outcome.html for entry in section.entries if entry.outcome is not None
+        node.outcome.html
+        for node in tab.nodes
+        if isinstance(node, ComponentEntry) and node.outcome is not None
     ]
     assert htmls == ["<p>run A</p>", "<p>run B</p>"]
 
 
-def test_sections_survive_in_layout_order(tmp_path: Path) -> None:
+def test_tabs_survive_in_layout_order(tmp_path: Path) -> None:
     layout_path = write_layout(
         tmp_path,
-        sections=[
-            qc_section("one"),
+        tabs=[
+            qc_tab("one"),
             {
                 "title": "Taxonomy",
                 "components": [
@@ -400,29 +653,72 @@ def test_sections_survive_in_layout_order(tmp_path: Path) -> None:
         ],
     )
     document = build(tmp_path, layout_path, current_plugin())
-    assert [section.title for section in document.sections] == [
+    assert [tab.title for tab in document.tabs] == [
         "Quality control",
         "Taxonomy",
     ]
 
 
-def test_emptied_sections_are_dropped_rendered_sections_survive(
+def test_emptied_tabs_are_dropped_rendered_tabs_survive(
     tmp_path: Path,
 ) -> None:
     layout_path = write_layout(
         tmp_path,
         on_missing="notice",
-        sections=[
-            qc_section("run A"),
+        tabs=[
+            qc_tab("run A"),
             {"title": "Old", "components": [{"id": "nope.nothing"}]},
         ],
     )
     document = build(tmp_path, layout_path, current_plugin())
-    [section] = document.sections
-    assert section.title == "Quality control"
+    [tab] = document.tabs
+    assert tab.title == "Quality control"
     assert diagnostic_subjects(document, DiagnosticKind.COMPONENT_MISSING) == [
         "nope.nothing"
     ]
+
+
+def test_the_render_call_receives_the_resolved_title(tmp_path: Path) -> None:
+    # The signature's middle argument: the placement's own title when
+    # the layout names the instance, the declaration's default
+    # otherwise — a TILE component paints it itself.
+    seen: list[str] = []
+
+    def title_echo(
+        _context: RenderContext, info: PlacementInfo, _parameters: ComponentParameters
+    ) -> RenderedComponent:
+        seen.append(info.title)
+        return RenderedComponent.from_html("<p>ok</p>")
+
+    titled_plugin = make_plugin(
+        metadata=make_metadata(id="current"),
+        components=(
+            make_component(
+                id="current.quality", title="Sample quality", render=title_echo
+            ),
+        ),
+    )
+    layout_path = write_layout(
+        tmp_path,
+        tabs=[
+            {
+                "title": "QC",
+                "components": [
+                    {"id": "current.quality", "parameters": {"label": "A"}},
+                    {
+                        "id": "current.quality",
+                        "title": "Override",
+                        "parameters": {"label": "B"},
+                    },
+                ],
+            }
+        ],
+    )
+    document = build(tmp_path, layout_path, titled_plugin)
+    (one_tab,) = document.tabs
+    titles = [node.title for node in one_tab.nodes if isinstance(node, ComponentEntry)]
+    assert titles == ["Sample quality", "Override"]
+    assert seen == ["Sample quality", "Override"]
 
 
 # ---------------------------------------------------------------------------
@@ -433,7 +729,7 @@ def test_emptied_sections_are_dropped_rendered_sections_survive(
 def test_plugin_bug_becomes_a_failed_entry_and_diagnostic(tmp_path: Path) -> None:
     layout_path = write_layout(
         tmp_path,
-        sections=[
+        tabs=[
             {
                 "title": "QC",
                 "components": [
@@ -443,8 +739,9 @@ def test_plugin_bug_becomes_a_failed_entry_and_diagnostic(tmp_path: Path) -> Non
         ],
     )
     document = build(tmp_path, layout_path, broken_plugin())
-    (section,) = document.sections
-    (entry,) = section.entries
+    (tab,) = document.tabs
+    (entry,) = tab.nodes
+    assert isinstance(entry, ComponentEntry)
     assert entry.kind is EntryKind.FAILED
     assert entry.component_id == "broken.quality"
     assert entry.title == "Broken metric"
@@ -463,10 +760,11 @@ def test_garbage_render_result_is_collected_as_a_plugin_bug(tmp_path: Path) -> N
     # not as a document the rendering layer would choke on.
     layout_path = write_layout(
         tmp_path,
-        sections=[{"title": "QC", "components": [{"id": "garbage.echo"}]}],
+        tabs=[{"title": "QC", "components": [{"id": "garbage.echo"}]}],
     )
     document = build(tmp_path, layout_path, garbage_plugin())
-    (entry,) = document.sections[0].entries
+    (entry,) = document.tabs[0].nodes
+    assert isinstance(entry, ComponentEntry)
     assert entry.kind is EntryKind.FAILED
     assert entry.error is not None
     assert "must be a RenderedComponent" in entry.error
@@ -478,10 +776,46 @@ def test_keyboard_interrupt_propagates_from_render(tmp_path: Path) -> None:
     # are BaseExceptions and must pass through, never be collected.
     layout_path = write_layout(
         tmp_path,
-        sections=[{"title": "QC", "components": [{"id": "interrupt.echo"}]}],
+        tabs=[{"title": "QC", "components": [{"id": "interrupt.echo"}]}],
     )
     with pytest.raises(KeyboardInterrupt):
         build(tmp_path, layout_path, interrupting_plugin())
+
+
+def test_an_old_signature_renderer_is_collected_as_a_plugin_bug(
+    tmp_path: Path,
+) -> None:
+    # Third-party plugins are not mypy-checked: a renderer still
+    # written against the two-argument signature raises TypeError at
+    # the builder's call — inside the bug boundary, so it degrades to
+    # a visible failure card, never a crash.
+    def old_signature_render(
+        _context: RenderContext, _parameters: ComponentParameters
+    ) -> RenderedComponent:
+        return RenderedComponent.skipped()
+
+    old_plugin = make_plugin(
+        metadata=make_metadata(id="oldsig"),
+        components=(
+            make_component(
+                id="oldsig.quality",
+                title="Old signature",
+                render=old_signature_render,  # type: ignore[arg-type]
+            ),
+        ),
+    )
+    layout_path = write_layout(
+        tmp_path, tabs=[{"title": "QC", "components": [{"id": "oldsig.quality"}]}]
+    )
+    document = build(tmp_path, layout_path, old_plugin)
+    (entry,) = document.tabs[0].nodes
+    assert isinstance(entry, ComponentEntry)
+    assert entry.kind is EntryKind.FAILED
+    assert entry.error is not None
+    assert "TypeError" in entry.error
+    assert diagnostic_subjects(document, DiagnosticKind.PLUGIN_BUG) == [
+        "oldsig.quality"
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -498,7 +832,7 @@ def test_declared_theme_loads_and_displaces_the_default_diagnostic(
         yaml.safe_dump(DEFAULT_THEME.model_dump()), encoding="utf-8"
     )
     layout_path = write_layout(
-        tmp_path, theme="custom_theme.yaml", sections=[qc_section("run A")]
+        tmp_path, theme="custom_theme.yaml", tabs=[qc_tab("run A")]
     )
     document = build(tmp_path, layout_path, current_plugin())
     assert document.theme == DEFAULT_THEME
@@ -507,7 +841,7 @@ def test_declared_theme_loads_and_displaces_the_default_diagnostic(
 
 def test_declared_theme_must_be_readable(tmp_path: Path) -> None:
     layout_path = write_layout(
-        tmp_path, theme="missing_theme.yaml", sections=[qc_section("run A")]
+        tmp_path, theme="missing_theme.yaml", tabs=[qc_tab("run A")]
     )
     with pytest.raises(LayoutError, match="cannot read the theme file"):
         build(tmp_path, layout_path, current_plugin())
@@ -520,7 +854,7 @@ def test_declared_theme_must_be_valid(tmp_path: Path) -> None:
         yaml.safe_dump(payload), encoding="utf-8"
     )
     layout_path = write_layout(
-        tmp_path, theme="custom_theme.yaml", sections=[qc_section("run A")]
+        tmp_path, theme="custom_theme.yaml", tabs=[qc_tab("run A")]
     )
     with pytest.raises(LayoutError, match=re.escape("is not a valid theme")):
         build(tmp_path, layout_path, current_plugin())
@@ -529,7 +863,7 @@ def test_declared_theme_must_be_valid(tmp_path: Path) -> None:
 def test_declared_theme_must_be_a_mapping(tmp_path: Path) -> None:
     (tmp_path / "custom_theme.yaml").write_text("- just\n- a list\n", encoding="utf-8")
     layout_path = write_layout(
-        tmp_path, theme="custom_theme.yaml", sections=[qc_section("run A")]
+        tmp_path, theme="custom_theme.yaml", tabs=[qc_tab("run A")]
     )
     with pytest.raises(
         LayoutError, match=re.escape("must be a mapping of theme tokens")
@@ -542,7 +876,7 @@ def test_theme_duplicate_keys_rejected(tmp_path: Path) -> None:
         "name: one\nname: two\n", encoding="utf-8"
     )
     layout_path = write_layout(
-        tmp_path, theme="custom_theme.yaml", sections=[qc_section("run A")]
+        tmp_path, theme="custom_theme.yaml", tabs=[qc_tab("run A")]
     )
     with pytest.raises(
         LayoutError,
@@ -559,9 +893,7 @@ def test_theme_duplicate_keys_rejected(tmp_path: Path) -> None:
 def test_declared_logo_embeds_as_a_data_uri(tmp_path: Path) -> None:
     data = PNG_MAGIC + b"fake-png-payload"
     write_asset(tmp_path, "logo.png", data)
-    layout_path = write_layout(
-        tmp_path, logo="logo.png", sections=[qc_section("run A")]
-    )
+    layout_path = write_layout(tmp_path, logo="logo.png", tabs=[qc_tab("run A")])
     document = build(tmp_path, layout_path, current_plugin())
     assert document.logo is not None
     assert document.logo.path == "logo.png"
@@ -574,9 +906,7 @@ def test_declared_logo_embeds_as_a_data_uri(tmp_path: Path) -> None:
 def test_declared_favicon_embeds_as_a_data_uri(tmp_path: Path) -> None:
     data = ICO_MAGIC + b"fake-ico-payload"
     write_asset(tmp_path, "favicon.ico", data)
-    layout_path = write_layout(
-        tmp_path, favicon="favicon.ico", sections=[qc_section("run A")]
-    )
+    layout_path = write_layout(tmp_path, favicon="favicon.ico", tabs=[qc_tab("run A")])
     document = build(tmp_path, layout_path, current_plugin())
     assert document.favicon is not None
     assert document.favicon.media_type == "image/x-icon"
@@ -586,7 +916,7 @@ def test_declared_favicon_embeds_as_a_data_uri(tmp_path: Path) -> None:
 
 def test_declared_logo_must_exist(tmp_path: Path) -> None:
     layout_path = write_layout(
-        tmp_path, logo="missing_logo.png", sections=[qc_section("run A")]
+        tmp_path, logo="missing_logo.png", tabs=[qc_tab("run A")]
     )
     with pytest.raises(
         LayoutError,
@@ -597,18 +927,14 @@ def test_declared_logo_must_exist(tmp_path: Path) -> None:
 
 def test_declared_logo_must_have_a_supported_extension(tmp_path: Path) -> None:
     write_asset(tmp_path, "logo.tiff", PNG_MAGIC + b"payload")
-    layout_path = write_layout(
-        tmp_path, logo="logo.tiff", sections=[qc_section("run A")]
-    )
+    layout_path = write_layout(tmp_path, logo="logo.tiff", tabs=[qc_tab("run A")])
     with pytest.raises(LayoutError, match="not a supported image type"):
         build(tmp_path, layout_path, current_plugin())
 
 
 def test_declared_logo_must_match_its_extension(tmp_path: Path) -> None:
     write_asset(tmp_path, "logo.png", b"definitely not a png")
-    layout_path = write_layout(
-        tmp_path, logo="logo.png", sections=[qc_section("run A")]
-    )
+    layout_path = write_layout(tmp_path, logo="logo.png", tabs=[qc_tab("run A")])
     with pytest.raises(
         LayoutError, match=re.escape("does not look like a valid image/png file")
     ):
@@ -628,22 +954,12 @@ def test_no_informational_diagnostics_when_everything_is_declared(
         theme="custom_theme.yaml",
         logo="logo.png",
         favicon="favicon.ico",
-        sections=[qc_section("run A")],
+        tabs=[qc_tab("run A")],
     )
     document = build(tmp_path, layout_path, current_plugin())
     assert document.diagnostics == ()
     assert document.logo is not None
     assert document.favicon is not None
-
-
-def test_the_layout_toc_flag_carries_to_the_document(tmp_path: Path) -> None:
-    layout_path = write_layout(tmp_path, sections=[qc_section("run A")])
-    document = build(tmp_path, layout_path, current_plugin())
-    assert document.toc is True
-
-    off_path = write_layout(tmp_path, toc=False, sections=[qc_section("run A")])
-    document = build(tmp_path, off_path, current_plugin())
-    assert document.toc is False
 
 
 def test_theme_fonts_flow_to_the_document(tmp_path: Path) -> None:
@@ -653,7 +969,7 @@ def test_theme_fonts_flow_to_the_document(tmp_path: Path) -> None:
         yaml.safe_dump(payload), encoding="utf-8"
     )
     layout_path = write_layout(
-        tmp_path, theme="custom_theme.yaml", sections=[qc_section("run A")]
+        tmp_path, theme="custom_theme.yaml", tabs=[qc_tab("run A")]
     )
     document = build(tmp_path, layout_path, current_plugin())
     assert document.theme.font_heading == "Georgia, serif"
@@ -661,15 +977,167 @@ def test_theme_fonts_flow_to_the_document(tmp_path: Path) -> None:
 
 def test_the_layout_author_carries_to_the_document(tmp_path: Path) -> None:
     layout_path = write_layout(
-        tmp_path, author="The Genomics Group", sections=[qc_section("run A")]
+        tmp_path, author="The Genomics Group", tabs=[qc_tab("run A")]
     )
     document = build(tmp_path, layout_path, current_plugin())
     assert document.author == "The Genomics Group"
 
 
 def test_the_layout_version_carries_to_the_document(tmp_path: Path) -> None:
-    layout_path = write_layout(
-        tmp_path, version="1.2.0", sections=[qc_section("run A")]
-    )
+    layout_path = write_layout(tmp_path, version="1.2.0", tabs=[qc_tab("run A")])
     document = build(tmp_path, layout_path, current_plugin())
     assert document.version == "1.2.0"
+
+
+# ---------------------------------------------------------------------------
+# The composition walk
+# ---------------------------------------------------------------------------
+
+
+def test_row_children_render_in_order(tmp_path: Path) -> None:
+    layout_path = write_layout(
+        tmp_path,
+        tabs=[
+            {
+                "title": "QC",
+                "components": [
+                    {
+                        "type": "row",
+                        "split": [2, 1],
+                        "children": [
+                            {"id": "current.quality", "parameters": {"label": "A"}},
+                            {"id": "current.quality", "parameters": {"label": "B"}},
+                        ],
+                    }
+                ],
+            }
+        ],
+    )
+    document = build(tmp_path, layout_path, current_plugin())
+    (tab,) = document.tabs
+    (node,) = tab.nodes
+    assert isinstance(node, RowEntry)
+    assert node.split == (2.0, 1.0)
+    labels = [
+        child.outcome.html
+        for child in node.children
+        if isinstance(child, ComponentEntry) and child.outcome is not None
+    ]
+    assert labels == ["<p>A</p>", "<p>B</p>"]
+
+
+def test_grid_children_flow_with_column_ratios(tmp_path: Path) -> None:
+    # Three children in two columns: the split gives columns, not
+    # children — the short last row is the design.
+    layout_path = write_layout(
+        tmp_path,
+        tabs=[
+            {
+                "title": "QC",
+                "components": [
+                    {
+                        "type": "grid",
+                        "split": [1, 1],
+                        "children": [
+                            {"id": "current.quality", "parameters": {"label": n}}
+                            for n in ("A", "B", "C")
+                        ],
+                    }
+                ],
+            }
+        ],
+    )
+    document = build(tmp_path, layout_path, current_plugin())
+    (node,) = document.tabs[0].nodes
+    assert isinstance(node, GridEntry)
+    assert node.split == (1.0, 1.0)
+    assert len(node.children) == 3
+
+
+def test_composition_collapses_when_all_children_resolve_away(tmp_path: Path) -> None:
+    # notice empties the row; an emptied row produces no node, and a
+    # tab left with no nodes drops — the collapse rule at every level.
+    layout_path = write_layout(
+        tmp_path,
+        on_missing="notice",
+        tabs=[
+            {
+                "title": "QC",
+                "components": [
+                    {
+                        "type": "row",
+                        "children": [{"id": "nope.nothing"}, {"id": "nope.other"}],
+                    }
+                ],
+            }
+        ],
+    )
+    document = build(tmp_path, layout_path, current_plugin())
+    assert document.tabs == ()
+    assert len(diagnostic_subjects(document, DiagnosticKind.COMPONENT_MISSING)) == 2
+
+
+def test_partial_collapse_keeps_the_surviving_children(tmp_path: Path) -> None:
+    layout_path = write_layout(
+        tmp_path,
+        on_missing="notice",
+        tabs=[
+            {
+                "title": "QC",
+                "components": [
+                    {
+                        "type": "card",
+                        "title": "Group",
+                        "children": [
+                            {"id": "nope.nothing"},
+                            {
+                                "id": "current.quality",
+                                "parameters": {"label": "A"},
+                            },
+                        ],
+                    }
+                ],
+            }
+        ],
+    )
+    document = build(tmp_path, layout_path, current_plugin())
+    (node,) = document.tabs[0].nodes
+    assert isinstance(node, CardEntry)
+    assert node.title == "Group"
+    assert len(node.children) == 1
+
+
+def test_diagnostics_marker_placed_in_the_tree(tmp_path: Path) -> None:
+    layout_path = write_layout(
+        tmp_path,
+        tabs=[
+            {
+                "title": "QC",
+                "components": [
+                    {"type": "diagnostics"},
+                    {"id": "current.quality", "parameters": {"label": "A"}},
+                ],
+            }
+        ],
+    )
+    document = build(tmp_path, layout_path, current_plugin())
+    (tab,) = document.tabs
+    marker, rendered = tab.nodes
+    assert isinstance(marker, DiagnosticsEntry)
+    assert isinstance(rendered, ComponentEntry)
+
+
+def test_the_marker_and_the_ledger_stay_independent(tmp_path: Path) -> None:
+    # No marker in the layout: the panel renders nowhere — and the
+    # ledger still records everything, because omission is the
+    # feature and recording is unconditional.
+    layout_path = write_layout(tmp_path, tabs=[qc_tab("run A")])
+    document = build(tmp_path, layout_path, current_plugin())
+    assert not any(
+        isinstance(node, DiagnosticsEntry) for node in document.tabs[0].nodes
+    )
+    assert [d.kind for d in document.diagnostics] == [
+        DiagnosticKind.DEFAULT_THEME,
+        DiagnosticKind.LOGO_OMITTED,
+        DiagnosticKind.FAVICON_OMITTED,
+    ]

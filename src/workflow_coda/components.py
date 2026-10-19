@@ -9,15 +9,21 @@ configuration (:data:`ComponentParameters`).
 The division of responsibility is the one the roadmap records:
 
 * Plugins own component *content*.  A render call returns a
-  :class:`RenderedComponent` whose ``html`` is the component body; the
-  framework wraps it in the shared card chrome and title, and renders
-  unavailable outcomes through the notice template.
+  :class:`RenderedComponent` whose ``html`` is the component body.
+  The framework wraps a ``CARD`` component in the shared card chrome
+  and title; a ``TILE`` component painted its own card, and the
+  framework contributes only the ``data-component`` wrapper —
+  available through ``chrome``.  Unavailable outcomes render through
+  the framework's notice vocabulary in both modes.
 * Degradation is data, not error.  Missing inputs are an ``unavailable``
   outcome with an explanatory message; plugin *bugs* are exceptions,
   which the report builder collects into the diagnostics section.
 * Configuration is transport.  Layouts supply
   :data:`ComponentParameters`; each plugin reads and validates the keys
-  it cares about, and the framework interprets none of them.
+  it cares about, and the framework interprets none of them.  Plugins
+  that want a closed vocabulary can call
+  :func:`reject_unknown_parameters` to teach unknown keys — typos, and
+  placement keys nested by accident — at the parse boundary.
 
 These are in-memory contracts rather than deserialized artifacts, so they
 follow :class:`workflow_coda.context.RenderContext` in being frozen,
@@ -29,6 +35,7 @@ explanatory ``ValueError``, which the report builder reports as a plugin
 failure.
 """
 
+import difflib
 import html
 import re
 from collections.abc import Callable, Mapping
@@ -105,20 +112,92 @@ interprets none of them.
 """
 
 
+PLACEMENT_KEYS: Final[frozenset[str]] = frozenset(
+    {"id", "title", "parameters", "on_missing", "on_unavailable"}
+)
+"""The placement grammar's own keys — mirrored from
+:class:`workflow_coda.layout.ComponentPlacement` (defined there,
+mirrored here to keep the import graph acyclic; a pinning test
+holds the mirror honest).  These are the keys a layout author is
+likeliest to nest inside a component's ``parameters:`` block by
+accident."""
+
+
+def reject_unknown_parameters(
+    component_id: str,
+    parameters: ComponentParameters,
+    accepted: frozenset[str],
+) -> None:
+    """Reject parameter keys outside *accepted* with one teaching error.
+
+    Parameters are transport — a plugin reads its own keys and the
+    framework interprets none — but silence is not strictness: an
+    unknown key in a hand-authored layout is either a typo or a
+    placement key nested one level too deep, and both are authoring
+    mistakes a plugin can teach here, at the parse boundary, before
+    any data is touched.  A placement key (:data:`PLACEMENT_KEYS`)
+    teaches the move — out of ``parameters:``, next to ``id``; any
+    other unknown key teaches the accepted vocabulary, with a
+    closest-match suggestion when one is close.
+
+    Plugins call this first thing in their parameter parse; it
+    raises, or returns ``None`` when every key is accepted.
+    """
+    unknown = sorted(key for key in parameters if key not in accepted)
+    if not unknown:
+        return
+    findings: list[str] = []
+    for key in unknown:
+        if key in PLACEMENT_KEYS:
+            findings.append(
+                f"{key!r} is a placement key, not a component parameter "
+                f"— move it out of 'parameters:' to the placement level, "
+                f"next to 'id'"
+            )
+            continue
+        close = difflib.get_close_matches(key, accepted, n=1)
+        hint = f" (did you mean {close[0]!r}?)" if close else ""
+        findings.append(f"unknown parameter {key!r}{hint}")
+    accepted_names = ", ".join(f"{key!r}" for key in sorted(accepted))
+    raise ValueError(
+        f"{component_id}: {', '.join(findings)} — the accepted parameters "
+        f"are: {accepted_names}"
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class PlacementInfo:
+    """The placement's facts, handed to every render call.
+
+    A placement's *resolved title* — the layout's own name for this
+    instance, or the component declaration's default when the layout
+    doesn't name it — is builder-resolved data, not a parameter: the
+    parameters transport is the layout's key-value payload, and the
+    framework interprets none of it.  A ``TILE`` component paints this
+    title itself; for a ``CARD`` component it is the card heading the
+    framework renders.
+    """
+
+    title: str
+    """The resolved instance title; see the class docstring."""
+
+
 type ComponentRenderer = Callable[
-    [RenderContext, ComponentParameters], RenderedComponent
+    [RenderContext, PlacementInfo, ComponentParameters], RenderedComponent
 ]
-"""A component's render callable: the report context and the component's
-layout parameters in, one typed outcome out."""
+"""A component's render callable: the report context, the placement's
+resolved facts, and the component's layout parameters in, one typed
+outcome out."""
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class RenderedComponent:
     """The typed outcome of one component render call.
 
-    ``status`` decides what the framework renders: ``OK`` wraps ``html``
-    in the shared component chrome; ``UNAVAILABLE`` renders ``message``
-    through the notice template; ``SKIPPED`` renders nothing.  The
+    ``status`` decides what the framework renders: ``OK`` wraps ``html`` in the
+    component's chrome — the shared card for a ``CARD`` component, the plugin's own
+    painted card for a ``TILE``; ``UNAVAILABLE`` renders ``message`` through the notice
+    template; ``SKIPPED`` renders nothing.  The
     template renders framework values (title, message) with autoescaping;
     ``html`` content is the plugin's own responsibility.
 
@@ -322,6 +401,23 @@ class PluginMetadata:
             )
 
 
+class ComponentChrome(Enum):
+    """Who paints a component's chrome.
+
+    ``CARD``
+        The plugin returns body html; the framework wraps it in the
+        shared card chrome and renders the resolved title as the
+        card heading.
+    ``TILE``
+        The plugin painted its own card — title, plate, corners —
+        and the framework contributes only the
+        ``data-component`` wrapper.
+    """
+
+    CARD = "card"
+    TILE = "tile"
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class ReportComponent:
     """A declared report component offered by a plugin.
@@ -346,18 +442,26 @@ class ReportComponent:
     """The component's render callable.
 
     The report builder invokes it once per rendered report with the
-    render context and the component's layout parameters.  Pass the
-    function itself, not a call result: ``render`` is the recipe, not
-    the meal.
+    render context, the placement's resolved facts, and the
+    component's layout parameters.  Pass the function itself, not a
+    call result: ``render`` is the recipe, not the meal.
     """
+
+    chrome: ComponentChrome = ComponentChrome.CARD
+    """Who paints this component's chrome.  A ``CARD`` component
+    returns body html and the framework wraps it in the card chrome;
+    a ``TILE`` component paints its own card — title, plate,
+    corners — and the framework contributes only the
+    ``data-component`` wrapper.  Defaults to ``CARD``, so every
+    existing declaration stands."""
 
     def __post_init__(self) -> None:
         """Enforce the id shape and non-empty text fields."""
         if not callable(self.render):
             raise ValueError(
                 f"component {self.id!r}: render must be a callable taking "
-                f"(context, parameters); got {self.render!r} — pass the "
-                f"function itself, not a call result"
+                f"(context, placement_info, parameters); got {self.render!r} "
+                f"— pass the function itself, not a call result"
             )
         if COMPONENT_ID_PATTERN.fullmatch(self.id) is None:
             raise ValueError(

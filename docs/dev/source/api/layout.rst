@@ -26,10 +26,6 @@ The model
    :members:
    :exclude-members: model_config
 
-.. autoclass:: workflow_coda.layout.ReportSection
-   :members:
-   :exclude-members: model_config
-
 .. autoclass:: workflow_coda.layout.ReportLayout
    :members:
    :exclude-members: model_config

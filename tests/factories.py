@@ -14,8 +14,10 @@ from typing import Any
 
 from workflow_coda.artifact_store import JsonValue
 from workflow_coda.components import (
+    ComponentChrome,
     ComponentParameters,
     ComponentRenderer,
+    PlacementInfo,
     PluginMetadata,
     RenderedComponent,
     ReportComponent,
@@ -200,7 +202,7 @@ def make_theme_payload(**overrides: object) -> dict[str, object]:
 
 
 def noop_render(
-    _context: RenderContext, _parameters: ComponentParameters
+    _context: RenderContext, _info: PlacementInfo, _parameters: ComponentParameters
 ) -> RenderedComponent:
     """The do-nothing renderer: every outcome is a skip.
 
@@ -233,6 +235,7 @@ def make_component(
     title: str = "Quality overview",
     description: str | None = None,
     render: ComponentRenderer = noop_render,
+    chrome: ComponentChrome = ComponentChrome.CARD,
 ) -> ReportComponent:
     """A fresh, valid component declaration.
 
@@ -245,6 +248,7 @@ def make_component(
         title=title,
         description=description,
         render=render,
+        chrome=chrome,
     )
 
 
@@ -265,16 +269,16 @@ def make_plugin(
 
 
 def make_layout_payload(**overrides: JsonValue) -> dict[str, JsonValue]:
-    """A fresh, valid report layout payload: one section, one placement.
+    """The suite's layout payload: schema 0.2.0, one tab, one placement.
 
-    Override any top-level key, or replace ``sections`` wholesale;
-    tests for section- and placement-level violations build their own
-    nested structure under ``sections``.
+    Overrides merge onto the default payload wholesale — arbitrary
+    keys included, so the typo-key tests build their typo'd payloads
+    through the same factory.
     """
     payload: dict[str, JsonValue] = {
-        "schema_version": "0.1.0",
+        "schema_version": "0.2.0",
         "title": "Metagenomic analysis",
-        "sections": [
+        "tabs": [
             {
                 "title": "Quality control",
                 "components": [{"id": "example_bio.qc"}],
