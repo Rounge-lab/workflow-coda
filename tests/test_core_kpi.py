@@ -216,6 +216,27 @@ def test_unknown_icon_teaches(tmp_path: Path) -> None:
         render_kpi(context, _info(), _kpi({"icon": "core-nope"}))
 
 
+def test_placement_keys_nested_in_parameters_teach_the_move(
+    tmp_path: Path,
+) -> None:
+    # The eyeball trap, pinned: a policy nested inside parameters is
+    # inert — the KPI would ignore it and the layout would look right
+    # while doing nothing.  The closed vocabulary teaches the move.
+    context = _context(_write_bundle(tmp_path))
+    with pytest.raises(
+        ValueError, match="move it out of 'parameters:' to the placement level"
+    ):
+        render_kpi(context, _info(), _kpi({"on_unavailable": "skip"}))
+    with pytest.raises(ValueError, match="move it out of 'parameters:'"):
+        render_kpi(context, _info(), _kpi({"title": "Mean depth"}))
+
+
+def test_parameter_typos_get_a_suggestion(tmp_path: Path) -> None:
+    context = _context(_write_bundle(tmp_path))
+    with pytest.raises(ValueError, match="did you mean 'color'"):
+        render_kpi(context, _info(), _kpi({"colour": "primary"}))
+
+
 # ---------------------------------------------------------------------------
 # Missing data: unavailable outcomes, carrying the store's own messages
 # ---------------------------------------------------------------------------

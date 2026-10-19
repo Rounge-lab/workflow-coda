@@ -15,6 +15,10 @@ Its parameter grammar follows the honest-data law:
   colors resolve from the report's theme (token names or series
   entries — never literals), and icons load from the framework's
   shipped, sanitized set, so the report stays self-contained.
+* the vocabulary is closed: unknown parameter keys teach at the
+  parse boundary — typos with a closest-match suggestion, and
+  placement keys (``on_unavailable`` and friends) with the
+  instruction to move them out of ``parameters:``;
 
 The card's *title* is not a parameter, and neither is it framework
 chrome: the KPI is a ``TILE`` component and paints its own card —
@@ -53,7 +57,12 @@ from enum import Enum
 from typing import Final
 
 from ..artifact_store import JsonValue
-from ..components import ComponentParameters, PlacementInfo, RenderedComponent
+from ..components import (
+    ComponentParameters,
+    PlacementInfo,
+    RenderedComponent,
+    reject_unknown_parameters,
+)
 from ..context import RenderContext
 from ..errors import ArtifactUnavailableError
 from ..icons import Icon, load_icon
@@ -63,6 +72,23 @@ from ..theme import ColorHex, Theme
 _VARIANTS: Final[frozenset[str]] = frozenset({"text", "fill", "gradient"})
 """The plate styles: plain text on the card, a solid color plate, or
 a two-color gradient plate."""
+
+_KPI_PARAMETERS: Final[frozenset[str]] = frozenset(
+    {
+        "artifact",
+        "caption",
+        "color",
+        "decimals",
+        "icon",
+        "icon_position",
+        "key",
+        "thresholds",
+        "unit",
+        "variant",
+    }
+)
+"""core.kpi's accepted parameter vocabulary: the closed set
+:func:`_parse_spec` reads, for the unknown-key teaching."""
 
 _ICON_POSITIONS: Final[frozenset[str]] = frozenset({"inline", "corner"})
 """Where the icon renders: in the value line, or pinned to the card's
@@ -341,8 +367,11 @@ def _parse_spec(parameters: ComponentParameters) -> _KpiSpec:
     The shape half of the honest-data law: this function touches no
     theme, store, or icon set — every malformed parameter, including
     the variant/color consistency rules below, raises its teaching
-    ``ValueError`` here, before any data is read.
+    ``ValueError`` here, before any data is read.  The vocabulary is
+    closed and checked first: unknown keys — typos, and placement
+    keys nested by accident — teach before any known key is read.
     """
+    reject_unknown_parameters("core.kpi", parameters, _KPI_PARAMETERS)
     spec = _KpiSpec(
         artifact_type=_required_text(parameters, "artifact"),
         key=_required_text(parameters, "key"),

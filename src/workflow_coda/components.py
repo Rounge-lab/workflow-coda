@@ -20,7 +20,10 @@ The division of responsibility is the one the roadmap records:
   which the report builder collects into the diagnostics section.
 * Configuration is transport.  Layouts supply
   :data:`ComponentParameters`; each plugin reads and validates the keys
-  it cares about, and the framework interprets none of them.
+  it cares about, and the framework interprets none of them.  Plugins
+  that want a closed vocabulary can call
+  :func:`reject_unknown_parameters` to teach unknown keys — typos, and
+  placement keys nested by accident — at the parse boundary.
 
 These are in-memory contracts rather than deserialized artifacts, so they
 follow :class:`workflow_coda.context.RenderContext` in being frozen,
@@ -32,6 +35,7 @@ explanatory ``ValueError``, which the report builder reports as a plugin
 failure.
 """
 
+import difflib
 import html
 import re
 from collections.abc import Callable, Mapping
@@ -106,6 +110,59 @@ Transport only: values arrive exactly as the layout file wrote them, and
 each plugin reads and validates the keys it cares about.  The framework
 interprets none of them.
 """
+
+
+PLACEMENT_KEYS: Final[frozenset[str]] = frozenset(
+    {"id", "title", "parameters", "on_missing", "on_unavailable"}
+)
+"""The placement grammar's own keys — mirrored from
+:class:`workflow_coda.layout.ComponentPlacement` (defined there,
+mirrored here to keep the import graph acyclic; a pinning test
+holds the mirror honest).  These are the keys a layout author is
+likeliest to nest inside a component's ``parameters:`` block by
+accident."""
+
+
+def reject_unknown_parameters(
+    component_id: str,
+    parameters: ComponentParameters,
+    accepted: frozenset[str],
+) -> None:
+    """Reject parameter keys outside *accepted* with one teaching error.
+
+    Parameters are transport — a plugin reads its own keys and the
+    framework interprets none — but silence is not strictness: an
+    unknown key in a hand-authored layout is either a typo or a
+    placement key nested one level too deep, and both are authoring
+    mistakes a plugin can teach here, at the parse boundary, before
+    any data is touched.  A placement key (:data:`PLACEMENT_KEYS`)
+    teaches the move — out of ``parameters:``, next to ``id``; any
+    other unknown key teaches the accepted vocabulary, with a
+    closest-match suggestion when one is close.
+
+    Plugins call this first thing in their parameter parse; it
+    raises, or returns ``None`` when every key is accepted.
+    """
+    unknown = sorted(key for key in parameters if key not in accepted)
+    if not unknown:
+        return
+    findings: list[str] = []
+    for key in unknown:
+        if key in PLACEMENT_KEYS:
+            findings.append(
+                f"{key!r} is a placement key, not a component parameter "
+                f"— move it out of 'parameters:' to the placement level, "
+                f"next to 'id'"
+            )
+            continue
+        close = difflib.get_close_matches(key, accepted, n=1)
+        hint = f" (did you mean {close[0]!r}?)" if close else ""
+        findings.append(f"unknown parameter {key!r}{hint}")
+    accepted_names = ", ".join(f"{key!r}" for key in sorted(accepted))
+    raise ValueError(
+        f"{component_id}: {', '.join(findings)} — the accepted parameters "
+        f"are: {accepted_names}"
+    )
 
 
 @dataclass(frozen=True, slots=True)

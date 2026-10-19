@@ -5,11 +5,14 @@ from factories import make_component, make_metadata, noop_render, stub_figure
 from helpers import assert_frozen_dataclass
 
 from workflow_coda.components import (
+    PLACEMENT_KEYS,
     ComponentChrome,
     ComponentStatus,
     PlacementInfo,
     RenderedComponent,
+    reject_unknown_parameters,
 )
+from workflow_coda.layout import ComponentPlacement
 
 # ---------------------------------------------------------------------------
 # ok outcomes
@@ -332,3 +335,60 @@ def test_metadata_is_frozen_and_hashable() -> None:
 def test_metadata_rejects_new_attributes() -> None:
     with pytest.raises(AttributeError):
         make_metadata().extra = "nope"  # type: ignore[attr-defined]
+
+
+# ---------------------------------------------------------------------------
+# Parameter vocabulary teaching
+# ---------------------------------------------------------------------------
+
+_ACCEPTED = frozenset({"artifact", "color", "key"})
+
+
+def test_accepted_keys_pass_silently() -> None:
+    # The helper is a no-op when the block is clean — the common case.
+    reject_unknown_parameters("example.hello", {"artifact": "x"}, _ACCEPTED)
+
+
+def test_unknown_keys_teach_the_vocabulary() -> None:
+    with pytest.raises(ValueError, match="the accepted parameters are"):
+        reject_unknown_parameters("example.hello", {"explode": 1}, _ACCEPTED)
+    with pytest.raises(ValueError, match="'artifact', 'color', 'key'"):
+        reject_unknown_parameters("example.hello", {"explode": 1}, _ACCEPTED)
+
+
+def test_typos_get_a_closest_match_suggestion() -> None:
+    with pytest.raises(ValueError, match="did you mean 'color'"):
+        reject_unknown_parameters("example.hello", {"colour": "red"}, _ACCEPTED)
+
+
+def test_placement_keys_teach_the_move() -> None:
+    # The trap the helper exists for: a policy or title nested inside
+    # parameters is inert without this — teach the move instead.
+    with pytest.raises(
+        ValueError, match="move it out of 'parameters:' to the placement level"
+    ):
+        reject_unknown_parameters(
+            "example.hello", {"on_unavailable": "skip"}, _ACCEPTED
+        )
+    with pytest.raises(ValueError, match="move it out of 'parameters:'"):
+        reject_unknown_parameters("example.hello", {"title": "x"}, _ACCEPTED)
+
+
+def test_every_unknown_key_reports_in_one_error() -> None:
+    # One pass, one error: every offender is named, with its own
+    # teaching line — substring pins, robust to listing order.
+    with pytest.raises(ValueError) as excinfo:
+        reject_unknown_parameters(
+            "example.hello", {"on_missing": "skip", "colour": "red"}, _ACCEPTED
+        )
+    message = str(excinfo.value)
+    assert "did you mean 'color'?" in message
+    assert "'on_missing' is a placement key" in message
+    assert "the accepted parameters are" in message
+
+
+def test_placement_keys_mirror_the_placement_model() -> None:
+    # The helper teaches placement keys by name; the layout grammar
+    # owns them.  This pin keeps the mirror from drifting when the
+    # grammar grows a placement key.
+    assert PLACEMENT_KEYS == frozenset(ComponentPlacement.model_fields)
