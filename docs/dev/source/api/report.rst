@@ -20,9 +20,6 @@ Diagnostic kinds
 Entries and diagnostics
 -----------------------
 
-.. autoclass:: workflow_coda.report.SectionEntry
-   :members:
-
 .. autoclass:: workflow_coda.report.Diagnostic
    :members:
 
@@ -31,9 +28,6 @@ Entries and diagnostics
 
 Sections and the document
 -------------------------
-
-.. autoclass:: workflow_coda.report.DocumentSection
-   :members:
 
 .. autoclass:: workflow_coda.report.ReportDocument
    :members:
