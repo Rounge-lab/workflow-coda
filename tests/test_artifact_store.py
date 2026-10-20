@@ -60,7 +60,7 @@ def test_properties_expose_manifest_and_root(
 ) -> None:
     artifact_store = ArtifactStore.from_manifest_file(bundle.manifest_path)
     assert artifact_store.root == tmp_path.resolve()
-    assert artifact_store.manifest.schema_version == "0.1.0"
+    assert artifact_store.manifest.schema_version == "0.2.0"
 
 
 # ---------------------------------------------------------------------------
@@ -231,7 +231,7 @@ def test_require_defers_checksum_verification_to_reads(
         resolved.read_tsv()
 
 
-@pytest.mark.parametrize("method", ["read_tsv", "read_json", "read_text"])
+@pytest.mark.parametrize("method", ["read_tsv", "read_json", "read_text", "read_bytes"])
 def test_checksum_verification_precedes_parsing(
     bundle: ReportBundle, method: str
 ) -> None:
@@ -458,6 +458,30 @@ def test_read_json_rejects_invalid_json(tmp_path: Path) -> None:
 def test_read_text_returns_decoded_contents(store: ArtifactStore) -> None:
     artifact = store.require(METRICS_TYPE)
     assert artifact.read_text() == "sample_id\tpassed\nS1\ttrue\nS2\tfalse\n"
+
+
+# ---------------------------------------------------------------------------
+# read_bytes
+# ---------------------------------------------------------------------------
+
+
+def test_read_bytes_returns_raw_contents(store: ArtifactStore) -> None:
+    artifact = store.require(METRICS_TYPE)
+    assert artifact.read_bytes() == b"sample_id\tpassed\nS1\ttrue\nS2\tfalse\n"
+
+
+def test_read_bytes_is_the_binary_door(tmp_path: Path) -> None:
+    # Bytes no UTF-8 reader can decode pass through read_bytes
+    # uninterpreted — the door a plugin-defined format (a BAM, an
+    # image) reads its artifacts through: checksum-verified like
+    # every other reader, gated by nothing.  The declared format is
+    # namespaced — a convention this framework does not interpret —
+    # and the read is the plugin's explicit command.
+    declaration = make_artifact_payload(format="bio.newick")
+    png_magic = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+    artifact_bundle = write_artifact_bundle(tmp_path, declaration, png_magic)
+    artifact_store = ArtifactStore.from_manifest_file(artifact_bundle.manifest_path)
+    assert artifact_store.require(METRICS_TYPE).read_bytes() == png_magic
 
 
 # ---------------------------------------------------------------------------

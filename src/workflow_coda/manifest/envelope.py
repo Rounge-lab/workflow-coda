@@ -5,7 +5,9 @@ lists the artifact declarations.
 
 The envelope's schema version is gated strictly: a manifest written for an unknown
 version fails validation because an unrecognized envelope cannot be validated or
-consumed correctly.  The supported versions are enumerated by ``ManifestSchemaVersion``
+consumed correctly.  The supported version is enumerated by ``ManifestSchemaVersion``
+— today, exactly ``0.2.0``, which widened the artifact ``format`` value space to
+include namespaced plugin formats; the pre-widening ``0.1.0`` envelope is not read.
 """
 
 from collections import Counter
@@ -17,7 +19,7 @@ from .artifact import ArtifactDeclaration
 from .types import NonEmptyStr
 
 # Manifest envelope contract versions accepted by the report framework
-type ManifestSchemaVersion = Literal["0.1.0"]
+type ManifestSchemaVersion = Literal["0.2.0"]
 
 
 class ProducerMetadata(BaseModel):

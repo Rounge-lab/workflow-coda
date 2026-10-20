@@ -23,7 +23,7 @@ from workflow_coda.registry import PluginRegistry
 
 
 def distinct_plugin(
-    id: str, supported_schema_versions: Iterable[str] = ("0.1.0",)
+    id: str, supported_schema_versions: Iterable[str] = ("0.2.0",)
 ) -> ReportPlugin:
     """A valid plugin whose ids are unique to *id*.
 
@@ -136,22 +136,22 @@ def test_require_component_on_empty_registry_says_none() -> None:
 
 
 def test_plugins_supporting_filters_by_manifest_schema_version() -> None:
-    # ``ManifestSchemaVersion`` is a Literal: "0.1.0" is the only version
+    # ``ManifestSchemaVersion`` is a Literal: "0.2.0" is the only version
     # the manifest contract carries today, so the *query* side is fixed
     # and the plugin *declarations* provide the variation.  (Asking about
     # "0.2.0" is a type type system enforcing that only
     # manifest-carryable versions can be looked up, not something to
     # work around with a cast.)
-    current = distinct_plugin("current")  # declares {"0.1.0"}
-    also_current = distinct_plugin("also_current")  # declares {"0.1.0}
+    current = distinct_plugin("current")  # declares {"0.2.0"}
+    also_current = distinct_plugin("also_current")  # declares {"0.2.0}
     stale = distinct_plugin("stale", ("0.0.9",))  # declares {"0.0.9"} only
 
     mixed = PluginRegistry((current, stale, also_current))
     # Non-matching plugins are excluded; matching ones keep discovery order.
-    assert mixed.plugins_supporting("0.1.0") == (current, also_current)
+    assert mixed.plugins_supporting("0.2.0") == (current, also_current)
     # A registry where nothing matches yields an empty tuple.
     transcribe_only = PluginRegistry((stale,))
-    assert transcribe_only.plugins_supporting("0.1.0") == ()
+    assert transcribe_only.plugins_supporting("0.2.0") == ()
 
 
 # ---------------------------------------------------------------------------

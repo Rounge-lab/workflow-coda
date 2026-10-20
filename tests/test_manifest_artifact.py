@@ -137,10 +137,57 @@ def test_traversal_error_names_the_offense() -> None:
         )
 
 
-def test_rejects_unsupported_format() -> None:
+@pytest.mark.parametrize(
+    "fmt",
+    ["core.table", "bio.newick", "bio.newick.annotated", "a.b.c.d"],
+)
+def test_accepts_namespaced_plugin_formats(fmt: str) -> None:
+    # A format beyond the core set is a namespaced convention: the
+    # grammar is validated (dotted, lowercase, at least two
+    # segments); the meaning never — it lives in the owning plugin.
+    declaration = ArtifactDeclaration.model_validate(make_artifact_payload(format=fmt))
+    assert declaration.format == fmt
+
+
+@pytest.mark.parametrize(
+    "fmt", ["csv", "table", "Table", "core", ".table", "core.", "core..table", ""]
+)
+def test_rejects_unnamespaced_or_malformed_formats(fmt: str) -> None:
     with pytest.raises(ValidationError) as exc_info:
-        ArtifactDeclaration.model_validate(make_artifact_payload(format="csv"))
-    assert "format" in invalid_fields(exc_info.value)
+        ArtifactDeclaration.model_validate(make_artifact_payload(format=fmt))
+    # A union field fails per branch: one error per arm, each under a
+    # branch-tagged location beneath the field's own.  The field name
+    # is the outermost location; the branch tags are bookkeeping.
+    assert {error["loc"][0] for error in exc_info.value.errors()} == {"format"}
+
+
+@pytest.mark.parametrize(
+    ("raw", "member"),
+    [
+        ("tsv", ArtifactFormat.TSV),
+        ("json", ArtifactFormat.JSON),
+        ("txt", ArtifactFormat.TXT),
+        ("bytes", ArtifactFormat.BYTES),
+    ],
+)
+def test_core_formats_validate_to_enum_members(
+    raw: str, member: ArtifactFormat
+) -> None:
+    # The union's first branch must win for core values: components
+    # check the declared format with ``is`` (core.kpi's JSON check),
+    # so a core value that validated to a plain string would break
+    # them.  Safe by construction — core values are single-segment,
+    # namespaced names require the dot — and pinned anyway.
+    declaration = ArtifactDeclaration.model_validate(make_artifact_payload(format=raw))
+    assert declaration.format is member
+
+
+def test_namespaced_formats_validate_as_convention_strings() -> None:
+    declaration = ArtifactDeclaration.model_validate(
+        make_artifact_payload(format="core.table")
+    )
+    assert declaration.format == "core.table"
+    assert not isinstance(declaration.format, ArtifactFormat)
 
 
 @pytest.mark.parametrize(

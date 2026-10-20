@@ -7,7 +7,9 @@ file path for context, so callers never see a bare :class:`OSError`,
 :class:`json.JSONDecodeError`, or pydantic :class:`ValidationError`.
 
 Loading validates the envelope only: it does not touch artifact files.
-Existence, containment, and checksums are the artifact store's concern.
+A manifest whose declared schema version is not one this framework reads fails with the
+declared and expected versions named, before envelope validation.  Existence,
+containment, and checksums are the artifact store's concern.
 """
 
 import json
@@ -49,6 +51,13 @@ def load_manifest(path: Path | str) -> ReportManifest:
             f"manifest {manifest_path} is not valid JSON "
             f"at line {e.lineno}, column {e.colno}: {e.msg}"
         ) from e
+    if isinstance(payload, dict):
+        declared_version = payload.get("schema_version")
+        if isinstance(declared_version, str) and declared_version != "0.2.0":
+            raise ManifestError(
+                f"manifest {manifest_path}: the manifest's schema_version must be "
+                f'"0.2.0", but this file declares {declared_version!r}'
+            )
     try:
         return ReportManifest.model_validate(payload)
     except ValidationError as e:

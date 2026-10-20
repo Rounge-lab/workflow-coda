@@ -67,7 +67,7 @@ def _write_bundle(
     artifact_path = tmp_path / f"stats.{fmt}"
     artifact_path.write_text(text, encoding="utf-8")
     manifest = {
-        "schema_version": "0.1.0",
+        "schema_version": "0.2.0",
         "producer": {"name": "kpi-fixture", "version": "1.0"},
         "artifacts": [
             {

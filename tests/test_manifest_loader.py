@@ -25,7 +25,7 @@ def test_loads_valid_manifest(tmp_path: Path) -> None:
     )
     manifest = load_manifest(path)
     assert isinstance(manifest, ReportManifest)
-    assert manifest.schema_version == "0.1.0"
+    assert manifest.schema_version == "0.2.0"
     assert manifest.producer.run_id == "2026-10-01T103012Z"
     assert len(manifest.artifacts) == 1
 
@@ -97,13 +97,31 @@ def test_empty_file_is_invalid_json(tmp_path: Path) -> None:
 
 
 def test_invalid_envelope_is_wrapped(tmp_path: Path) -> None:
-    path = write_manifest_file(tmp_path, make_manifest_payload(schema_version="1.0"))
+    # An envelope violation beyond the version gate — the pre-check
+    # owns version-only failures now, so the wrapping is exercised
+    # through a nested field violation.
+    path = write_manifest_file(
+        tmp_path,
+        make_manifest_payload(producer=make_producer_payload(name="")),
+    )
     with pytest.raises(ManifestError) as exc_info:
         load_manifest(path)
     message = str(exc_info.value)
     assert "is invalid" in message
-    assert "schema_version" in message  # nested field path survives wrapping
+    assert "name" in message  # nested field path survives wrapping
     assert isinstance(exc_info.value.__cause__, ValidationError)
+
+
+def test_unknown_schema_version_teaches(tmp_path: Path) -> None:
+    # The version pre-check, lean by ruling — pre-release, no
+    # migration prose: the message names the declared version and
+    # the one this workflow-coda reads.
+    path = write_manifest_file(tmp_path, make_manifest_payload(schema_version="0.1.0"))
+    with pytest.raises(ManifestError) as exc_info:
+        load_manifest(path)
+    message = str(exc_info.value)
+    assert 'must be "0.2.0"' in message
+    assert "'0.1.0'" in message
 
 
 # ---------------------------------------------------------------------------

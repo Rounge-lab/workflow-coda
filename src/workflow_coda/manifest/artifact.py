@@ -19,15 +19,27 @@ from .types import (
     ArtifactSchemaVersion,
     ArtifactType,
     ManifestRelativePath,
+    NamespacedArtifactFormat,
     Sha256Hex,
 )
 
 
 class ArtifactFormat(StrEnum):
-    """Artifact file formats the framework can load natively."""
+    """The framework's own artifact format values.
+
+    Deliberately minimal and agnostic: ``json`` and ``tsv`` are
+    interpreted claims with store readers; ``txt`` and ``bytes`` are
+    interpretation-free claims — UTF-8 text and raw bytes — served by
+    ``read_text`` and ``read_bytes`` for consumers with their own
+    parsers.  Formats beyond the core set are namespaced plugin
+    conventions (:data:`~workflow_coda.manifest.NamespacedArtifactFormat`):
+    their grammar lives in the owning plugin, never in the framework.
+    """
 
     TSV = "tsv"
     JSON = "json"
+    TXT = "txt"
+    BYTES = "bytes"
 
 
 class ArtifactStatus(StrEnum):
@@ -67,8 +79,12 @@ class ArtifactDeclaration(BaseModel):
     path: ManifestRelativePath
     """Location of the artifact, relative to the manifest that declares it."""
 
-    format: ArtifactFormat
-    """File format of the artifact contents."""
+    format: ArtifactFormat | NamespacedArtifactFormat
+    """The artifact's format: a core value, or a namespaced plugin
+    convention.  A claim, not a service — the store never dispatches
+    on it; the reading component chooses its reader, and the plugin
+    that owns a convention format (``core.table``, ``bio.newick``)
+    reads and teaches it itself."""
 
     status: ArtifactStatus
     """Lifecycle status of the artifact."""

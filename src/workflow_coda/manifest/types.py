@@ -16,14 +16,26 @@ type ArtifactId = Annotated[
     StringConstraints(strict=True, pattern=r"^[a-z][a-z0-9_-]*$"),
 ]
 
-# Namespaced artifact type (e.g. "org.example.sample_metrics"). Requires at
-# least two dot-separated segments, per the artifact contract.
+# Dotted, lowercase, namespaced name shared by artifact types and plugin
+# artifact formats: at least two dot-separated segments (namespace, then
+# name; further segments allowed), lowercase snake_case within each.
+_DOTTED_NAME_PATTERN = r"^[a-z][a-z0-9_-]*(\.[a-z][a-z0-9_-]*)+$"
+
+# Namespaced artifact type (e.g. "org.example.sample_metrics"). Requires
+# at least two dot-separated segments, per the artifact contract.
 type ArtifactType = Annotated[
     str,
-    StringConstraints(
-        strict=True,
-        pattern=r"^[a-z][a-z0-9_-]*(\.[a-z][a-z0-9_-]*)+$",
-    ),
+    StringConstraints(strict=True, pattern=_DOTTED_NAME_PATTERN),
+]
+
+# A plugin-defined artifact format: a namespaced convention, dotted like
+# an artifact type (e.g. "core.table", "bio.newick").  The prefix is the
+# owning plugin's id, by convention: the format's grammar lives in the
+# plugin, which reads its artifacts through the store's byte- and
+# text-level readers — the framework never dispatches on the name.
+type NamespacedArtifactFormat = Annotated[
+    str,
+    StringConstraints(strict=True, pattern=_DOTTED_NAME_PATTERN),
 ]
 
 # Version string of a manifest or artifact content schema, e.g. "1.0".

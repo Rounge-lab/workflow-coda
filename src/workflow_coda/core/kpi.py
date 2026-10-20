@@ -419,7 +419,7 @@ def _read_value(context: RenderContext, spec: _KpiSpec) -> str | int | float:
     if artifact.declaration.format is not ArtifactFormat.JSON:
         raise ValueError(
             f"core.kpi: artifact {spec.artifact_type!r} has format "
-            f"{artifact.declaration.format.value!r}; core.kpi reads "
+            f"'{artifact.declaration.format}'; core.kpi reads "
             "JSON artifacts — point 'artifact' at a JSON artifact"
         )
     payload = artifact.read_json()

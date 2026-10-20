@@ -76,7 +76,7 @@ def test_producer_is_frozen() -> None:
 
 def test_valid_manifest_parses() -> None:
     manifest = ReportManifest.model_validate(make_manifest_payload())
-    assert manifest.schema_version == "0.1.0"
+    assert manifest.schema_version == "0.2.0"
     assert manifest.producer.name == "Example workflow"
     assert isinstance(manifest.artifacts, tuple)
     assert len(manifest.artifacts) == 1
@@ -117,7 +117,17 @@ def test_artifacts_must_be_a_list(value: object) -> None:
 
 @pytest.mark.parametrize(
     "version",
-    ["1.0", "0.1", "0.1.00", "2.0.0", "0.1.0-beta", "v0.1.0", "", " 0.1.0"],
+    [
+        "0.1.0",  # the pre-widening envelope, superseded by the clean break
+        "1.0",
+        "0.1",
+        "0.1.00",
+        "0.2.1",
+        "0.2.0-beta",
+        "v0.2.0",
+        "",
+        " 0.2.0",
+    ],
 )
 def test_version_gate_is_exact(version: str) -> None:
     with pytest.raises(ValidationError) as exc_info:

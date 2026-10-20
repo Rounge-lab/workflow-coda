@@ -18,6 +18,7 @@ from .types import (
     ArtifactSchemaVersion,
     ArtifactType,
     ManifestRelativePath,
+    NamespacedArtifactFormat,
     NonEmptyStr,
     Sha256Hex,
 )
@@ -31,6 +32,7 @@ __all__ = [
     "ArtifactType",
     "ManifestRelativePath",
     "ManifestSchemaVersion",
+    "NamespacedArtifactFormat",
     "NonEmptyStr",
     "ProducerMetadata",
     "ReportManifest",
