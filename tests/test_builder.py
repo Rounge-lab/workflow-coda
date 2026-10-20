@@ -20,6 +20,7 @@ from workflow_coda.artifact_store import ArtifactStore, JsonValue
 from workflow_coda.builder import build_report
 from workflow_coda.components import (
     ComponentParameters,
+    ComponentRenderer,
     ComponentStatus,
     PlacementInfo,
     RenderContext,
@@ -92,6 +93,22 @@ def _skipping_render(
     return RenderedComponent.skipped()
 
 
+def _ok_render(
+    _context: RenderContext, _info: PlacementInfo, _parameters: ComponentParameters
+) -> RenderedComponent:
+    return RenderedComponent.from_html("<p>ok</p>")
+
+
+def _flaky_render(
+    _context: RenderContext, _info: PlacementInfo, parameters: ComponentParameters
+) -> RenderedComponent:
+    # Raises under a 'boom' parameter, renders OK otherwise — the
+    # mixed-outcome fixture for the chrome collection.
+    if parameters.get("boom"):
+        raise ValueError("boom")
+    return RenderedComponent.from_html("<p>ok</p>")
+
+
 def unavailable_plugin() -> ReportPlugin:
     """Its render returns unavailable: data absence as a run fact."""
     return make_plugin(
@@ -113,6 +130,66 @@ def skipping_plugin() -> ReportPlugin:
         components=(
             make_component(
                 id="silent.quality", title="Silent metric", render=_skipping_render
+            ),
+        ),
+    )
+
+
+def chromed_plugin() -> ReportPlugin:
+    """Two components declaring both css and js: the first-use order
+    and dedup fixtures for the chrome collection."""
+    return make_plugin(
+        metadata=make_metadata(id="styled"),
+        components=(
+            make_component(
+                id="styled.first",
+                title="First styled metric",
+                render=_ok_render,
+                css=".coda-styled-first { color: inherit; }",
+                js="console.log('styled.first enhanced');",
+            ),
+            make_component(
+                id="styled.second",
+                title="Second styled metric",
+                render=_ok_render,
+                css=".coda-styled-second { color: inherit; }",
+                js="console.log('styled.second enhanced');",
+            ),
+        ),
+    )
+
+
+def flaky_chromed_plugin() -> ReportPlugin:
+    """A chromed component that raises under a ``boom`` parameter and
+    renders OK otherwise: the mixed-outcome fixture."""
+    return make_plugin(
+        metadata=make_metadata(id="flaky"),
+        components=(
+            make_component(
+                id="flaky.quality",
+                title="Flaky styled metric",
+                render=_flaky_render,
+                css=".coda-flaky-quality { color: inherit; }",
+                js="console.log('flaky.quality enhanced');",
+            ),
+        ),
+    )
+
+
+def _chromed_plugin_with_render(
+    plugin_id: str, render: ComponentRenderer
+) -> ReportPlugin:
+    """One chromed component with the given render: the degraded-path
+    fixtures share their chrome and differ only in outcome."""
+    return make_plugin(
+        metadata=make_metadata(id=plugin_id),
+        components=(
+            make_component(
+                id=f"{plugin_id}.quality",
+                title=f"{plugin_id} styled metric",
+                render=render,
+                css=f".coda-{plugin_id}-quality {{ color: inherit; }}",
+                js=f"console.log('{plugin_id}.quality enhanced');",
             ),
         ),
     )
@@ -526,6 +603,118 @@ def test_on_missing_does_not_govern_unavailable_data(tmp_path: Path) -> None:
     assert isinstance(entry, ComponentEntry)
     assert entry.outcome is not None
     assert entry.outcome.status is ComponentStatus.UNAVAILABLE
+
+
+# ---------------------------------------------------------------------------
+# The chrome collection: page chrome rides the placements that render
+# ---------------------------------------------------------------------------
+
+
+def test_chrome_collects_in_first_use_order(tmp_path: Path) -> None:
+    # Two chromed components placed in reverse declaration order: the
+    # document's chrome follows placement order, not registry order —
+    # the page's style and script blocks appear in the order the
+    # report introduces their components.
+    layout_path = write_layout(
+        tmp_path,
+        tabs=[
+            {
+                "title": "QC",
+                "components": [{"id": "styled.second"}, {"id": "styled.first"}],
+            }
+        ],
+    )
+    document = build(tmp_path, layout_path, chromed_plugin())
+    assert [c.component_id for c in document.chrome] == [
+        "styled.second",
+        "styled.first",
+    ]
+
+
+def test_chrome_collects_once_per_component(tmp_path: Path) -> None:
+    # However many placements render, the component's chrome is
+    # inlined once — and the contribution carries the declaration's
+    # strings verbatim, resolved through the registry.
+    layout_path = write_layout(
+        tmp_path,
+        tabs=[{"title": "QC", "components": [{"id": "styled.first"}] * 3}],
+    )
+    document = build(tmp_path, layout_path, chromed_plugin())
+    assert len(document.chrome) == 1
+    (contribution,) = document.chrome
+    assert contribution.component_id == "styled.first"
+    assert contribution.css == ".coda-styled-first { color: inherit; }"
+    assert contribution.js == "console.log('styled.first enhanced');"
+
+
+def test_a_bug_placement_does_not_prevent_the_later_ok_from_collecting(
+    tmp_path: Path,
+) -> None:
+    # The predicate records OK outcomes and skips FAILED entries: a
+    # component placed boom-first, ok-second collects exactly once,
+    # and the failure card stands in the page beside the render that
+    # succeeded.
+    layout_path = write_layout(
+        tmp_path,
+        tabs=[
+            {
+                "title": "QC",
+                "components": [
+                    {"id": "flaky.quality", "parameters": {"boom": True}},
+                    {"id": "flaky.quality"},
+                ],
+            }
+        ],
+    )
+    document = build(tmp_path, layout_path, flaky_chromed_plugin())
+    assert [c.component_id for c in document.chrome] == ["flaky.quality"]
+    kinds = [
+        node.kind for node in document.tabs[0].nodes if isinstance(node, ComponentEntry)
+    ]
+    assert kinds == [EntryKind.FAILED, EntryKind.RENDERED]
+
+
+@pytest.mark.parametrize(
+    ("plugin_id", "render"),
+    [
+        ("styledless", _unavailable_render),
+        ("brokenstyled", _raising_render),
+        ("silentstyled", _skipping_render),
+    ],
+)
+def test_degraded_only_placements_contribute_no_chrome(
+    tmp_path: Path, plugin_id: str, render: ComponentRenderer
+) -> None:
+    # The predicate is OK-outcomes only.  The unavailable and bug
+    # paths render the framework's own notice and failure cards —
+    # no plugin chrome needed.  The skip case pins the status clause
+    # itself: a RENDERED entry with a SKIPPED outcome must not
+    # collect, though a kind-only predicate would let it through.
+    layout_path = write_layout(
+        tmp_path,
+        tabs=[{"title": "QC", "components": [{"id": f"{plugin_id}.quality"}]}],
+    )
+    document = build(
+        tmp_path, layout_path, _chromed_plugin_with_render(plugin_id, render)
+    )
+    assert document.chrome == ()
+
+
+def test_chromeless_components_render_without_contributions(tmp_path: Path) -> None:
+    # The collection records what rendered; the resolution filters by
+    # what was declared — an OK render of a chrome-less component
+    # yields an empty chrome tuple.
+    layout_path = write_layout(
+        tmp_path,
+        tabs=[
+            {
+                "title": "QC",
+                "components": [{"id": "current.quality", "parameters": {"label": "A"}}],
+            }
+        ],
+    )
+    document = build(tmp_path, layout_path, current_plugin())
+    assert document.chrome == ()
 
 
 # ---------------------------------------------------------------------------

@@ -1,5 +1,7 @@
 """Tests for the component contracts: the render outcome."""
 
+import re
+
 import pytest
 from factories import make_component, make_metadata, noop_render, stub_figure
 from helpers import assert_frozen_dataclass
@@ -197,6 +199,84 @@ def test_component_chrome_wire_values(value: str, member: ComponentChrome) -> No
     # they name vocabulary in messages and CSS classes.
     assert member.value == value
     assert ComponentChrome(value) is member
+
+
+# ---------------------------------------------------------------------------
+# Page chrome declarations: css and js
+# ---------------------------------------------------------------------------
+
+
+def test_components_default_to_no_page_chrome() -> None:
+    # The channel is opt-in at the declaration: a simple plugin never
+    # sees it, and every pre-channel declaration stands unchanged.
+    component = make_component()
+    assert component.css is None
+    assert component.js is None
+
+
+def test_components_accept_css_and_js_verbatim() -> None:
+    # The strings are the plugin's own to write; the declaration
+    # guards are the only interpretation made of them.
+    css = ".coda-example-quality { color: inherit; }"
+    js = "console.log('example.quality enhanced');"
+    component = make_component(css=css, js=js)
+    assert component.css == css
+    assert component.js == js
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_blank_chrome_is_rejected_when_given(blank: str) -> None:
+    # A declared-but-blank contribution would inline as a bare banner
+    # comment with nothing under it; blank means "not given".
+    with pytest.raises(ValueError, match="css must not be blank when given"):
+        make_component(css=blank)
+    with pytest.raises(ValueError, match="js must not be blank when given"):
+        make_component(js=blank)
+
+
+def test_css_breakout_is_rejected_at_declaration() -> None:
+    # '</style' would terminate the report's inline style block early
+    # and corrupt the page — a declaration-time teaching error, the
+    # same boundary as the id-shape checks.
+    with pytest.raises(ValueError, match="css must not contain '</style'"):
+        make_component(css='p::after { content: "</style>"; }')
+
+
+def test_js_breakout_is_rejected_at_declaration() -> None:
+    with pytest.raises(ValueError, match="js must not contain '</script'"):
+        make_component(js="document.write('</script>');")
+
+
+@pytest.mark.parametrize("sequence", ["</style>", "</STYLE>", "</Style"])
+def test_css_guard_matches_case_insensitively(sequence: str) -> None:
+    # The HTML tokenizer ends an inline block on '</STYLE' as readily
+    # as '</style'; the guard matches what the tokenizer would.
+    with pytest.raises(ValueError, match="css must not contain"):
+        make_component(css=f".sel::after {{ content: {sequence!r} }}")
+
+
+@pytest.mark.parametrize("sequence", ["</script>", "</SCRIPT>"])
+def test_js_guard_matches_case_insensitively(sequence: str) -> None:
+    with pytest.raises(ValueError, match="js must not contain"):
+        make_component(js=f"document.write({sequence!r});")
+
+
+def test_breakout_guards_teach_the_escapes() -> None:
+    # Both escapes are real, in their own languages: '\<' is a CSS
+    # string escape for '<', '<\/script' the JS idiom — each reads
+    # back as the original sequence in its own language while the
+    # bytes the HTML tokenizer scans never contain the closing form.
+    with pytest.raises(ValueError, match=re.escape("escape the '<' as '\\<'")):
+        make_component(css='p::after { content: "</style>"; }')
+    with pytest.raises(ValueError, match=re.escape("escape it as '<\\/script'")):
+        make_component(js="document.write('</script>');")
+
+
+def test_chrome_fields_participate_in_equality() -> None:
+    # css and js are real contract fields, not decoration: a component
+    # that declares chrome is not its chrome-less twin.
+    assert make_component() != make_component(css=".coda-example-quality { }")
+    assert make_component() != make_component(js="console.log('hi');")
 
 
 # ---------------------------------------------------------------------------

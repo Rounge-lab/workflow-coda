@@ -24,6 +24,13 @@ The division of responsibility is the one the roadmap records:
   that want a closed vocabulary can call
   :func:`reject_unknown_parameters` to teach unknown keys — typos, and
   placement keys nested by accident — at the parse boundary.
+* Plugins may ship page chrome.  A component's optional ``css`` and
+  ``js`` declarations are inlined into the report exactly once, and
+  only when one of its placements rendered — enhancement-only
+  script, framework-owned ``coda-*`` names with plugin rules
+  namespaced under ``coda-<plugin_id>-``, and both guarded at
+  declaration against the sequences that would break out of their
+  inline blocks.
 
 These are in-memory contracts rather than deserialized artifacts, so they
 follow :class:`workflow_coda.context.RenderContext` in being frozen,
@@ -427,6 +434,10 @@ class ReportComponent:
     lowercase snake_case, e.g. ``generic.provenance``.  Layouts reference
     components by this id.  The registry additionally checks that the id's
     prefix matches the declaring plugin's own id.
+    A component may also declare page chrome — optional ``css`` and
+    ``js`` contributions, inlined once per report when one of its
+    placements renders; the field docstrings carry the namespacing
+    and enhancement-only laws.
     """
 
     id: str
@@ -455,6 +466,29 @@ class ReportComponent:
     ``data-component`` wrapper.  Defaults to ``CARD``, so every
     existing declaration stands."""
 
+    css: str | None = None
+    """The component's stylesheet contribution, inlined once per
+    report — under a ``/* <component id> */`` banner in the page's
+    component style block — when at least one of its placements
+    renders ``OK``.  Available to both chrome modes: a ``CARD``
+    component's body may need classes too.  Rules namespace under
+    ``coda-<plugin_id>-`` (the framework owns bare ``coda-*``), load
+    nothing external (the page's CSP enforces self-containment at
+    read time), and must not contain ``'</style'`` — rejected here,
+    at declaration, because the sequence would terminate the inline
+    block early."""
+
+    js: str | None = None
+    """The component's script contribution, inlined once per report —
+    after the framework's own scripts, so the DOM is established —
+    when at least one of its placements renders ``OK``.
+    Enhancement-only: the no-JS reader must see the complete
+    document, so script adds behavior and never gates content.  The
+    framework dispatches ``coda:tab-shown`` on tab activation;
+    subscribe rather than reaching into the panels.  Must not contain
+    ``'</script'`` — rejected here, at declaration, because the
+    sequence would terminate the inline block early."""
+
     def __post_init__(self) -> None:
         """Enforce the id shape and non-empty text fields."""
         if not callable(self.render):
@@ -481,4 +515,22 @@ class ReportComponent:
             raise ValueError(
                 f"component {self.id!r}: description must contain visible "
                 f"text when given"
+            )
+        if self.css is not None and not self.css.strip():
+            raise ValueError(f"component {self.id!r}: css must not be blank when given")
+        if self.js is not None and not self.js.strip():
+            raise ValueError(f"component {self.id!r}: js must not be blank when given")
+        if self.css is not None and "</style" in self.css.lower():
+            raise ValueError(
+                f"component {self.id!r}: css must not contain '</style' — "
+                f"the sequence would terminate the report's inline style "
+                f"block early; if it appears inside a string, escape "
+                f"the '<' as '\\<'"
+            )
+        if self.js is not None and "</script" in self.js.lower():
+            raise ValueError(
+                f"component {self.id!r}: js must not contain '</script' — "
+                f"the sequence would terminate the report's inline script "
+                f"block early; if it appears inside a string literal, "
+                f"escape it as '<\\/script'"
             )

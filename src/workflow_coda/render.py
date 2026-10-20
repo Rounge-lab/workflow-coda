@@ -15,10 +15,10 @@ Two responsibilities meet here:
 node tree into body html — the card vocabulary for placed components,
 the group box for cards, the ratio containers for rows and grids, the
 diagnostics panel at its markers.  The walk escapes every framework
-text it interpolates (titles, messages, errors) and leaves exactly one
-raw point: a rendered component's plugin html, trusted because
-plugins are installed code.  Tabs become the page's navigation: one
-panel per tab, a tab bar generated from them when there is more than
+text it interpolates (titles, messages, errors) and leaves exactly one raw point inside
+each tab body: a rendered component's plugin html, trusted because plugins are installed
+code.  Tabs become the page's navigation: one panel per tab, a tab bar generated from
+them when there is more than
 one, and single-tab reports render no bar and no script.
 
 **Generated layout CSS** (:func:`_splits_css`) turns the tree's split
@@ -27,12 +27,21 @@ grouped mobile defaults, ratios inside one ``min-width`` block — so
 every ratio layout collapses to a single column on small screens by
 construction, with no inline styles and no ``!important``.
 
+Component page chrome (:func:_component_css and :func:_component_js) inlines the css and
+js that rendered components declared — once per report, under the contributing
+component's id banner, the style block after the framework stylesheet and the script
+block after the framework's own scripts, so plugin code reads an established DOM. These
+blocks are the page's second raw family: plugin strings, guarded at declaration, trusted
+like plugin html and never escaped.
+
 Self-containment holds as before: the theme ships as generated CSS
 custom properties, the stylesheet, split rules, and tab script are
 inlined, the logo and favicon are data URIs, and Plotly.js is inlined
-from the installed ``plotly`` package exactly when the document
-contains figures.  A single-tab, figure-free report inlines no
-``<script>`` at all.
+from the installed ``plotly`` package exactly when the document contains figures.  The
+page's Content-Security-Policy meta makes self-containment a read-time property, not
+just a build promise: the reader's browser blocks every network request the page — or a
+plugin's style or script — could attempt. A single-tab, figure-free report inlines no
+<script> at all unless a component contributes one.
 
 Failures are environment failures, never authoring failures.
 :class:`~workflow_coda.errors.RenderError` names the fix — install
@@ -244,6 +253,41 @@ def _splits_css(document: ReportDocument) -> str:
     return "\n".join(lines)
 
 
+def _component_css(document: ReportDocument) -> str:
+    """The page's component style block, or ``''`` when no component
+    contributed css.
+
+    One ``<style>`` element placed after the framework stylesheet:
+    each contribution under its ``/* <component id> */`` banner, in
+    the document's first-use order.  The strings are the plugins'
+    own, guarded at declaration — the second raw-point family,
+    alongside OK outcome html — so the block reaches the page
+    verbatim, never escaped.
+    """
+    contributions = [c for c in document.chrome if c.css is not None]
+    if not contributions:
+        return ""
+    body = "\n\n".join(f"/* {c.component_id} */\n{c.css}" for c in contributions)
+    return f"<style>\n{body}\n</style>"
+
+
+def _component_js(document: ReportDocument) -> str:
+    """The page's component script block, or ``''`` when no component
+    contributed js.
+
+    One ``<script>`` element placed after the framework's own
+    scripts, so the DOM is established when plugin code runs: each
+    contribution under its ``// <component id>`` banner, in the
+    document's first-use order.  Enhancement-only script, per the
+    contract — and raw into the page, like the css block.
+    """
+    contributions = [c for c in document.chrome if c.js is not None]
+    if not contributions:
+        return ""
+    body = "\n\n".join(f"// {c.component_id}\n{c.js}" for c in contributions)
+    return f"<script>\n{body}\n</script>"
+
+
 # ---------------------------------------------------------------------------
 # The tree walk: nodes to body html
 # ---------------------------------------------------------------------------
@@ -434,8 +478,10 @@ def render_report(document: ReportDocument) -> str:
         css_tokens=_css_tokens(document.theme),
         css_base=_chrome_file("style.css"),
         css_layout=_splits_css(document),
+        component_css=_component_css(document),
         plotly_js=_plotly_js() if _has_figures(document) else None,
         report_js=_chrome_file("report.js") if has_tabs else None,
+        component_js=_component_js(document),
         provenance_lines=_provenance_lines(document.manifest),
         attribution=_attribution(),
     )

@@ -10,6 +10,7 @@ from workflow_coda.components import ComponentChrome, RenderedComponent
 from workflow_coda.manifest import ReportManifest
 from workflow_coda.report import (
     CardEntry,
+    ChromeContribution,
     ComponentEntry,
     Diagnostic,
     DiagnosticKind,
@@ -53,9 +54,10 @@ def make_asset(
     return EmbeddedAsset(path=path, media_type=media_type, data_uri=data_uri)
 
 
-def make_document() -> ReportDocument:
+def make_document(chrome: tuple[ChromeContribution, ...] = ()) -> ReportDocument:
     """A minimal complete document: one tab, one node, one
-    informational diagnostic."""
+    informational diagnostic; *chrome* overrides the resolved page
+    chrome."""
     return ReportDocument(
         title="Metagenomic analysis",
         author=None,
@@ -73,6 +75,7 @@ def make_document() -> ReportDocument:
                 message="no theme file declared — rendered with the default",
             ),
         ),
+        chrome=chrome,
     )
 
 
@@ -390,6 +393,65 @@ def test_composition_entries_are_frozen_and_slotted() -> None:
 
 
 # ---------------------------------------------------------------------------
+# ChromeContribution: the resolved page chrome the document carries
+# ---------------------------------------------------------------------------
+
+
+def make_contribution(
+    component_id: str = "example_bio.qc",
+    css: str | None = ".coda-example_bio-qc { color: inherit; }",
+    js: str | None = None,
+) -> ChromeContribution:
+    """A valid resolved contribution; override any field."""
+    return ChromeContribution(component_id=component_id, css=css, js=js)
+
+
+def test_contribution_round_trip() -> None:
+    # The value is already-guarded, resolved chrome: the document
+    # carries it verbatim, and the model interprets nothing of it.
+    # All three legal shapes: css alone, js alone, both.
+    css_only = make_contribution()
+    assert css_only.component_id == "example_bio.qc"
+    assert css_only.css == ".coda-example_bio-qc { color: inherit; }"
+    assert css_only.js is None
+    js_only = ChromeContribution(
+        component_id="core.table", js="console.log('core.table enhanced');"
+    )
+    assert js_only.css is None
+    assert js_only.js == "console.log('core.table enhanced');"
+    both = ChromeContribution(
+        component_id="core.kpi",
+        css=".coda-kpi { color: inherit; }",
+        js="console.log('core.kpi enhanced');",
+    )
+    assert both.css == ".coda-kpi { color: inherit; }"
+    assert both.js == "console.log('core.kpi enhanced');"
+
+
+def test_a_contribution_carries_at_least_one_of_css_and_js() -> None:
+    # The builder's collection predicate guarantees this by
+    # construction; the model states its own invariant at the value,
+    # so a future producer that gets the predicate wrong fails loudly
+    # at the construction site, not silently in the page.
+    with pytest.raises(ValueError, match="carries at least one of css and js"):
+        ChromeContribution(component_id="example_bio.qc")
+
+
+def test_contributions_compare_by_value_and_hash() -> None:
+    assert make_contribution() == make_contribution()
+    assert hash(make_contribution()) == hash(make_contribution())
+    assert make_contribution() != make_contribution(js="console.log('x');")
+    assert make_contribution() != make_contribution(component_id="core.kpi")
+
+
+def test_contribution_is_frozen_and_slotted() -> None:
+    contribution = make_contribution()
+    assert_frozen_dataclass(contribution, "component_id")
+    with pytest.raises(AttributeError):
+        contribution.extra = "nope"  # type: ignore[attr-defined]
+
+
+# ---------------------------------------------------------------------------
 # ReportDocument
 # ---------------------------------------------------------------------------
 
@@ -404,6 +466,7 @@ def test_document_round_trip() -> None:
     assert document.logo is None
     assert document.favicon is None
     assert document.manifest == ReportManifest.model_validate(make_manifest_payload())
+    assert document.chrome == ()
     (node_tab,) = document.tabs
     assert node_tab.title == "Quality control"
     (node,) = node_tab.nodes
@@ -411,6 +474,18 @@ def test_document_round_trip() -> None:
     assert node.kind is EntryKind.RENDERED
     (diagnostic,) = document.diagnostics
     assert diagnostic.kind is DiagnosticKind.DEFAULT_THEME
+
+
+def test_document_carries_resolved_chrome() -> None:
+    # The channel is opt-in end to end: the default document carries
+    # no plugin chrome.  The tuple travels verbatim — dedup and
+    # first-use order are the builder's, pinned there — and value
+    # semantics mean a chromed document is not its chrome-less twin.
+    assert make_document().chrome == ()
+    contribution = make_contribution()
+    chromed = make_document(chrome=(contribution,))
+    assert chromed.chrome == (contribution,)
+    assert chromed != make_document()
 
 
 def test_documents_compare_by_value() -> None:

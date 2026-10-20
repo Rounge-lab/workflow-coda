@@ -236,6 +236,8 @@ def make_component(
     description: str | None = None,
     render: ComponentRenderer = noop_render,
     chrome: ComponentChrome = ComponentChrome.CARD,
+    css: str | None = None,
+    js: str | None = None,
 ) -> ReportComponent:
     """A fresh, valid component declaration.
 
@@ -249,6 +251,8 @@ def make_component(
         description=description,
         render=render,
         chrome=chrome,
+        css=css,
+        js=js,
     )
 
 

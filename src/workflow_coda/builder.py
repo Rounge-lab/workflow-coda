@@ -60,6 +60,7 @@ from .plugins import ReportPlugin
 from .registry import PluginRegistry
 from .report import (
     CardEntry,
+    ChromeContribution,
     ComponentEntry,
     Diagnostic,
     DiagnosticKind,
@@ -208,6 +209,12 @@ class _WalkState:
     diagnostics: list[Diagnostic]
     """The builder's growing ledger."""
 
+    ok_component_ids: list[str]
+    """Component ids that rendered at least one ``OK`` outcome — the
+    chrome channel's collection: first-use order, deduplicated.
+    Accumulated during the walk, resolved into the document's chrome
+    after it."""
+
     missing_policy: MissingPolicy
     """The layout-level ``on_missing`` default."""
 
@@ -269,6 +276,27 @@ def _triage_unavailable(
     )
 
 
+def _note_ok_component(
+    state: _WalkState, placement: ComponentPlacement, entry: ComponentEntry
+) -> None:
+    """Record the placement's component in the chrome collection when
+    its outcome rendered ``OK`` — first-use order, deduplicated.
+
+    The chrome channel's predicate: a component contributes its
+    declared css and js to the report exactly when at least one of
+    its placements rendered content.  Degraded instances —
+    unavailable outcomes, plugin bugs — never record: the
+    framework's notice and failure cards need no plugin chrome.
+    """
+    if (
+        entry.kind is EntryKind.RENDERED
+        and entry.outcome is not None
+        and entry.outcome.status is ComponentStatus.OK
+        and placement.id not in state.ok_component_ids
+    ):
+        state.ok_component_ids.append(placement.id)
+
+
 def _resolve_placement(
     state: _WalkState, placement: ComponentPlacement
 ) -> ComponentEntry | None:
@@ -278,10 +306,13 @@ def _resolve_placement(
     ``fail`` raises with the full story; ``notice`` records the
     diagnostic; ``skip`` is silent.  The teaching messages are the
     contract the CLI's exit-1 family pins — unchanged in wording.
+    A gated placement's OK outcome is also recorded in the chrome collection — see
+    :func:_note_ok_component.
     """
     if placement.id in state.gated:
         _, component = state.gated[placement.id]
         entry = _render(component, placement, state.context, state.diagnostics)
+        _note_ok_component(state, placement, entry)
         return _triage_unavailable(state, placement, entry)
     if placement.id in state.full:
         plugin, _ = state.full[placement.id]
@@ -357,6 +388,33 @@ def _walk_all(
     return tuple(walked for node in nodes if (walked := _walk(state, node)) is not None)
 
 
+def _resolve_chrome(state: _WalkState) -> tuple[ChromeContribution, ...]:
+    """The document's resolved page chrome, from the walk's collection.
+
+    One contribution per collected component that declared css or js
+    — deduplicated by component id and in first-use order, the
+    collection's own guarantees, so the page inlines each component's
+    chrome exactly once no matter how many times it was placed.
+    Components that rendered but declared no chrome are skipped
+    here: the collection records what rendered, and the resolution
+    filters by what was declared — which also guarantees the
+    contribution's at-least-one invariant by construction.
+    """
+    chrome: list[ChromeContribution] = []
+    for component_id in state.ok_component_ids:
+        _, component = state.gated[component_id]
+        if component.css is None and component.js is None:
+            continue
+        chrome.append(
+            ChromeContribution(
+                component_id=component_id,
+                css=component.css,
+                js=component.js,
+            )
+        )
+    return tuple(chrome)
+
+
 def build_report(
     layout_path: Path,
     store: ArtifactStore,
@@ -428,6 +486,7 @@ def build_report(
         full=full,
         context=context,
         diagnostics=diagnostics,
+        ok_component_ids=[],
         missing_policy=layout.on_missing,
         unavailable_policy=layout.on_unavailable,
         schema_version=manifest.schema_version,
@@ -451,4 +510,5 @@ def build_report(
         manifest=manifest,
         tabs=tuple(tabs),
         diagnostics=tuple(diagnostics),
+        chrome=_resolve_chrome(state),
     )
