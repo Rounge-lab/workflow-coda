@@ -368,7 +368,7 @@ class PluginMetadata:
     ``supported_schema_versions`` is the version gate: the report builder
     refuses to run a plugin whose set does not include the manifest's
     ``schema_version``, and the diagnostics section names both versions.
-    The current manifest schema version is ``"0.1.0"``.
+    The current manifest schema version is ``"0.2.0"``.
     """
 
     id: str
@@ -386,7 +386,7 @@ class PluginMetadata:
 
     supported_schema_versions: frozenset[str]
     """Manifest schema versions this plugin understands, e.g.
-    ``frozenset({"0.1.0"})``.  Must be non-empty."""
+    ``frozenset({"0.2.0"})``.  Must be non-empty."""
 
     def __post_init__(self) -> None:
         """Enforce the id shape and non-empty text fields."""
@@ -404,7 +404,7 @@ class PluginMetadata:
         if not self.supported_schema_versions:
             raise ValueError(
                 f"plugin {self.id!r}: supported_schema_versions must name "
-                f"at least one manifest schema version (currently '0.1.0')"
+                f"at least one manifest schema version (currently '0.2.0')"
             )
 
 

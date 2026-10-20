@@ -29,12 +29,12 @@ Identity
 Schema gating
 -------------
 
-The plugin declares the manifest schema versions it supports —
-today, ``0.1.0``, the current manifest schema version.  A manifest
-that declares a version outside the set gates the plugin out
-entirely: its placements resolve to nothing under the layout's
-``on_missing`` policy, and the report records a ``plugin_excluded``
-diagnostic that tells the story.
+The plugin declares the manifest schema versions it supports — today, 0.2.0, the
+current manifest schema version, which carries namespaced plugin artifact
+formats.  A manifest that declares a version outside the set gates the plugin
+out entirely: its placements resolve to nothing under the layout's
+``on_missing`` policy, and the report records a ``plugin_excluded`` diagnostic
+that tells the story.
 
 Page chrome
 -----------

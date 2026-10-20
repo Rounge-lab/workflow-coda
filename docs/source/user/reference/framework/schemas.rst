@@ -40,9 +40,11 @@ Envelope and producer
      - Meaning
    * - ``schema_version``
      - yes
-     - the literal ``"0.1.0"``
-     - The envelope contract version this file complies with; an
-       unknown version fails validation.
+     - the literal ``"0.2.0"``
+     - The envelope contract version this file complies with; an unknown version
+       fails with the declared and expected versions named. Version 0.2.0
+       widened the artifact format`` value space to include namespaced plugin
+       formats.
    * - ``producer``
      - yes
      - object
@@ -118,9 +120,14 @@ Artifact declarations
        forward slashes, never absolute, no ``..`` segments.
    * - ``format``
      - yes
-     - ``tsv`` | ``json``
-     - The artifact file's format, as the framework loads it
-       natively.
+     - ``tsv`` | ``json`` | ``txt`` | ``bytes``, or a namespaced
+       name (``bio.newick``)
+     - The artifact's format — a claim, not a service.  Core values
+       are agnostic: ``json`` and ``tsv`` are interpreted claims
+       with store readers; ``txt`` and ``bytes`` are
+       interpretation-free (UTF-8 text, raw bytes) for consumers
+       with their own parsers.  A namespaced name is a plugin
+       convention whose grammar lives in the owning plugin.
    * - ``status``
      - yes
      - ``complete`` | ``partial`` | ``failed`` | ``missing``
@@ -139,6 +146,8 @@ missing data, never fatal report-build errors.
 Loading rules
 .............
 
+A manifest whose declared schema version is not 0.2.0 fails with the declared
+and expected versions named, before envelope validation.
 The loader reads the file as strict UTF-8 (a byte-order mark is
 rejected with instructions), parses it as JSON, and validates the
 envelope.  Every failure — unreadable, invalid JSON at a named line
@@ -151,7 +160,7 @@ An example manifest
 .. code-block:: json
 
    {
-     "schema_version": "0.1.0",
+     "schema_version": "0.2.0",
      "producer": {
        "name": "seq-pipeline",
        "version": "1.4.0",
