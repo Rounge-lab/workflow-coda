@@ -128,3 +128,11 @@ def test_core_kpi_renders_through_the_cli(tmp_path: Path) -> None:
     # rendered in the tab the layout chose for them.
     assert '<section class="coda-diagnostics"' in page
     assert "no theme file declared in the layout" in page
+    # Self-hosted chrome, end to end: the KPI's stylesheet inlines as
+    # its own block after the framework's — one banner however many
+    # placements the layout makes (the once-per-report dedup) — and
+    # the script census stands at one because core.kpi declares no
+    # js.
+    assert page.count("<style>") == 2
+    assert page.count("/* core.kpi */") == 1
+    assert ".coda-kpi__title {" in page
