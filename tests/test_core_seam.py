@@ -27,7 +27,7 @@ def _write_bundle(tmp_path: Path) -> Path:
     status check fires before the filesystem is consulted."""
     (tmp_path / "stats.json").write_text(json.dumps({"depth": 12.4}), encoding="utf-8")
     manifest = {
-        "schema_version": "0.1.0",
+        "schema_version": "0.2.0",
         "producer": {"name": "seam-fixture", "version": "1.0"},
         "artifacts": [
             {

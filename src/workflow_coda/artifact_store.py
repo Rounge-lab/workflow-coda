@@ -98,6 +98,18 @@ class ResolvedArtifact:
         """
         return self._read_text()
 
+    def read_bytes(self) -> bytes:
+        """Read the artifact as checksum-verified raw bytes.
+
+        The binary door for plugin-defined formats: a plugin that
+        parses its own artifact kind (a BAM index, an image) reads
+        bytes through this method and gets the same checksum,
+        containment, and existence guarantees as every other reader —
+        no interpretation, and no format gate: readers are explicit,
+        per the store's design.
+        """
+        return self._read_bytes()
+
     def read_tsv(self) -> list[dict[str, str]]:
         """Read the artifact as a TSV table.
 

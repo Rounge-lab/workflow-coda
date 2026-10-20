@@ -424,7 +424,7 @@ def test_excluded_plugin_fails_with_the_version_story(tmp_path: Path) -> None:
         ComponentUnavailableError,
         match=re.escape(
             "its plugin 'stale' does not support this manifest's "
-            "schema version '0.1.0' (it supports: 0.0.9)"
+            "schema version '0.2.0' (it supports: 0.0.9)"
         ),
     ):
         build(tmp_path, layout_path, current_plugin(), stale_plugin())
@@ -441,7 +441,7 @@ def test_excluded_plugin_noticed_with_the_version_story(tmp_path: Path) -> None:
     assert diagnostic_subjects(document, DiagnosticKind.PLUGIN_EXCLUDED) == ["stale"]
     (excluded,) = diagnostics_of(document, DiagnosticKind.PLUGIN_EXCLUDED)
     assert "0.0.9" in excluded.message
-    assert "'0.1.0'" in excluded.message
+    assert "'0.2.0'" in excluded.message
 
 
 # ---------------------------------------------------------------------------

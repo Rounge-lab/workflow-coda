@@ -107,7 +107,7 @@ def get_plugin() -> ReportPlugin:
                 "workflow-coda: headline metrics, and more as the core "
                 "grows."
             ),
-            supported_schema_versions=frozenset({"0.1.0"}),
+            supported_schema_versions=frozenset({"0.2.0"}),
         ),
         components=(_KPI,),
     )

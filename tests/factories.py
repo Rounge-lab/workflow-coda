@@ -54,7 +54,7 @@ def make_producer_payload(**overrides: object) -> dict[str, object]:
 def make_manifest_payload(**overrides: object) -> dict[str, object]:
     """Return a fresh, valid report manifest payload."""
     payload: dict[str, object] = {
-        "schema_version": "0.1.0",
+        "schema_version": "0.2.0",
         "producer": make_producer_payload(),
         "artifacts": [make_artifact_payload()],
     }
@@ -218,7 +218,7 @@ def make_metadata(
     name: str = "Example plugin",
     version: str = "1.0.0",
     description: str = "Components for the test suite.",
-    supported_schema_versions: Iterable[str] = ("0.1.0",),
+    supported_schema_versions: Iterable[str] = ("0.2.0",),
 ) -> PluginMetadata:
     """A fresh, valid plugin metadata value."""
     return PluginMetadata(

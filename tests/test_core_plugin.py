@@ -19,7 +19,7 @@ def test_core_plugin_identity() -> None:
     assert plugin.metadata.id == "core"
     assert plugin.metadata.name == "Core report components"
     assert plugin.metadata.version == metadata.version("workflow-coda")
-    assert plugin.metadata.supported_schema_versions == frozenset({"0.1.0"})
+    assert plugin.metadata.supported_schema_versions == frozenset({"0.2.0"})
     assert len(plugin.components) == 1
     component = plugin.components[0]
     assert component.id == "core.kpi"
