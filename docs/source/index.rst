@@ -14,7 +14,7 @@ The framework discovers plugins, validates the layout, composes registered
 components, and renders a portable static HTML report.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Reference
 
    user/reference/index

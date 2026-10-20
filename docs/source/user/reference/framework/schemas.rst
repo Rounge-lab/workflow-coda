@@ -25,7 +25,7 @@ validates the envelope only: artifact files are never touched until
 a component reads one (:doc:`api/artifact_store`).  The manifest's
 schema version also gates plugins — a plugin runs only when the
 manifest's version is one it declares support for; the story lives
-in :doc:`core/index`.
+in :doc:`../core/index`.
 
 Envelope and producer
 .....................
