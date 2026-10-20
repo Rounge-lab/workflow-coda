@@ -5,7 +5,7 @@ lists the artifact declarations.
 
 The envelope's schema version is gated strictly: a manifest written for an unknown
 version fails validation because an unrecognized envelope cannot be validated or
-consumed correctly.  The supported versions are enumerated by ``ManifestSchemaVersion``:
+consumed correctly.  The supported versions are enumerated by ``ManifestSchemaVersion``
 """
 
 from collections import Counter

@@ -37,8 +37,8 @@ test = { depends-on = ["lint", "mypy", "pytest"] }
 
 [feature.docs.tasks.docs]
 cmd = "sphinx-build -M html ./source ./build --fail-on-warning"
-cwd = "docs/dev"
+cwd = "docs"
 
 [feature.docs.tasks.docs-clean]
 cmd = "sphinx-build -M clean ./source ./build"
-cwd = "docs/dev"
+cwd = "docs"
