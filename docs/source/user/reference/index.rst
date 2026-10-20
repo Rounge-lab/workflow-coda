@@ -29,6 +29,7 @@ declared grammar, each close to its source of truth.
    api/report
    api/assets
    api/render
+   cli
 
 .. toctree::
    :caption: Core plugins reference
