@@ -1,6 +1,6 @@
 """Tests for the report renderer: the document in, the
-self-contained page out — tabs, composition, and the placed
-diagnostics panel."""
+self-contained page out — tabs, composition, the placed
+diagnostics panel, and the component page chrome."""
 
 import importlib.resources
 import sys
@@ -15,6 +15,7 @@ from workflow_coda.manifest import ArtifactStatus, ReportManifest
 from workflow_coda.render import render_report
 from workflow_coda.report import (
     CardEntry,
+    ChromeContribution,
     ComponentEntry,
     Diagnostic,
     DiagnosticKind,
@@ -130,6 +131,7 @@ def make_document(
         DocumentTab(title="Quality control", nodes=(ok_entry(),)),
     ),
     diagnostics: tuple[Diagnostic, ...] = (),
+    chrome: tuple[ChromeContribution, ...] = (),
 ) -> ReportDocument:
     """A complete, valid document; every knob overridable."""
     return ReportDocument(
@@ -145,6 +147,7 @@ def make_document(
         else ReportManifest.model_validate(make_manifest_payload()),
         tabs=tabs,
         diagnostics=diagnostics,
+        chrome=chrome,
     )
 
 
@@ -462,6 +465,88 @@ def test_failed_entry_errors_are_escaped() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Component page chrome: the second raw family
+# ---------------------------------------------------------------------------
+
+
+def contribution(
+    component_id: str = "example_bio.qc",
+    css: str | None = ".coda-example_bio-qc { color: inherit; }",
+    js: str | None = None,
+) -> ChromeContribution:
+    """One resolved page-chrome contribution; every field overridable,
+    css-only by default."""
+    return ChromeContribution(component_id=component_id, css=css, js=js)
+
+
+def test_component_css_inlines_after_the_framework_stylesheet() -> None:
+    # One <style> element of its own, banner-commented per
+    # contribution, immediately after the framework's block — plugin
+    # strings raw like plugin html: the child combinator survives
+    # unescaped.
+    css = ".coda-example_bio-qc > p { color: inherit; }"
+    html = render_report(make_document(chrome=(contribution(css=css),)))
+    assert "</style>\n<style>\n/* example_bio.qc */" in html
+    assert f"\n{css}\n</style>" in html
+
+
+def test_chrome_banners_follow_first_use_order() -> None:
+    # The document's chrome order is the page's block order — the
+    # builder's collection guarantee, held through rendering.
+    html = render_report(
+        make_document(
+            chrome=(
+                contribution(component_id="styled.first", css=".coda-styled-f { }"),
+                contribution(component_id="styled.second", css=".coda-styled-s { }"),
+            )
+        )
+    )
+    assert html.index("/* styled.first */") < html.index("/* styled.second */")
+
+
+def test_component_js_inlines_after_the_framework_scripts() -> None:
+    # One <script> element of its own, after report.js — the DOM is
+    # established when plugin code runs — each contribution under its
+    # // banner.  The single quotes would become &#39; under
+    # autoescape; surviving verbatim is the rawness pin.
+    html = render_report(
+        make_document(
+            tabs=(tab("QC", (ok_entry(),)), tab("Taxonomy", (ok_entry(),))),
+            chrome=(contribution(css=None, js="console.log('enhanced');"),),
+        )
+    )
+    assert "</script>\n<script>\n// example_bio.qc" in html
+    assert "console.log('enhanced');\n</script>" in html
+    # After the framework's own script: the tab IIFE closes first.
+    assert html.index("})();") < html.index("// example_bio.qc")
+    # The census shifts knowingly: tab script plus component block.
+    assert html.count("<script>") == 2
+
+
+def test_css_only_and_js_only_contributions_emit_one_block_each() -> None:
+    # The renderer splits by kind.  The js-only case also pins
+    # independence from the tab bar: a single-tab, script-free
+    # report still carries the component's script block.
+    css_only = render_report(make_document(chrome=(contribution(js=None),)))
+    assert css_only.count("<style>") == 2
+    assert "<script" not in css_only
+    js_only = render_report(
+        make_document(chrome=(contribution(css=None, js="console.log('hi');"),))
+    )
+    assert js_only.count("<style>") == 1
+    assert js_only.count("<script>") == 1
+
+
+def test_chromeless_documents_inline_no_component_blocks() -> None:
+    # The channel is opt-in end to end: without contributions the
+    # page is shaped as before — one framework style block, and the
+    # boundary shape never appears.
+    html = render_report(make_document())
+    assert html.count("<style>") == 1
+    assert "</style>\n<style>" not in html
+
+
+# ---------------------------------------------------------------------------
 # Diagnostics: placed, or absent by choice
 # ---------------------------------------------------------------------------
 
@@ -564,6 +649,23 @@ def test_tab_bar_inlines_the_navigation_script() -> None:
     assert 'document.documentElement.classList.add("coda-js")' in html
 
 
+def test_tab_activation_dispatches_the_shown_event() -> None:
+    # The plugin-script event contract: activation dispatches
+    # "coda:tab-shown" on the panel, bubbling to document — content
+    # reveals enhance themselves (a hidden figure resizing, a table
+    # reflowing) without reaching into the panels.  Content pin, the
+    # house class: the contract ships inside the inlined script.
+    html = render_report(
+        make_document(tabs=(tab("QC", (ok_entry(),)), tab("Taxonomy", (ok_entry(),))))
+    )
+    assert '"coda:tab-shown"' in html
+    assert "bubbles: true" in html
+    # The event exists only with a tab bar: a single-tab report
+    # inlines no script and dispatches nothing.
+    single = render_report(make_document())
+    assert '"coda:tab-shown"' not in single
+
+
 def test_no_figures_and_one_tab_mean_no_scripts() -> None:
     html = render_report(make_document())
     assert "<script" not in html
@@ -648,6 +750,56 @@ def test_the_report_is_self_contained() -> None:
     )
     html = render_report(document)
     assert html.count("<script>") == 2  # Plotly.js and the tab script
+    collector = _UrlCollector()
+    collector.feed(html)
+    assert collector.urls == [favicon.data_uri, logo.data_uri]
+
+
+def test_the_page_declares_its_content_security_policy() -> None:
+    # Self-containment enforced at read time: the reader's browser
+    # blocks every network request the page — or a plugin's style or
+    # script — could attempt.  Inline style and script are inherent
+    # to the single-file architecture; the CSP's target is the
+    # network, closed by default-src 'none'.  First head child: the
+    # posture is declared before anything else in the page loads.
+    html = render_report(make_document())
+    expected = (
+        '<meta http-equiv="Content-Security-Policy" '
+        "content=\"default-src 'none'; img-src data:; "
+        "style-src 'unsafe-inline'; script-src 'unsafe-inline'\">"
+    )
+    assert expected in html
+    assert html.index("Content-Security-Policy") < html.index("<meta charset")
+
+
+def test_plugin_chrome_stays_within_the_containment_envelope() -> None:
+    """The worst case plus the second raw family: a component's css
+    and js inlined alongside Plotly.js, the tab script, and both
+    data URIs — attribute-scoped parsing still finds every referenced
+    resource embedded, and the block census is accounted: two style
+    blocks (framework, component) and three scripts (Plotly.js, the
+    tab script, the component block)."""
+    logo = asset("logo")
+    favicon = asset("favicon")
+    document = make_document(
+        logo=logo,
+        favicon=favicon,
+        tabs=(
+            tab("Figures", (figure_entry(),)),
+            tab("Quality control", (DiagnosticsEntry(), ok_entry())),
+        ),
+        diagnostics=(bug_diagnostic(), note_diagnostic()),
+        chrome=(
+            contribution(
+                component_id="core.table",
+                css=".coda-core-table { width: 100%; }",
+                js="console.log('core.table enhanced');",
+            ),
+        ),
+    )
+    html = render_report(document)
+    assert html.count("<style>") == 2
+    assert html.count("<script>") == 3
     collector = _UrlCollector()
     collector.feed(html)
     assert collector.urls == [favicon.data_uri, logo.data_uri]

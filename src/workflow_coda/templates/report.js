@@ -6,7 +6,15 @@
  * tab bar drives the panels per the ARIA tabs pattern — one visible
  * at a time, arrow-key navigation, hash synced so a link to
  * #panel-id opens that tab.  Printing shows every panel: the
- * stylesheet's print rules win over the interactive hiding. */
+ * stylesheet's print rules win over the interactive hiding.
+ *
+ * Each activation dispatches a "coda:tab-shown" event on the panel
+ * — bubbling to document — so plugin scripts inlined after this one
+ * can enhance content on reveal (a hidden figure resizing, a table
+ * reflowing) without reaching into the panels; every activation
+ * fires it, the initial one included.  A reader without the event
+ * keeps the complete document: the contract is enhancement-only in
+ * both directions. */
 (function () {
   "use strict";
   document.documentElement.classList.add("coda-js");
@@ -31,6 +39,15 @@
     });
     if (window.history && window.history.replaceState) {
       window.history.replaceState(null, "", "#" + id);
+    }
+    if (window.CustomEvent) {
+      panels.forEach(function (panel) {
+        if (panel.id === id) {
+          panel.dispatchEvent(
+            new window.CustomEvent("coda:tab-shown", { bubbles: true })
+          );
+        }
+      });
     }
   }
   tabs.forEach(function (tab, index) {

@@ -27,6 +27,11 @@ def test_core_plugin_identity() -> None:
     assert component.description == "One artifact-backed headline number."
     assert component.render is render_kpi
     assert component.chrome is ComponentChrome.TILE
+    # Self-hosted page chrome: the card vocabulary ships through the
+    # same channel third-party components use.
+    assert component.css is not None
+    assert ".coda-kpi {" in component.css
+    assert component.js is None
 
 
 def test_core_plugin_constructs_fresh_each_call() -> None:

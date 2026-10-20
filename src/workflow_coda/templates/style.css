@@ -6,9 +6,14 @@
  * this file: one --coda-<token> property per theme color token
  * (the core tokens — plus any additional tokens the theme declares),
  * --coda-series-N for the categorical palette, and the two
- * font stacks.  The framework owns this namespace: classes are
- * coda-*, properties are --coda-*, so plugin-supplied html cannot
- * collide with the chrome — and may use the custom properties
+ * font stacks.
+ * The framework and its core components own the bare coda-*
+ * namespace; third-party plugins namespace their classes and
+ * properties as coda-<plugin_id>-* to stay clear of the chrome.
+ * Core component styles ship as page-chrome declarations —
+ * inlined as their own style block after this file, exactly when
+ * one of their placements rendered (core.kpi's block is the
+ * first).  Plugin-supplied html may use the custom properties
  * (including --coda-series-N) to match the theme.
  *
  * The header bar wears the theme's primary color with the theme's own
@@ -186,75 +191,24 @@ body {
   margin: 0;
 }
 
-/* --- KPI cards ----------------------------------------------------------- */
+/* --- Tiles and icons: framework vocabulary for self-painted cards ------- */
 
-/* One headline number as its own card: the KPI is a TILE component,
-   so it paints everything — title, value, plate, corners — and the
-   renderer wraps it in a bare .coda-tile.  The default paint is the
-   surface card look; fill and gradient override background and ink
-   inline, and their plate reaches every edge because the KPI *is*
-   the card — the old full-bleed hack is gone. */
-
+/* A TILE component paints its own card; the framework contributes
+   only this wrapper, giving the self-painted card the same stack
+   rhythm as framework cards.  Keep this rule ahead of the
+   composition rules below: equal specificity, and their
+   margin-zeroing for row and grid children must win. */
 .coda-tile {
   margin: 1rem 0; /* stack rhythm, same as cards; ratio parents zero it */
 }
 
-.coda-kpi {
-  position: relative; /* the corner icon pins against it */
-  background: var(--coda-surface);
-  border: 1px solid var(--coda-border);
-  border-radius: 6px;
-  padding: 1rem 1.25rem;
-}
-
-.coda-kpi__title {
-  font-family: var(--coda-font-heading);
-  font-size: 1.1rem;
-  margin: 0 0 0.5rem;
-}
-
-.coda-kpi__value {
-  margin: 0;
-  font-family: var(--coda-font-heading);
-  font-size: 2.25rem;
-  font-weight: 700;
-  line-height: 1.1;
-}
-
-.coda-kpi__unit {
-  font-size: 0.45em; /* relative to the value: shrinks with it */
-  font-weight: 500;
-  opacity: 0.85;
-}
-
-.coda-kpi__caption {
-  margin: 0.35rem 0 0;
-  font-size: 0.875rem;
-  color: var(--coda-muted);
-}
-
-/* Icons inherit the ink of the text around them; nudge them onto the
+/* The framework's icon vocabulary: load_icon emits this class, so
+   any component using the shipped icon set inherits the alignment.
+   Icons inherit the ink of the text around them; nudge them onto the
    x-height so inline placement reads centered. */
 .coda-icon {
   display: inline-block;
   vertical-align: -0.125em;
-}
-
-/* The corner icon sits in the card's top right, scaled up and dimmed. */
-.coda-kpi__corner {
-  position: absolute;
-  top: 0.4rem;
-  right: 0.5rem;
-  font-size: 1.5rem;
-  line-height: 1;
-  opacity: 0.6;
-}
-
-/* On a plate, the caption rides the computed ink. */
-.coda-kpi--fill .coda-kpi__caption,
-.coda-kpi--gradient .coda-kpi__caption {
-  color: inherit;
-  opacity: 0.85;
 }
 
 /* --- Composition: rows, grids, groups ----------------------------------- */

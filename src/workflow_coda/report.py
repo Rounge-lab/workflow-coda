@@ -185,6 +185,42 @@ class DiagnosticsEntry:
     """
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ChromeContribution:
+    """One component's resolved page chrome, carried by the document.
+
+    The builder collects these from the components whose placements
+    rendered — deduplicated by component id, in first-use order — and
+    the renderer inlines them: the ``css`` after the framework
+    stylesheet, the ``js`` after the framework's own scripts.  The
+    declaration (:class:`~workflow_coda.components.ReportComponent`)
+    owns the guards — namespacing taught, blank and breakout
+    sequences rejected — so this value is already-validated chrome,
+    resolved into the document to keep the renderer a pure function
+    of it.
+    """
+
+    component_id: str
+    """The contributing component's id, ``<plugin_id>.<component_name>``,
+    carried under the contribution's banner comment in the page."""
+
+    css: str | None = None
+    """The component's stylesheet contribution; ``None`` when it
+    declared none."""
+
+    js: str | None = None
+    """The component's script contribution; ``None`` when it declared
+    none."""
+
+    def __post_init__(self) -> None:
+        """A contribution carries at least one of css and js."""
+        if self.css is None and self.js is None:
+            raise ValueError(
+                "a ChromeContribution carries at least one of css and "
+                "js — a component without page chrome contributes nothing"
+            )
+
+
 @dataclass(frozen=True, slots=True)
 class RowEntry:
     """A composed row: children side by side under width ratios."""
@@ -350,3 +386,11 @@ class ReportDocument:
     diagnostics: tuple[Diagnostic, ...]
     """Everything noteworthy the builder recorded, in occurrence
     order — rendered wherever the layout places a diagnostics node."""
+
+    chrome: tuple[ChromeContribution, ...] = ()
+    """The resolved page chrome: one contribution per component that
+    declared css or js and rendered at least one placement ``OK`` —
+    deduplicated by component id, in first-use order.  The renderer
+    inlines the stylesheets after the framework's own and the scripts
+    after the framework's.  Empty by default: a document built from
+    chrome-less components inlines no plugin chrome at all."""
