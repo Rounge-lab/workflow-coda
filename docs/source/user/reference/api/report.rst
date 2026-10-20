@@ -1,5 +1,6 @@
+===============
 Report document
-================
+===============
 
 .. automodule:: workflow_coda.report
 
@@ -26,8 +27,35 @@ Entries and diagnostics
 .. autoclass:: workflow_coda.report.EmbeddedAsset
    :members:
 
-Sections and the document
--------------------------
+.. autoclass:: workflow_coda.report.ComponentEntry
+   :members:
+
+.. autoclass:: workflow_coda.report.CardEntry
+   :members:
+
+.. autoclass:: workflow_coda.report.RowEntry
+   :members:
+
+.. autoclass:: workflow_coda.report.GridEntry
+   :members:
+
+.. autoclass:: workflow_coda.report.DiagnosticsEntry
+   :members:
+
+Sections, nodes, and the document
+----------------------------------
+
+.. autoclass:: workflow_coda.report.DocumentTab
+   :members:
+
+.. autodata:: workflow_coda.report.DocumentNode
+   :no-value:
 
 .. autoclass:: workflow_coda.report.ReportDocument
+   :members:
+
+Resolved page chrome
+--------------------
+
+.. autoclass:: workflow_coda.report.ChromeContribution
    :members:

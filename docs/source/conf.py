@@ -3,13 +3,21 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
+import importlib.metadata
+
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "workflow-coda"
 copyright = "2026, Sverre Branders"
 author = "Sverre Branders"
-release = "0.1.0"
+
+# The version comes from the installed package, so pyproject.toml stays
+# the single source of truth — the same policy the core plugin follows.
+try:
+    release = importlib.metadata.version("workflow-coda")
+except importlib.metadata.PackageNotFoundError:
+    release = "unknown"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

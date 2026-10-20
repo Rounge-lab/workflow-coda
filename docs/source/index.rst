@@ -1,6 +1,6 @@
-=======================================
-workflow-coda development documentation
-=======================================
+============================
+workflow-coda documentation
+============================
 
 ``workflow-coda`` is a framework for building portable, configurable static
 HTML reports from workflow outputs.
@@ -15,37 +15,6 @@ components, and renders a portable static HTML report.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Design Goals
+   :caption: Reference
 
-   roadmap/background
-   roadmap/architecture
-   roadmap/layers
-   roadmap/artifact_contract
-   roadmap/plugins
-   roadmap/layout
-   roadmap/state
-   roadmap/rendering
-   roadmap/data_and_provenance
-   roadmap/assets
-   roadmap/security
-   roadmap/structure
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Reference documentation
-
-   api/errors
-   api/manifest
-   api/artifact_store
-   api/theme
-   api/context
-   api/text
-   api/components
-   api/plugins
-   api/registry
-   api/layout
-   api/layout_loader
-   api/builder
-   api/report
-   api/assets
-   api/render
+   user/reference/index
