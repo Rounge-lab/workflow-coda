@@ -15,9 +15,7 @@ Failures raise subclasses of :class:`WorkflowCodaError` from
 ``workflow_coda.errors``.
 """
 
-import csv
 import hashlib
-import io
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -93,7 +91,7 @@ class ResolvedArtifact:
 
         The escape hatch for consumers with their own parsers (e.g. polars,
         pandas, or a domain schema validator): it guarantees the same
-        checksum, encoding, and containment checks as :meth:`read_tsv` and
+        checksum, encoding, and containment checks as
         :meth:`read_json` while leaving interpretation entirely to the caller.
         """
         return self._read_text()
@@ -109,58 +107,6 @@ class ResolvedArtifact:
         per the store's design.
         """
         return self._read_bytes()
-
-    def read_tsv(self) -> list[dict[str, str]]:
-        """Read the artifact as a TSV table.
-
-        Returns one dictionary per data row, mapping column names to field
-        values.  The first row must be a header of unique, non-empty column
-        names, and every data row must match the header's field count.  A
-        header with no data rows yields an empty list; blank lines are
-        skipped.  Quoting follows the ``csv`` module's default dialect.
-        """
-        text = self._read_text()
-        reader = csv.reader(io.StringIO(text, newline=""), delimiter="\t")
-        try:
-            header = next(reader, None)
-        except csv.Error as e:
-            raise ArtifactReadError(
-                f"artifact {self._label} is not valid TSV: {e}"
-            ) from e
-        if header is None:
-            raise ArtifactReadError(f"artifact {self._label} contains no header row")
-        if not header:
-            raise ArtifactReadError(f"artifact {self._label} has an empty header row")
-
-        seen: set[str] = set()
-        for column in header:
-            if not column:
-                raise ArtifactReadError(
-                    f"artifact {self._label} has an empty header column name"
-                )
-            if column in seen:
-                raise ArtifactReadError(
-                    f"artifact {self._label} has duplicate header column {column!r}"
-                )
-            seen.add(column)
-
-        width = len(header)
-        records: list[dict[str, str]] = []
-        try:
-            for row in reader:
-                if not row:  # Blank line.
-                    continue
-                if len(row) != width:
-                    raise ArtifactReadError(
-                        f"artifact {self._label}: row at line {reader.line_num} has "
-                        f"{len(row)} fields, expected {width}"
-                    )
-                records.append(dict(zip(header, row, strict=True)))
-        except csv.Error as e:
-            raise ArtifactReadError(
-                f"artifact {self._label} is not valid TSV: {e}"
-            ) from e
-        return records
 
     def read_json(self) -> JsonValue:
         """Read the artifact as a JSON document.

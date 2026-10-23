@@ -120,14 +120,13 @@ Artifact declarations
        forward slashes, never absolute, no ``..`` segments.
    * - ``format``
      - yes
-     - ``tsv`` | ``json`` | ``txt`` | ``bytes``, or a namespaced
-       name (``bio.newick``)
-     - The artifact's format — a claim, not a service.  Core values
-       are agnostic: ``json`` and ``tsv`` are interpreted claims
-       with store readers; ``txt`` and ``bytes`` are
-       interpretation-free (UTF-8 text, raw bytes) for consumers
-       with their own parsers.  A namespaced name is a plugin
-       convention whose grammar lives in the owning plugin.
+     - ``json`` | ``txt`` | ``bytes``, or a namespaced name
+       (``core.table``, ``bio.newick``)
+     - The artifact's format — a claim, not a service.  ``json`` is
+       an interpreted claim with a store reader; ``txt`` and
+       ``bytes`` are interpretation-free (UTF-8 text, raw bytes) for
+       consumers with their own parsers.  A namespaced name is a
+       plugin convention whose grammar lives in the owning plugin.
    * - ``status``
      - yes
      - ``complete`` | ``partial`` | ``failed`` | ``missing``
