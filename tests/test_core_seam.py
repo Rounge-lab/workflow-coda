@@ -187,14 +187,16 @@ def test_core_components_render_through_the_cli(tmp_path: Path) -> None:
     # rendered in the tab the layout chose for them.
     assert '<section class="coda-diagnostics"' in page
     assert "no theme file declared in the layout" in page
-    # The channel census, end to end: the framework stylesheet, the
-    # KPI's, and the table's inline as three blocks; the tab wiring and
-    # the table's enhancement as two scripts — the js half of the
-    # channel's first consumer — one banner per component per report
-    # however many placements: the table's banner appears twice on the
-    # page, once in each of its blocks.  No figures, so no Plotly.js.
+    # The channel census, end to end, from the settled model: the
+    # framework stylesheet and one merged component block inline as
+    # two <style> elements; the tab wiring and one merged component
+    # script as two <script> elements.  The channel stamps each
+    # contribution with its component id — /* id */ for css, // id
+    # for js — once per report however many placements.  No figures,
+    # so no Plotly.js.
     assert page.count("<style>") == 2
     assert page.count("<script>") == 2
     assert page.count("/* core.kpi */") == 1
-    assert page.count("/* core.table */") == 3
+    assert page.count("/* core.table */") == 1
+    assert page.count("// core.table") == 1
     assert ".coda-kpi__title {" in page

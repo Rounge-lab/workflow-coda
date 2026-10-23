@@ -47,10 +47,8 @@ def test_core_plugin_identity() -> None:
     # both halves — the controls bar stylesheet and the enhancement
     # script — each bannered with its own class vocabulary.
     assert table.css is not None
-    assert "/* core.table */" in table.css
     assert ".coda-table__controls" in table.css
     assert table.js is not None
-    assert "/* core.table */" in table.js
     assert ".coda-table" in table.js
     assert "coda-table--filtered" in table.js
     assert "Copy as TSV" in table.js

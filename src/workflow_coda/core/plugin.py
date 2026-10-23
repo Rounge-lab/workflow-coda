@@ -98,8 +98,6 @@ _KPI = ReportComponent(
 
 
 _TABLE_CSS: Final[str] = """\
-/* core.table */
-
 .coda-table__controls {
   display: none;
 }
@@ -216,7 +214,6 @@ itself never scrolls: the framework card body's own ``overflow-x``
 rule owns wide tables, per the CARD-mode ruling."""
 
 _TABLE_JS: Final[str] = """\
-/* core.table */
 (function () {
   "use strict";
 
