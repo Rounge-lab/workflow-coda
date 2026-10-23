@@ -24,3 +24,5 @@ Default theme
 -------------
 
 .. autodata:: workflow_coda.theme.DEFAULT_THEME
+
+.. theme-colors::

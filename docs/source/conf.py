@@ -4,6 +4,8 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 import importlib.metadata
+import sys
+from pathlib import Path
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
@@ -22,11 +24,14 @@ except importlib.metadata.PackageNotFoundError:
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "_ext"))
+
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.viewcode",
     "sphinx_rtd_dark_mode",
     "sphinx_copybutton",
+    "coda_theme_swatches",
 ]
 
 templates_path = ["_templates"]
