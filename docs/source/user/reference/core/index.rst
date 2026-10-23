@@ -61,3 +61,4 @@ chrome.
    :maxdepth: 1
 
    kpi
+   table

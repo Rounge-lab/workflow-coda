@@ -1,0 +1,190 @@
+===================
+core.table
+===================
+
+One artifact-backed table: every row, in file order, rendered into
+the page complete — with column sort, row filter, and copy-as-TSV
+as enhancement for readers whose browsers run the page's script.
+
+``core.table`` is a CARD component: the framework paints the card
+and the placement's resolved ``title``, the component paints the
+body.  A reader without scripting still reads the whole table, and
+the printed page shows every row — the enhancements operate on
+rows that are already there.
+
+The ``core.table`` format
+=========================
+
+``core.table`` reads artifacts declared with its own namespaced
+format — ``format: core.table`` in the manifest.  The format is a
+claim, not a service: the store hands the component
+checksum-verified UTF-8 text and parses nothing, and the grammar
+lives in this component (the format value space is documented in
+:doc:`../framework/schemas`).
+
+The file is delimited text, parsed under the placement's ``sep``:
+
+* quoting follows the ``csv`` module's default dialect, so a quoted
+  cell may carry the delimiter itself;
+* blank lines are skipped, and CRLF line endings are tolerated;
+* with ``header: true`` (the default), the first row is a header
+  of unique, non-empty column names — one exception below — and
+  every data row must match the header's field count;
+* with ``header: false``, every row is data and the column count
+  comes from the first row, so the file needs at least one row.
+
+Parameters
+==========
+
+.. list-table::
+   :header-rows: 1
+
+   * - Key
+     - Required
+     - Meaning
+   * - ``artifact``
+     - yes
+     - The artifact's *type*; must be declared with format
+       ``core.table``.
+   * - ``sep``
+     - no
+     - The field delimiter: a single character, default ``"\t"``.
+       Declare the file's actual delimiter — a uniformly wrong
+       ``sep`` reads every line as one field and renders a misread
+       one-column table (see `Honest boundaries`_).
+   * - ``header``
+     - no
+     - Whether the first row is a header; default ``true``.  The
+       one shape fact the bytes cannot declare — a header row is
+       indistinguishable from a row of text — so the author declares
+       it.  ``header: false`` renders positional labels
+       (``Column 1``, ...), the file's own declaration of position as
+       meaning.
+   * - ``columns``
+     - no
+     - Presentation policy: which columns appear and in what order,
+       selected by header name.  Given, it must be a non-empty list
+       of unique non-empty strings; membership is checked against
+       the artifact's own header, where the data lives.
+       ``header: false`` and ``columns`` together are refused:
+       positional selection would be invented vocabulary.
+   * - ``caption``
+     - no
+     - Author prose, rendered under the table.
+
+The honest-data split, as throughout: the rows and the header are
+data — read verbatim, cells escaped and never reinterpreted; the
+producer's own formatting is data.  ``sep`` and ``header`` are
+shape policy, ``columns`` presentation policy, ``caption``
+authorship.  Placement keys — ``title``, ``on_unavailable`` — live
+at the placement level, never inside ``parameters:``; a key nested
+by accident teaches the move.
+
+The index-column convention
+===========================
+
+A header whose first cell is blank is the producer declaring the
+first column a row index — in-band, the widespread tabular
+convention for count matrices and per-sample tables.  The
+convention is detected, never configured: the index column renders
+first, without a label, and ``columns`` orders the named columns
+after it.  A blank header cell anywhere else is refused — only the
+first position carries meaning.
+
+Sort, filter, copy
+==================
+
+The complete table ships in the HTML.  The controls bar — a filter
+input and a copy button — ships with it, display-none until the
+page's script marks the document scripted, so nothing looks
+interactive that is not.
+
+* **Sort** is a three-state cycle per column: ascending, descending,
+  then the original file order — the authored order is always one
+  click away.  Numeric columns sort by value, text by
+  ``localeCompare``, per the column's build-time type stamp; empty
+  cells sink to the bottom in both directions.  The stamp rides
+  each header as ``data-type``: ``numeric`` when the column has data
+  and every non-empty cell parses as a finite number, else ``text``
+  — ``nan`` and ``inf`` read as text, words about data rather than
+  data.  State is announced on the ``th`` through ``aria-sort``.
+* **Filter** is a case-insensitive substring match across each
+  row's cells; matching rows hide by class and are never deleted,
+  so clearing the filter restores the table exactly.
+* **Copy** exports the current view — post-``columns`` columns,
+  sorted, filtered — as TSV through ``navigator.clipboard``, cells
+  quoted per the ``csv`` dialect, with honest feedback both ways:
+  the button reports the copied row count, or that the browser
+  refuses the clipboard, and restores its label after a moment.
+* **Print** honors the panels law: the controls bar is hidden and
+  filter-hidden rows are restored, so the printed page shows the
+  complete table in its current order.
+
+Teaching
+========
+
+Three families, kept distinct — who is wrong decides what the
+reader sees.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 22 52
+
+   * - Family
+     - Raised as
+     - Shown as
+   * - The layout is wrong: a missing or malformed parameter, an
+       unknown key (with a suggestion), a placement key nested in
+       ``parameters:``, ``columns`` against ``header: false``, a
+       non-``core.table`` artifact, or a ``columns`` name the header
+       does not carry (taught at data time, against the header's
+       own vocabulary)
+     - ``ValueError``
+     - a plugin failure, collected and shown in place
+   * - The run is partial: the artifact is undeclared, declared with
+       a non-``complete`` status, or its file is missing
+     - ``ArtifactUnavailableError``
+     - the unavailable notice card — a fact about the run
+   * - The artifact lies about its shape: no header row, a blank
+       header cell beyond the first, duplicate column names, a row
+       that does not match the table's width, or a headerless file
+       with no rows
+     - ``ArtifactReadError``
+     - a plugin failure, collected and shown in place
+
+Honest boundaries
+=================
+
+A uniformly wrong ``sep`` cannot be caught at parse time — nothing
+disagrees.  A comma-delimited file read under the default tab
+parses every line as one field and renders a one-column table whose
+header is the file's first line, complete and misread.  The fix is
+declaring the file's actual delimiter; the ragged-row teaching names
+the suspect delimiter when the signature matches — a one-field row
+against a wider header — which is the mixed-delimiter case the
+parser *can* see.
+
+Example
+=======
+
+A manifest declaration and a layout placement, together:
+
+.. code-block:: json
+
+   {
+     "id": "samples",
+     "type": "org.example.samples",
+     "schema_version": "0.1.0",
+     "path": "samples.tsv",
+     "format": "core.table",
+     "status": "complete"
+   }
+
+.. code-block:: yaml
+
+   - id: core.table
+     title: Sample status
+     parameters:
+       artifact: org.example.samples
+       columns: [status, sample_id]
+       caption: Per-sample status.
