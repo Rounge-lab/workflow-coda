@@ -102,6 +102,7 @@ line-ending = "lf"
 [tool.mypy]
 python_version = "3.14"
 files = ["src", "tests"]
+exclude = ["^docs/"]
 mypy_path = "src"
 plugins = ["pydantic.mypy"]
 
