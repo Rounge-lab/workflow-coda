@@ -23,7 +23,7 @@ def test_valid_declaration_parses() -> None:
     assert declaration.type == "org.example.sample_metrics"
     assert declaration.schema_version == "1.0"
     assert declaration.path == "report_data/sample_metrics.tsv"
-    assert declaration.format is ArtifactFormat.TSV
+    assert declaration.format is ArtifactFormat.TXT
     assert declaration.status is ArtifactStatus.COMPLETE
     assert declaration.sha256 is None
 
@@ -164,7 +164,6 @@ def test_rejects_unnamespaced_or_malformed_formats(fmt: str) -> None:
 @pytest.mark.parametrize(
     ("raw", "member"),
     [
-        ("tsv", ArtifactFormat.TSV),
         ("json", ArtifactFormat.JSON),
         ("txt", ArtifactFormat.TXT),
         ("bytes", ArtifactFormat.BYTES),

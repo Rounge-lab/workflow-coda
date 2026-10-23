@@ -27,16 +27,17 @@ from .types import (
 class ArtifactFormat(StrEnum):
     """The framework's own artifact format values.
 
-    Deliberately minimal and agnostic: ``json`` and ``tsv`` are
-    interpreted claims with store readers; ``txt`` and ``bytes`` are
-    interpretation-free claims — UTF-8 text and raw bytes — served by
-    ``read_text`` and ``read_bytes`` for consumers with their own
-    parsers.  Formats beyond the core set are namespaced plugin
-    conventions (:data:`~workflow_coda.manifest.NamespacedArtifactFormat`):
-    their grammar lives in the owning plugin, never in the framework.
+    Deliberately minimal and agnostic: ``json`` is an interpreted
+    claim with a store reader; ``txt`` and ``bytes`` are
+    interpretation-free claims — UTF-8 text and raw bytes — served
+    by ``read_text`` and ``read_bytes`` for consumers with their own
+    parsers.  Table-shaped and domain formats are claims their
+    owners define: a plugin's artifacts are declared with its
+    namespaced convention (``core.table``, ``bio.newick`` — see
+    :data:`~workflow_coda.manifest.NamespacedArtifactFormat`), whose
+    grammar lives in the owning plugin, never in the framework.
     """
 
-    TSV = "tsv"
     JSON = "json"
     TXT = "txt"
     BYTES = "bytes"

@@ -41,8 +41,8 @@ def test_context_serves_artifacts_through_the_store(tmp_path: Path) -> None:
     context = RenderContext(
         store=ArtifactStore.from_manifest_file(bundle.manifest_path)
     )
-    rows = context.store.require("org.example.sample_metrics").read_tsv()
-    assert rows[0]["sample_id"] == "S1"
+    text = context.store.require("org.example.sample_metrics").read_text()
+    assert text == "sample_id\tpassed\nS1\ttrue\nS2\tfalse\n"
 
 
 def test_context_is_frozen(store: ArtifactStore) -> None:

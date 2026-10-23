@@ -37,7 +37,7 @@ def make_artifact_payload(**overrides: object) -> dict[str, object]:
         "type": "org.example.sample_metrics",
         "schema_version": "1.0",
         "path": "report_data/sample_metrics.tsv",
-        "format": "tsv",
+        "format": "txt",
         "status": "complete",
     }
     payload.update(overrides)
@@ -86,13 +86,13 @@ class ReportBundle:
     """The manifest file at the bundle root."""
 
     metrics_path: Path
-    """``report_data/sample_metrics.tsv``: TSV artifact, no checksum."""
+    """``report_data/sample_metrics.tsv``: tab-separated TXT artifact, no checksum."""
 
     summary_path: Path
     """``report_data/qc_summary.json``: JSON artifact, no checksum."""
 
     catalog_path: Path
-    """``report_data/votu_catalog.tsv``: TSV artifact with matching sha256."""
+    """``report_data/votu_catalog.tsv``: tab-separated TXT artifact with matching sha256."""
 
 
 @dataclass(frozen=True)
@@ -109,8 +109,8 @@ class ArtifactBundle:
 def write_report_bundle(bundle_root: Path) -> ReportBundle:
     """Write a standard report bundle: manifest plus a ``report_data/`` tree.
 
-    Declares three artifacts: a plain TSV metrics table, a JSON summary, and
-    a checksummed TSV catalog.  All files are written with LF newlines so
+    Declares three artifacts: a plain tabular TXT metrics table, a JSON summary, and
+    a checksummed TXT catalog.  All files are written with LF newlines so
     fixtures are byte-identical on every platform.
     """
     data_dir = bundle_root / "report_data"

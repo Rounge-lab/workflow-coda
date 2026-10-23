@@ -52,7 +52,7 @@ def test_direct_construction_uses_explicit_root(tmp_path: Path) -> None:
     manifest = load_manifest(artifact_bundle.manifest_path)
     direct_store = ArtifactStore(manifest, tmp_path)
     assert direct_store.root == tmp_path.resolve()
-    assert direct_store.require(METRICS_TYPE).read_tsv() == []
+    assert direct_store.require(METRICS_TYPE).read_text() == "sample_id\tpassed\n"
 
 
 def test_properties_expose_manifest_and_root(
@@ -205,8 +205,10 @@ def test_require_allows_symlink_inside_root(tmp_path: Path) -> None:
     target.write_text("sample_id\tpassed\nS1\ttrue\n", encoding="utf-8", newline="\n")
     symlink_or_skip(target, artifact_bundle.artifact_path)
     artifact_store = ArtifactStore.from_manifest_file(artifact_bundle.manifest_path)
-    rows = artifact_store.require("org.example.alias").read_tsv()
-    assert rows == [{"sample_id": "S1", "passed": "true"}]
+    assert (
+        artifact_store.require("org.example.alias").read_text()
+        == "sample_id\tpassed\nS1\ttrue\n"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -215,8 +217,10 @@ def test_require_allows_symlink_inside_root(tmp_path: Path) -> None:
 
 
 def test_read_verifies_matching_checksum(store: ArtifactStore) -> None:
-    rows = store.require("org.example.votu_catalog").read_tsv()
-    assert rows == [{"votu_id": "vOTU_001", "quality": "medium"}]
+    assert (
+        store.require("org.example.votu_catalog").read_text()
+        == "votu_id\tquality\nvOTU_001\tmedium\n"
+    )
 
 
 def test_require_defers_checksum_verification_to_reads(
@@ -228,14 +232,14 @@ def test_require_defers_checksum_verification_to_reads(
     artifact_store = ArtifactStore.from_manifest_file(bundle.manifest_path)
     resolved = artifact_store.require("org.example.votu_catalog")
     with pytest.raises(ArtifactChecksumError):
-        resolved.read_tsv()
+        resolved.read_text()
 
 
-@pytest.mark.parametrize("method", ["read_tsv", "read_json", "read_text", "read_bytes"])
+@pytest.mark.parametrize("method", ["read_json", "read_text", "read_bytes"])
 def test_checksum_verification_precedes_parsing(
     bundle: ReportBundle, method: str
 ) -> None:
-    # The checksummed artifact is TSV-shaped; a read_json on it would fail
+    # The checksummed artifact is plain text; a read_json on it would fail
     # at parsing — unless verification runs first, as it must.
     bundle.catalog_path.write_text("tampered\n", encoding="utf-8", newline="\n")
     artifact_store = ArtifactStore.from_manifest_file(bundle.manifest_path)
@@ -253,7 +257,7 @@ def test_checksum_error_names_both_digests(bundle: ReportBundle) -> None:
     assert declaration.sha256 is not None
     actual = hashlib.sha256(b"tampered\n").hexdigest()
     with pytest.raises(ArtifactChecksumError) as exc_info:
-        artifact_store.require("org.example.votu_catalog").read_tsv()
+        artifact_store.require("org.example.votu_catalog").read_text()
     message = str(exc_info.value)
     assert "failed its sha256 check" in message
     assert declaration.sha256 in message
@@ -266,136 +270,7 @@ def test_artifact_without_checksum_is_not_verified(
     bundle.metrics_path.write_text(
         "sample_id\tpassed\nS3\ttrue\n", encoding="utf-8", newline="\n"
     )
-    rows = store.require(METRICS_TYPE).read_tsv()
-    assert rows == [{"sample_id": "S3", "passed": "true"}]
-
-
-# ---------------------------------------------------------------------------
-# read_tsv contract
-# ---------------------------------------------------------------------------
-
-
-def test_read_tsv_returns_rows_as_dicts(store: ArtifactStore) -> None:
-    rows = store.require(METRICS_TYPE).read_tsv()
-    assert rows == [
-        {"sample_id": "S1", "passed": "true"},
-        {"sample_id": "S2", "passed": "false"},
-    ]
-
-
-def test_read_tsv_accepts_header_only_table(tmp_path: Path) -> None:
-    declaration = make_artifact_payload()
-    artifact_bundle = write_artifact_bundle(tmp_path, declaration, "a\tb\n")
-    artifact_store = ArtifactStore.from_manifest_file(artifact_bundle.manifest_path)
-    assert artifact_store.require(METRICS_TYPE).read_tsv() == []
-
-
-def test_read_tsv_skips_blank_lines(tmp_path: Path) -> None:
-    declaration = make_artifact_payload()
-    artifact_bundle = write_artifact_bundle(tmp_path, declaration, "a\tb\n\nS1\tx\n\n")
-    artifact_store = ArtifactStore.from_manifest_file(artifact_bundle.manifest_path)
-    assert artifact_store.require(METRICS_TYPE).read_tsv() == [{"a": "S1", "b": "x"}]
-
-
-def test_read_tsv_accepts_crlf_line_endings(tmp_path: Path) -> None:
-    # Producers on Windows may write CRLF; the reader tolerates it and no
-    # '\r' leaks into field values.  (Fixtures elsewhere pin LF; this test
-    # deliberately does not.)
-    declaration = make_artifact_payload()
-    artifact_bundle = write_artifact_bundle(
-        tmp_path, declaration, "a\tb\nS1\tx\n", newline="\r\n"
-    )
-    artifact_store = ArtifactStore.from_manifest_file(artifact_bundle.manifest_path)
-    assert artifact_store.require(METRICS_TYPE).read_tsv() == [{"a": "S1", "b": "x"}]
-
-
-def test_read_tsv_rejects_empty_file(tmp_path: Path) -> None:
-    declaration = make_artifact_payload()
-    artifact_bundle = write_artifact_bundle(tmp_path, declaration, "")
-    artifact_store = ArtifactStore.from_manifest_file(artifact_bundle.manifest_path)
-    with pytest.raises(ArtifactReadError) as exc_info:
-        artifact_store.require(METRICS_TYPE).read_tsv()
-    assert "contains no header row" in str(exc_info.value)
-
-
-def test_read_tsv_rejects_empty_header_row(tmp_path: Path) -> None:
-    declaration = make_artifact_payload()
-    artifact_bundle = write_artifact_bundle(tmp_path, declaration, "\n\n")
-    artifact_store = ArtifactStore.from_manifest_file(artifact_bundle.manifest_path)
-    with pytest.raises(ArtifactReadError) as exc_info:
-        artifact_store.require(METRICS_TYPE).read_tsv()
-    assert "has an empty header row" in str(exc_info.value)
-
-
-def test_read_tsv_rejects_empty_column_name(tmp_path: Path) -> None:
-    declaration = make_artifact_payload()
-    artifact_bundle = write_artifact_bundle(tmp_path, declaration, "\tpassed\nS1\tx\n")
-    artifact_store = ArtifactStore.from_manifest_file(artifact_bundle.manifest_path)
-    with pytest.raises(ArtifactReadError) as exc_info:
-        artifact_store.require(METRICS_TYPE).read_tsv()
-    assert "has an empty header column name" in str(exc_info.value)
-
-
-def test_read_tsv_rejects_duplicate_column_names(tmp_path: Path) -> None:
-    declaration = make_artifact_payload()
-    artifact_bundle = write_artifact_bundle(
-        tmp_path, declaration, "sample_id\tsample_id\nS1\ttrue\n"
-    )
-    artifact_store = ArtifactStore.from_manifest_file(artifact_bundle.manifest_path)
-    with pytest.raises(ArtifactReadError) as exc_info:
-        artifact_store.require(METRICS_TYPE).read_tsv()
-    assert "duplicate header column 'sample_id'" in str(exc_info.value)
-
-
-def test_read_tsv_rejects_ragged_rows(tmp_path: Path) -> None:
-    declaration = make_artifact_payload()
-    artifact_bundle = write_artifact_bundle(tmp_path, declaration, "a\tb\nS1\tx\nS2\n")
-    artifact_store = ArtifactStore.from_manifest_file(artifact_bundle.manifest_path)
-    with pytest.raises(ArtifactReadError) as exc_info:
-        artifact_store.require(METRICS_TYPE).read_tsv()
-    message = str(exc_info.value)
-    assert "row at line 3" in message
-    assert "expected 2" in message
-
-
-def test_read_tsv_supports_default_csv_quoting(tmp_path: Path) -> None:
-    declaration = make_artifact_payload()
-    artifact_bundle = write_artifact_bundle(
-        tmp_path, declaration, 'a\tnote\nS1\t"a\tb"\n'
-    )
-    artifact_store = ArtifactStore.from_manifest_file(artifact_bundle.manifest_path)
-    rows = artifact_store.require(METRICS_TYPE).read_tsv()
-    assert rows == [{"a": "S1", "note": "a\tb"}]
-
-
-def test_read_tsv_decodes_utf8(tmp_path: Path) -> None:
-    declaration = make_artifact_payload()
-    artifact_bundle = write_artifact_bundle(
-        tmp_path, declaration, "sample_id\tname\nS1\tSæ1\n"
-    )
-    artifact_store = ArtifactStore.from_manifest_file(artifact_bundle.manifest_path)
-    rows = artifact_store.require(METRICS_TYPE).read_tsv()
-    assert rows == [{"sample_id": "S1", "name": "Sæ1"}]
-
-
-def test_read_tsv_rejects_invalid_utf8(tmp_path: Path) -> None:
-    declaration = make_artifact_payload()
-    artifact_bundle = write_artifact_bundle(tmp_path, declaration, b"a\t\xff\n")
-    artifact_store = ArtifactStore.from_manifest_file(artifact_bundle.manifest_path)
-    with pytest.raises(ArtifactReadError) as exc_info:
-        artifact_store.require(METRICS_TYPE).read_tsv()
-    assert "is not valid UTF-8" in str(exc_info.value)
-
-
-def test_readers_are_explicit_not_format_dispatched(tmp_path: Path) -> None:
-    # Deliberate design pin: the read method is the plugin's explicit
-    # command; the declared format is metadata, not a gate.  This test
-    # exists so a future "fix" that adds format dispatch is a conscious
-    # decision, not a silent behavior change.
-    declaration = make_artifact_payload(format="json")
-    artifact_bundle = write_artifact_bundle(tmp_path, declaration, "a\tb\nS1\tx\n")
-    artifact_store = ArtifactStore.from_manifest_file(artifact_bundle.manifest_path)
-    assert artifact_store.require(METRICS_TYPE).read_tsv() == [{"a": "S1", "b": "x"}]
+    assert store.require(METRICS_TYPE).read_text() == "sample_id\tpassed\nS3\ttrue\n"
 
 
 # ---------------------------------------------------------------------------
@@ -458,6 +333,29 @@ def test_read_json_rejects_invalid_json(tmp_path: Path) -> None:
 def test_read_text_returns_decoded_contents(store: ArtifactStore) -> None:
     artifact = store.require(METRICS_TYPE)
     assert artifact.read_text() == "sample_id\tpassed\nS1\ttrue\nS2\tfalse\n"
+
+
+def test_read_text_rejects_invalid_utf8(tmp_path: Path) -> None:
+    # The store's decode-teaching, on its permanent reader: the
+    # artifact contract guarantees checksum-verified UTF-8 text.
+    declaration = make_artifact_payload()
+    artifact_bundle = write_artifact_bundle(tmp_path, declaration, b"a\t\xff\n")
+    artifact_store = ArtifactStore.from_manifest_file(artifact_bundle.manifest_path)
+    with pytest.raises(ArtifactReadError) as exc_info:
+        artifact_store.require(METRICS_TYPE).read_text()
+    assert "is not valid UTF-8" in str(exc_info.value)
+
+
+def test_readers_are_explicit_not_format_dispatched(tmp_path: Path) -> None:
+    # Deliberate design pin: the read method is the plugin's explicit
+    # command; the declared format is metadata, not a gate.  This test
+    # exists so a future "fix" that adds format dispatch is a conscious
+    # decision, not a silent behavior change.  Outlived its original
+    # reader when the tsv grammar moved to core.table.
+    declaration = make_artifact_payload(format="json")
+    artifact_bundle = write_artifact_bundle(tmp_path, declaration, "a\tb\nS1\tx\n")
+    artifact_store = ArtifactStore.from_manifest_file(artifact_bundle.manifest_path)
+    assert artifact_store.require(METRICS_TYPE).read_text() == "a\tb\nS1\tx\n"
 
 
 # ---------------------------------------------------------------------------

@@ -295,7 +295,7 @@ def test_thresholds_refuse_text_values(tmp_path: Path) -> None:
 
 def test_non_json_artifact_is_a_layout_mistake(tmp_path: Path) -> None:
     context = _context(
-        _write_bundle(tmp_path, fmt="tsv", content="depth\tcount\n12.4\t8\n")
+        _write_bundle(tmp_path, fmt="txt", content="depth\tcount\n12.4\t8\n")
     )
     with pytest.raises(ValueError, match="core.kpi reads JSON artifacts"):
         render_kpi(context, _info(), _kpi())
