@@ -1,6 +1,6 @@
-===================
+==========
 core.table
-===================
+==========
 
 One artifact-backed table: every row, in file order, rendered into
 the page complete — with column sort, row filter, and copy-as-TSV
@@ -12,8 +12,103 @@ body.  A reader without scripting still reads the whole table, and
 the printed page shows every row — the enhancements operate on
 rows that are already there.
 
+Identity
+--------
+
+* **Id:** ``core.table``
+* **Default title:** ``Table``; the placement's ``title`` key
+  overrides it for that instance
+* **Description:** one artifact-backed table, complete and
+  unscripted, with sort, filter, and copy as enhancement
+* **Chrome mode:** ``CARD`` — the framework paints the card and the
+  placement's resolved title; the component paints the body alone.
+  Degradation is the framework's in both modes (see
+  `Outcomes and chrome`_)
+
+Placing it
+----------
+
+.. code-block:: yaml
+
+   schema_version: "0.2.0"
+   title: Sample QC
+   tabs:
+     - title: Samples
+       components:
+         - id: core.table
+           title: Sample status
+           parameters:
+             artifact: org.example.samples
+             columns: [status, sample_id]
+             caption: Per-sample status.
+
+A placement carries the component id, an optional per-instance
+``title``, and the component's ``parameters``.  The two placement
+gates — ``on_missing`` and ``on_unavailable`` — decide what happens
+when things are absent; they are placement keys, siblings of
+``id`` and ``title``, never parameters, and shared by every
+component: described once in :ref:`Placement gates <core-placement-gates>`.
+
+Parameters
+----------
+
+The parameter grammar follows the honest-data law, and the
+vocabulary is closed: every key the table reads is in the table,
+and an unknown key — a typo, or a placement key nested by accident —
+raises a teaching error naming the accepted vocabulary and, when
+close, the nearest match.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Key
+     - Required
+     - Shape
+     - Meaning
+   * - ``artifact``
+     - yes
+     - non-empty string
+     - The artifact's *type*; must be declared with format
+       ``core.table``.
+   * - ``sep``
+     - no — default ``"\t"``
+     - single character
+     - The field delimiter.  Declare the file's actual delimiter —
+       a uniformly wrong ``sep`` reads every line as one field and
+       renders a misread one-column table (see
+       `Honest boundaries`_).
+   * - ``header``
+     - no — default ``true``
+     - boolean
+     - Whether the first row is a header.  The one shape fact the
+       bytes cannot declare — a header row is indistinguishable
+       from a row of text — so the author declares it.
+       ``header: false`` renders positional labels
+       (``Column 1`` ...), the file's own declaration of position as
+       meaning.
+   * - ``columns``
+     - no
+     - non-empty list of unique, non-empty strings
+     - Presentation policy: which columns appear and in what order,
+       selected by header name.  Membership is checked against the
+       artifact's own header, where the data lives.
+       ``header: false`` and ``columns`` together are refused:
+       positional selection would be invented vocabulary.
+   * - ``caption``
+     - no
+     - non-empty string
+     - Author prose, rendered under the table.
+
+The honest-data split, as throughout: the rows and the header are
+data — read verbatim, cells escaped and never reinterpreted; the
+producer's own formatting is data.  ``sep`` and ``header`` are
+shape policy, ``columns`` presentation policy, ``caption``
+authorship.  Placement keys — ``title``, ``on_unavailable`` — live
+at the placement level, never inside ``parameters:``; a key nested
+by accident teaches the move.
+
 The ``core.table`` format
-=========================
+-------------------------
 
 ``core.table`` reads artifacts declared with its own namespaced
 format — ``format: core.table`` in the manifest.  The format is a
@@ -33,55 +128,8 @@ The file is delimited text, parsed under the placement's ``sep``:
 * with ``header: false``, every row is data and the column count
   comes from the first row, so the file needs at least one row.
 
-Parameters
-==========
-
-.. list-table::
-   :header-rows: 1
-
-   * - Key
-     - Required
-     - Meaning
-   * - ``artifact``
-     - yes
-     - The artifact's *type*; must be declared with format
-       ``core.table``.
-   * - ``sep``
-     - no
-     - The field delimiter: a single character, default ``"\t"``.
-       Declare the file's actual delimiter — a uniformly wrong
-       ``sep`` reads every line as one field and renders a misread
-       one-column table (see `Honest boundaries`_).
-   * - ``header``
-     - no
-     - Whether the first row is a header; default ``true``.  The
-       one shape fact the bytes cannot declare — a header row is
-       indistinguishable from a row of text — so the author declares
-       it.  ``header: false`` renders positional labels
-       (``Column 1``, ...), the file's own declaration of position as
-       meaning.
-   * - ``columns``
-     - no
-     - Presentation policy: which columns appear and in what order,
-       selected by header name.  Given, it must be a non-empty list
-       of unique non-empty strings; membership is checked against
-       the artifact's own header, where the data lives.
-       ``header: false`` and ``columns`` together are refused:
-       positional selection would be invented vocabulary.
-   * - ``caption``
-     - no
-     - Author prose, rendered under the table.
-
-The honest-data split, as throughout: the rows and the header are
-data — read verbatim, cells escaped and never reinterpreted; the
-producer's own formatting is data.  ``sep`` and ``header`` are
-shape policy, ``columns`` presentation policy, ``caption``
-authorship.  Placement keys — ``title``, ``on_unavailable`` — live
-at the placement level, never inside ``parameters:``; a key nested
-by accident teaches the move.
-
 The index-column convention
-===========================
+---------------------------
 
 A header whose first cell is blank is the producer declaring the
 first column a row index — in-band, the widespread tabular
@@ -92,7 +140,7 @@ after it.  A blank header cell anywhere else is refused — only the
 first position carries meaning.
 
 Sort, filter, copy
-==================
+------------------
 
 The complete table ships in the HTML.  The controls bar — a filter
 input and a copy button — ships with it, display-none until the
@@ -120,15 +168,14 @@ interactive that is not.
   filter-hidden rows are restored, so the printed page shows the
   complete table in its current order.
 
-Teaching
-========
+Outcomes and chrome
+-------------------
 
 Three families, kept distinct — who is wrong decides what the
 reader sees.
 
 .. list-table::
    :header-rows: 1
-   :widths: 26 22 52
 
    * - Family
      - Raised as
@@ -152,8 +199,18 @@ reader sees.
      - ``ArtifactReadError``
      - a plugin failure, collected and shown in place
 
+The table's page chrome is self-hosted through the component
+channel: the stylesheet and the script each inline once per report,
+in first-placement order, exactly when at least one table placement
+renders ``ok`` — the stylesheet into the page's component style
+block under the ``/* core.table */`` banner, the script into its
+component script block under the ``// core.table`` banner, after
+the framework's own scripts so the DOM is established when the
+enhancement runs.  A report without healthy table placements
+carries no table chrome at all.
+
 Honest boundaries
-=================
+-----------------
 
 A uniformly wrong ``sep`` cannot be caught at parse time — nothing
 disagrees.  A comma-delimited file read under the default tab
@@ -165,7 +222,7 @@ against a wider header — which is the mixed-delimiter case the
 parser *can* see.
 
 Example
-=======
+-------
 
 A manifest declaration and a layout placement, together:
 

@@ -108,6 +108,10 @@ failure a caller might catch is one type. Beneath it: `ManifestError`
 `ArtifactReadError`), and `RenderError` — *environment failures
 only* (missing chrome files, plotly not installed): with a validated
 document, rendering has no decisions left.
+`PluginAssetError` — a shipped plugin asset is missing or
+unreadable: a broken installation, raised at import where the
+plugin's chrome constants read their files (the core loader is
+`core.assets.read_core_asset`).
 
 Rules: teaching messages carry the offending value and the fix;
 wrapped errors name the file and the cause; a raw `ValidationError`
@@ -146,6 +150,19 @@ honest both ways: the success count *and* the refusal message.
 **Component CSS** — theme tokens only (`var(--coda-*)`); `coda-js`
 gates interactive affordances; a print block honors the panels law.
 
+**Component chrome storage** — shipped chrome lives as real files:
+`core/assets/<component>.css` / `.js`, read once at import through
+`core.assets.read_core_asset` (`importlib.resources` — the same
+door a third-party plugin uses for its own package data).  The
+declaration constants stay `Final[str]` and carry the docstrings —
+the declaration site is the documentation site, and autodoc reads
+them; the files carry exactly what ships: no banners (the channel
+stamps those), no leading blank line, exactly one trailing
+newline.  A missing or unreadable asset is `PluginAssetError` — a
+broken installation, taught at import, cause chained.  New core
+components create the files from day one: chrome never lands as a
+string literal to be extracted later.
+
 **Docs (rst)** — `-W` is live: warnings fail the build. list-table
 continuation lines align at the *content column*, not the dash
 column. Tables default to auto widths; `:widths:` only on proven
@@ -176,6 +193,10 @@ Small steps, each closing green — no red windows, ever:
   is a valid bundle by construction.
 - **Transcribe, don't paraphrase.** Pins on teaching messages are
   byte-for-byte from the landed source.
+- **Docs that quote shipped strings are pins.** When a shipped
+  metadata or message string changes, grep `docs/` for the old text
+  and shift the quote knowingly — `index.rst`'s plugin-description
+  quote drifted one growth behind until a reference paste caught it.
 - **Census pins state their arithmetic.** A page with inlined
   scripts has *two census authors*: count js-carried constants and
   class strings alongside markup occurrences.
@@ -183,6 +204,12 @@ Small steps, each closing green — no red windows, ever:
   growth, the test comment documents the shift: was → now → why.
 - **Design pins** mark deliberate non-features so a future "fix" is
   a conscious decision.
+- **Chrome wiring is pinned both ways.** `test_core_assets.py`
+  asserts a test-time `read_core_asset` read equals the import-time
+  constants (wrong-file wiring and a stale hardcoded constant both
+  redden), the byte discipline (no leading blank line, exactly one
+  trailing newline), and the broken-install teaching with the cause
+  chained.
 - **Grammar moves home.** When a grammar moves to its owning
   component, its test family moves with it; the old home keeps only
   what is still genuinely its own.
@@ -215,6 +242,10 @@ garbage, mid-rule garbage tokens, self-correcting fragments —
 **stop, reject the whole block, and retry fresh in a new turn**:
 the design is not the failure; the emission is. Never ask the user
 to splice corrupted drafts.
+The storage pattern retires the largest risk zone — core chrome is
+edited as real `.css`/`.js` files, with no string-literal emission
+path; the discipline still governs whatever remains in strings
+(test fixtures, generated style blocks, third-party literals).
 
 ### The ledger
 
@@ -235,6 +266,9 @@ written down will be re-learned the expensive way.
 - Core roster: `core.kpi` (TILE, css) and `core.table` (CARD, css +
   js — the js channel's first consumer). The roster is append-only:
   new components are appended, never inserted.
+  Chrome ships as files under `core/assets/` (`kpi.css`,
+  `table.css`, `table.js`), read once at import; the loader's suite
+  is `test_core_assets.py`.
 - Store readers: `read_json`, `read_text`, `read_bytes` (public; the
   binary door for plugin-defined formats).
 

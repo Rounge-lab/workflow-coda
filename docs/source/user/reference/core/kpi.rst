@@ -37,28 +37,11 @@ Placing it
              unit: x
 
 A placement carries the component id, an optional per-instance
-``title``, and the component's ``parameters``.  Two placement gates
-decide what happens when things are absent — and both are placement
-keys, siblings of ``id`` and ``title``, never parameters:
-
-``on_missing``
-    The resolution gate: does this environment offer the component at
-    all?  An id that resolves to nothing (not installed, or the
-    plugin gated out by the manifest's schema version) follows the
-    policy — the default is ``fail``, because a dead id is probably
-    an authoring mistake.  See
-    :py:class:`~workflow_coda.layout.MissingPolicy`.
-
-``on_unavailable``
-    The outcome gate: the component resolved and rendered, but the
-    run produced no data for it — the artifact is undeclared, or the
-    key is absent.  The default is ``notice``, because missing data
-    may be expected pipeline behavior.  See
-    :py:class:`~workflow_coda.layout.UnavailablePolicy`.
-
-A policy nested inside ``parameters:`` is an unknown parameter key:
-the KPI's closed vocabulary teaches the move rather than silently
-ignoring it — see the parameter table below.
+``title``, and the component's ``parameters``.  The two placement
+gates — ``on_missing`` and ``on_unavailable`` — decide what happens
+when things are absent; they are placement keys, siblings of
+``id`` and ``title``, never parameters, and shared by every
+component: described once in :ref:`Placement gates <core-placement-gates>`.
 
 Parameters
 ----------

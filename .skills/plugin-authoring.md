@@ -259,6 +259,18 @@ Everything above, plus:
 - Contribute css/js as **bare constants** — no banners; the channel
   stamps `/* <id> */` and `// <id>` at assembly, once per report,
   merged. The once-per-report dedup is the channel's job, not yours.
+- Contribute chrome as **real files** at this tier: core ships
+  `core/assets/<id>.css` and `.js`, read once at import through
+  `core.assets.read_core_asset`; the constants carry the
+  docstrings, the files carry exactly what ships, and the channel
+  stamps the banners as always.  Third parties may keep small
+  literal chrome at the minimum bar — adopt the files pattern once
+  css or js outgrows a literal (`importlib.resources` on your own
+  package is the whole door).
+- Theme tokens only (`var(--coda-*)`); class names under your
+  plugin's namespace (`coda-<plugin_id>-…` — the user docs' prefix
+  rule; core alone owns bare `coda-*`); never restyle framework
+  classes.
 
 ### Exemplary tests
 
