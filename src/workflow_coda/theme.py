@@ -1,9 +1,8 @@
 """Design-token theming for generated reports.
 
 Every visual element of a report draws its colors from a single validated
-theme: the page CSS, plugin-generated figures, and report JavaScript.  A
-theme is a set of semantic tokens, decided at report build time, and it is
-injected in two places: as ``--wc-*`` CSS custom properties emitted by the
+theme: a set of semantic tokens, decided at report build time, and it is
+injected in two places: as ``--coda-*`` CSS custom properties emitted by the
 report template, and as ``context.theme`` on the render context handed to
 plugins.
 

@@ -30,10 +30,13 @@ def test_default_theme_is_valid() -> None:
 
 
 def test_valid_theme_parses() -> None:
+    # The payload factory derives from the default theme, so the
+    # round trip pins against it — palette values derive, never
+    # hard-code; a theme edit is never a test sweep.
     theme = Theme.model_validate(make_theme_payload())
     assert theme.name == "default"
-    assert theme.colors["primary"] == "#0d6efd"
-    assert theme.series == ("#0d6efd", "#d63384", "#fd7e14", "#20c997", "#6610f2")
+    assert theme.colors["primary"] == DEFAULT_THEME.colors["primary"]
+    assert theme.series == DEFAULT_THEME.series
 
 
 def test_series_coerces_list_to_tuple() -> None:

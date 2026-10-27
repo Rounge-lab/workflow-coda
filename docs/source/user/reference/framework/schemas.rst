@@ -2,18 +2,21 @@
 Schemas
 =======
 
-The report framework reads two versioned files: the **manifest**,
+The report framework reads two versioned files — the **manifest**,
 the stable interface an artifact producer (the pipeline) writes, and
-the **layout**, the report author's composition of the report.  This
-page documents both as the files are written — the wire grammar,
-every field, its shape, and its meaning.  The same models are
-documented for plugin developers as the Python API: :doc:`api/manifest`
-and :doc:`api/layout`.
+the **layout**, the report author's composition of the report — and,
+when the layout declares one, a **theme** file of design tokens.
+This page documents all three as the files are written — the wire
+grammar, every field, its shape, and its meaning.  The same models
+are documented for plugin developers as the Python API:
+:doc:`api/manifest` and :doc:`api/layout`.
 
-Every model in both files is strict: unknown keys are rejected,
-values are never coerced, and the versions are gated — a file written
-against an unknown schema version fails validation, because an
-unrecognized document cannot be validated or consumed correctly.
+Every model is strict: unknown keys are rejected and values are
+never coerced, and the two versioned files gate their versions — a
+file written against an unknown schema version fails validation,
+because an unrecognized document cannot be validated or consumed
+correctly.  The theme file has no version to gate: it is a data file
+of design tokens, validated by shape alone.
 
 The report manifest
 -------------------
@@ -231,7 +234,8 @@ Identity
      - no
      - relative path
      - Theme file; omitted means the built-in default theme (with a
-       diagnostic).  Declared, the file must load.
+       diagnostic).  Declared, the file must load — the theme file's
+       grammar is documented in its own section below.
    * - ``logo``
      - no
      - relative path
@@ -389,5 +393,144 @@ An example layout
 The layout example reads the manifest example's artifact — the two
 files are a buildable pair.
 
-Both files meet at one command: ``workflow-coda build MANIFEST
+The theme file
+--------------
+
+The layout's ``theme:`` key is the only door to the theme file.
+Omitted, the report renders with the built-in default theme (and a
+diagnostic noting it); declared, the file must load — the same
+declared-then-strict rule as ``logo`` and ``favicon``.
+
+Structure
+.........
+
+.. list-table::
+   :header-rows: 1
+   :widths: 16 10 24 50
+
+   * - Key
+     - Required
+     - Shape
+     - Meaning
+   * - ``name``
+     - yes
+     - non-empty string
+     - The theme's human-readable name (the default-theme
+       diagnostic names it).
+   * - ``colors``
+     - yes
+     - object: token → ``#rrggbb``
+     - The design tokens.  Must declare every core token (below);
+       may declare additional tokens, each emitted as a CSS custom
+       property for styles and plugins to use.
+   * - ``series``
+     - yes
+     - list of at least two colors
+     - The categorical palette for plots and repeated-color
+       contexts; entries emit as ``--coda-series-N``, 1-based.
+   * - ``font_body``
+     - no
+     - CSS ``font-family`` list
+     - The report body font; defaults to the system stack.  Family
+       names only — ``url(...)`` fetches are refused: reports are
+       self-contained and load no fonts.
+   * - ``font_heading``
+     - no
+     - CSS ``font-family`` list
+     - The heading font; defaults to the body stack.
+
+The core color tokens
+.....................
+
+Every theme declares these eleven tokens; the required set is
+exactly this list.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 14 86
+
+   * - Token
+     - Meaning
+   * - ``background``
+     - The page background — and the header bar's ink (the bar wears
+       ``primary``).
+   * - ``surface``
+     - Cards', groups', and panels' background.
+   * - ``border``
+     - Hairlines: card and group borders, section rules, badges.
+   * - ``primary``
+     - The header bar's color; the theme's principal accent.
+   * - ``accent``
+     - Interactive highlights (tab hover).
+   * - ``success`` / ``warning`` / ``danger``
+     - The judgment colors: threshold-supplied plates and inks, the
+       notice and failure card rules, problem badges.
+   * - ``muted``
+     - Secondary ink: footers, diagnostics, notice text.
+   * - ``text-dark`` / ``text-light``
+     - The ink pair for colored surfaces — see below.
+
+Ink is chosen, not declared
+...........................
+
+A single ink color cannot serve every surface it might sit on —
+light text fails on light plates, dark text on dark ones — so the
+theme declares a *pair*, and the framework picks: WCAG contrast
+between each candidate and the surface's luminance, computed at
+build time.  Components receive the choice through the render
+context — ``theme.text_on(background)`` returns the stronger ink
+for one background (a gradient passes both stops); plugin css never
+picks its own.
+
+The page's own body ink follows the same rule and is **derived**:
+the renderer emits ``--coda-text`` as the pair's contrast winner
+against the theme's ``background``, beside one ``--coda-<token>``
+per declared color, the ``--coda-series-N`` entries, and the two
+font stacks.  The ``text`` token is retired — no longer required,
+and themes need not declare it.  A theme that still declares
+``text`` keeps its own ink: declared tokens ride through, and the
+derivation steps aside.
+
+Loading rules
+.............
+
+The theme file is read as UTF-8, parsed through the same strict YAML
+loader as the layout — duplicate mapping keys are rejected, and
+booleans are booleans — and validated.  Colors are exactly
+``#rrggbb`` (six hex digits, case preserved as written); in YAML
+the leading ``#`` starts a comment, so colors must be quoted:
+``background: "#10141a"``.  Token names are lowercase kebab-case.
+Missing core tokens are reported together, sorted; unknown
+top-level keys are rejected.  Every failure is one teaching error
+naming the theme file and the layout that declared it.
+
+An example theme
+................
+
+.. code-block:: yaml
+
+   name: midnight
+   colors:
+     background: "#10141a"
+     surface: "#1a2029"
+     border: "#2c3542"
+     primary: "#6e91d2"
+     accent: "#acc6f5"
+     success: "#75a941"
+     warning: "#ece860"
+     danger: "#d2574c"
+     muted: "#8b95a1"
+     text-dark: "#10141a"
+     text-light: "#f5f7fa"
+   series:
+     - "#6e91d2"
+     - "#f38d4d"
+     - "#75a941"
+
+A dark theme, deliberately: the derived body ink is the pair's light
+color against the dark ``background``, and no ``text`` token is
+declared — the derivation owns it.  Declare it from the layout with
+``theme:`` and the path to this file.
+
+The files meet at one command: ``workflow-coda build MANIFEST
 LAYOUT`` (:doc:`cli`).

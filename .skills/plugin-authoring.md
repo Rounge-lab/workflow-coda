@@ -207,6 +207,20 @@ it never silently adapts.
 - Enhancement chrome is hidden until `coda-js`; anything hidden by
   script for viewing is restored under print.
 
+### Ink: text on colors
+
+Ink on a colored surface is chosen, never declared: call
+`context.theme.text_on(background)` — one background for a solid
+plate, both stops for a gradient — and interpolate the returned
+`#rrggbb` into your markup or css. The theme's light-or-dark pair
+resolves by WCAG contrast at build time; you never pick which.
+Direct token reads (`theme.colors[...]`) are for declared color
+roles — including your own custom tokens — and your css may
+reference any emitted property (`var(--coda-muted)`, your tokens,
+the derived `var(--coda-text)`). The `text` token is retired:
+`--coda-text` is now a derived page property — read it, but never
+assume it suits a colored surface; that is what `text_on` is for.
+
 ### Icons, if you ship them
 
 Optional — a plugin with no icons declares nothing, and a layout

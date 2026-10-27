@@ -603,12 +603,25 @@ def test_repeated_markers_repeat_the_panel() -> None:
 
 
 def test_default_theme_becomes_custom_properties() -> None:
+    # Palette pins derive from the theme: a theme edit is never a
+    # test sweep.  The boundary pins derive too — the first and
+    # last series entries emit, the index one past the end does
+    # not — so the palette's length is free to change.  And
+    # --coda-text is derived, not declared (the retired token): the
+    # loop over the theme's colors can no longer cover it, so the
+    # derivation is pinned directly — the theme's light-or-dark
+    # pair, contrast-picked against the page background.
     html = render_report(make_document())
     for token, color in DEFAULT_THEME.colors.items():
         assert f"--coda-{token}: {color};" in html
-    assert "--coda-series-1: #0d6efd;" in html
-    assert "--coda-series-5: #6610f2;" in html
-    assert "--coda-series-6" not in html
+    body_ink = DEFAULT_THEME.text_on(DEFAULT_THEME.colors["background"])
+    assert f"--coda-text: {body_ink};" in html
+    assert f"--coda-series-1: {DEFAULT_THEME.series[0]};" in html
+    assert (
+        f"--coda-series-{len(DEFAULT_THEME.series)}: {DEFAULT_THEME.series[-1]};"
+        in html
+    )
+    assert f"--coda-series-{len(DEFAULT_THEME.series) + 1}:" not in html
     assert "system-ui" in html
 
 

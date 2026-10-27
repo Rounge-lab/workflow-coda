@@ -226,6 +226,14 @@ Small steps, each closing green — no red windows, ever:
 - **Grammar moves home.** When a grammar moves to its owning
   component, its test family moves with it; the old home keeps only
   what is still genuinely its own.
+- **Palette pins derive from the theme.** Byte-pinning theme colors
+  rots at every palette edit — the second palette edit of the
+  session reddened eleven tests at once. Pin the mapping, derive
+  the value: `DEFAULT_THEME.colors[...]` and `.series[...]`;
+  computed-ink pins mirror `theme.text_on(...)` (the contract: the
+  component asks the theme); series bounds derive from
+  `len(DEFAULT_THEME.series)` — the hardcoded `series-9` bound
+  rotted exactly when the palette grew past nine.
 
 ### Verification rules
 
@@ -298,6 +306,13 @@ written down will be re-learned the expensive way.
   `test_icons.py`, beside the untouched validator pins.
 - Store readers: `read_json`, `read_text`, `read_bytes` (public; the
   binary door for plugin-defined formats).
+  The `text` color token is retired: the body ink is derived at
+  render — `theme.text_on(background)`, emitted as `--coda-text` in
+  the generated `:root` block — and a theme that still declares
+  `text` wins (declared tokens ride through; the derivation steps
+  aside). The required set is eleven tokens: accent, background,
+  border, danger, muted, primary, success, surface, text-dark,
+  text-light, warning.
 
 ## Never
 
