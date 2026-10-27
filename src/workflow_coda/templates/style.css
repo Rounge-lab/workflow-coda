@@ -7,6 +7,10 @@
  * (the core tokens — plus any additional tokens the theme declares),
  * --coda-series-N for the categorical palette, and the two
  * font stacks.
+ * --coda-text is derived rather than declared: the theme's
+ * light-or-dark text pair, contrast-picked against the theme's
+ * background.  A theme that declares its own `text` token (the
+ * retired core token) wins — the declared property rides through.
  * The framework and its core components own the bare coda-*
  * namespace; third-party plugins namespace their classes and
  * properties as coda-<plugin_id>-* to stay clear of the chrome.

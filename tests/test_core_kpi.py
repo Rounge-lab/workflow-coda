@@ -213,8 +213,12 @@ def test_color_must_be_theme_vocabulary(tmp_path: Path) -> None:
     context = _context(_write_bundle(tmp_path))
     with pytest.raises(ValueError, match="must be a theme token this theme declares"):
         render_kpi(context, _info(), _kpi({"color": "shiny"}))
+    # The series bound is the palette's own length — derived, so a
+    # longer palette never silently invalidates the pin (the
+    # hardcoded series-9 rotted exactly this way).
+    beyond = f"series-{len(DEFAULT_THEME.series) + 1}"
     with pytest.raises(ValueError, match="this theme's series palette has"):
-        render_kpi(context, _info(), _kpi({"color": "series-9"}))
+        render_kpi(context, _info(), _kpi({"color": beyond}))
 
 
 def test_unknown_icon_teaches(tmp_path: Path) -> None:
@@ -345,15 +349,19 @@ def test_text_variant_renders_plain_by_default(tmp_path: Path) -> None:
 
 
 def test_explicit_color_inks_the_value(tmp_path: Path) -> None:
+    # Palette values derive from the theme: a theme edit is never a
+    # test sweep.  The pin is the mapping — 'primary' inks the value.
     context = _context(_write_bundle(tmp_path))
     html = _html(context, _kpi({"color": "primary"}))
-    assert '<p class="coda-kpi__value" style="color: #0d6efd;">' in html
+    primary = DEFAULT_THEME.colors["primary"]
+    assert f'<p class="coda-kpi__value" style="color: {primary};">' in html
 
 
 def test_series_colors_resolve(tmp_path: Path) -> None:
     context = _context(_write_bundle(tmp_path))
     html = _html(context, _kpi({"color": "series-2"}))
-    assert 'style="color: #d63384;"' in html  # the default palette's second entry
+    # the palette's second entry
+    assert f'style="color: {DEFAULT_THEME.series[1]};"' in html
 
 
 def test_status_supplies_the_ink_when_uncolored(tmp_path: Path) -> None:
@@ -361,7 +369,8 @@ def test_status_supplies_the_ink_when_uncolored(tmp_path: Path) -> None:
     # KPI wears danger ink without the author choosing it.
     context = _context(_write_bundle(tmp_path))
     html = _html(context, _kpi({"thresholds": {"ok": {"above": 100}}}))
-    assert 'style="color: #dc3545;"' in html
+    danger = DEFAULT_THEME.colors["danger"]
+    assert f'style="color: {danger};"' in html
     assert "coda-kpi--failure" in html
 
 
@@ -373,43 +382,58 @@ def test_explicit_color_overrides_status_ink(tmp_path: Path) -> None:
         context,
         _kpi({"color": "primary", "thresholds": {"ok": {"above": 100}}}),
     )
-    assert 'style="color: #0d6efd;"' in html
+    primary = DEFAULT_THEME.colors["primary"]
+    assert f'style="color: {primary};"' in html
     assert "coda-kpi--failure" in html
 
 
 def test_fill_paints_the_plate_and_computes_readable_ink(tmp_path: Path) -> None:
-    # White text on the dark primary plate — computed, not chosen.
+    # The plate is the theme's primary; the ink is the theme's own
+    # computed choice for that plate — text_on, never a chosen white.
+    # Mirroring text_on pins the contract (the component asks the
+    # theme), not the palette's bytes.
     context = _context(_write_bundle(tmp_path))
     html = _html(context, _kpi({"variant": "fill", "color": "primary"}))
+    plate = DEFAULT_THEME.colors["primary"]
+    ink = DEFAULT_THEME.text_on(plate)
     assert (
-        '<div class="coda-kpi coda-kpi--fill" '
-        'style="background: #0d6efd; color: #ffffff;">' in html
+        f'<div class="coda-kpi coda-kpi--fill" '
+        f'style="background: {plate}; color: {ink};">' in html
     )
 
 
 def test_fill_on_warning_computes_dark_ink(tmp_path: Path) -> None:
-    # The picker is not a hardcoded white: the light warning plate
-    # takes the theme's dark text color.
+    # The picker is not a hardcoded white: whatever the theme's
+    # light-warning plate needs, text_on decides — and the component
+    # wears that, not a constant.
     context = _context(_write_bundle(tmp_path))
     html = _html(context, _kpi({"variant": "fill", "color": "warning"}))
-    assert 'style="background: #ffc107; color: #212529;"' in html
+    plate = DEFAULT_THEME.colors["warning"]
+    ink = DEFAULT_THEME.text_on(plate)
+    assert f'style="background: {plate}; color: {ink};"' in html
 
 
 def test_gradient_paints_both_stops(tmp_path: Path) -> None:
     context = _context(_write_bundle(tmp_path))
     html = _html(context, _kpi({"variant": "gradient", "color": ["primary", "accent"]}))
-    assert "linear-gradient(135deg, #0d6efd, #6610f2); color: #ffffff;" in html
+    first = DEFAULT_THEME.colors["primary"]
+    second = DEFAULT_THEME.colors["accent"]
+    ink = DEFAULT_THEME.text_on(first, second)
+    assert f"linear-gradient(135deg, {first}, {second}); color: {ink};" in html
     assert "coda-kpi--gradient" in html
 
 
 def test_status_can_paint_the_fill(tmp_path: Path) -> None:
     # A threshold policy supplies the plate too: failing, uncolored,
-    # filled — a solid danger card with readable ink.
+    # filled — a solid danger plate with the theme's computed ink.
     context = _context(_write_bundle(tmp_path))
     html = _html(
         context, _kpi({"variant": "fill", "thresholds": {"ok": {"above": 100}}})
     )
-    assert 'style="background: #dc3545; color: #ffffff;"' in html
+    plate = DEFAULT_THEME.colors["danger"]
+    assert (
+        f'style="background: {plate}; color: {DEFAULT_THEME.text_on(plate)};"' in html
+    )
 
 
 # ---------------------------------------------------------------------------

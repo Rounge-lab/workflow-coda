@@ -111,6 +111,13 @@ def _css_tokens(theme: Theme) -> str:
     lines = [":root {"]
     for token, color in theme.colors.items():
         lines.append(f"  --coda-{token}: {color};")
+    if "text" not in theme.colors:
+        # The body ink is derived, not declared: the theme's
+        # light-or-dark pair, contrast-picked against the page
+        # background.  A theme that still declares the retired
+        # `text` token keeps its own ink — the loop above emitted
+        # it, and a declared token wins.
+        lines.append(f"  --coda-text: {theme.text_on(theme.colors['background'])};")
     for index, color in enumerate(theme.series, start=1):
         lines.append(f"  --coda-series-{index}: {color};")
     lines.append(f"  --coda-font-body: {theme.font_body};")

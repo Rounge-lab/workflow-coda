@@ -19,6 +19,7 @@ import json
 from pathlib import Path
 
 from workflow_coda.cli import main
+from workflow_coda.theme import DEFAULT_THEME
 
 _STATS_TYPE = "org.example.stats"
 _FAILED_TYPE = "org.example.failed"
@@ -142,7 +143,8 @@ def test_core_components_render_through_the_cli(tmp_path: Path) -> None:
     assert '<article class="coda-tile" data-component="core.kpi">' in page
     assert '<p class="coda-kpi__title">Mean depth</p>' in page
     assert ">12.4" in page
-    assert 'style="color: #198754;"' in page
+    success = DEFAULT_THEME.colors["success"]
+    assert f'style="color: {success};"' in page
     assert "coda-kpi--ok" in page
     assert 'class="coda-icon"' in page
     assert 'aria-hidden="true"' in page
