@@ -388,6 +388,14 @@ class PluginMetadata:
     """Manifest schema versions this plugin understands, e.g.
     ``frozenset({"0.2.0"})``.  Must be non-empty."""
 
+    icons_package: str | None = None
+    """The plugin's icon package: the importable package whose
+    ``assets/icons/`` directory holds the plugin's shipped SVG icons,
+    each named ``<plugin_id>-<name>.svg``.  ``None`` (the default)
+    contributes no icons — icon shipping is optional; the report
+    builder turns the schema-gated plugins' declarations into the
+    build's icon library."""
+
     def __post_init__(self) -> None:
         """Enforce the id shape and non-empty text fields."""
         if _PLUGIN_ID_PATTERN.fullmatch(self.id) is None:

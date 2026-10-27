@@ -22,7 +22,13 @@ existing fields are not removed.
 from dataclasses import dataclass
 
 from .artifact_store import ArtifactStore
+from .icons import IconLibrary
 from .theme import DEFAULT_THEME, Theme
+
+_EMPTY_ICONS = IconLibrary(())
+"""The icon-free default: direct construction (tests, third-party
+tooling) renders icon-free components honestly; the builder always
+passes the real library."""
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -38,3 +44,7 @@ class RenderContext:
 
     theme: Theme = DEFAULT_THEME
     """The report's design-token theme, defaulting to :data:`DEFAULT_THEME`."""
+
+    icons: IconLibrary = _EMPTY_ICONS
+    """The build's merged icon namespace: unknown names teach as
+    layout errors, shipped icon defects as installation errors."""

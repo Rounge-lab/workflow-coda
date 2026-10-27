@@ -1,22 +1,30 @@
-"""Tests for the framework's icon loader: shipped assets, sanitized.
+"""Tests for the framework's icon library: plugin-owned assets,
+sanitized at load.
 
-The loader is the boundary between the reviewed files under
-assets/icons/ and every rendered report, so its invariants are pinned
-hard: the roster, the embed rewrite, and — above all — the allowlist's
-rejections, each teaching with the offending file named.  A file that
-slips past review carrying a script, a handler, or a reference fails
-here, at load time, never inside a report."""
+The validator is the boundary between the reviewed files under the
+owning plugin's ``assets/icons/`` directory and every rendered
+report, so its invariants are pinned hard: the embed rewrite, and —
+above all — the allowlist's rejections, each teaching with the
+offending file named.  A file that slips past review carrying a
+script, a handler, or a reference fails here, at load time, never
+inside a report.  The library's defect teachings — an unimportable
+declared package, a missing icon directory, the prefix and duplicate
+laws — live in the loader's own suite."""
 
 import pytest
 
 from workflow_coda.icons import (
     Icon,
-    icon_names,
-    load_icon,
+    IconLibrary,
+    IconSource,
     validate_icon_markup,
 )
 
 _NS = "http://www.w3.org/2000/svg"
+
+_CORE_LIBRARY = IconLibrary((IconSource.for_plugin("core", "workflow_coda.core"),))
+"""The real core declaration, as the builder wires it: the roster and
+load pins run against the shipped set itself."""
 
 
 def _svg(body: str) -> str:
@@ -34,7 +42,7 @@ def test_shipped_icon_names() -> None:
     # is a conscious edit here — and an unshipped package-data folder
     # (an empty set) fails loudly rather than quietly emptying
     # every icon request.
-    assert icon_names() == {
+    assert _CORE_LIBRARY.names() == {
         "core-arrow-up",
         "core-arrow-down",
         "core-check",
@@ -43,15 +51,15 @@ def test_shipped_icon_names() -> None:
     }
 
 
-@pytest.mark.parametrize("name", sorted(icon_names()))
+@pytest.mark.parametrize("name", sorted(_CORE_LIBRARY.names()))
 def test_every_shipped_icon_loads(name: str) -> None:
-    assert load_icon(name).name == name
+    assert _CORE_LIBRARY.load(name).name == name
 
 
-def test_load_icon_returns_embed_ready_markup() -> None:
+def test_load_returns_embed_ready_markup() -> None:
     # The loader's rewrite, as properties — ET's serialization order
     # is not ours to pin.
-    markup = load_icon("core-check").markup
+    markup = _CORE_LIBRARY.load("core-check").markup
     assert markup.startswith("<svg ")
     assert markup.endswith("</svg>")
     assert 'viewBox="0 0 24 24"' in markup  # the file's own box rides through
@@ -61,23 +69,20 @@ def test_load_icon_returns_embed_ready_markup() -> None:
     assert 'aria-hidden="true"' in markup  # decorative by contract
     assert 'focusable="false"' in markup
     assert 'class="coda-icon"' in markup
-    assert isinstance(load_icon("core-check"), Icon)
+    assert isinstance(_CORE_LIBRARY.load("core-check"), Icon)
 
 
-def test_load_icon_is_cached_per_process() -> None:
-    # Pins the docstring's contract: removing the cache means the
-    # docstring and this pin both change, together.
-    assert load_icon("core-check") is load_icon("core-check")
+def test_load_is_cached_per_build() -> None:
+    # Knowing shift: was the process-wide cache pin, now the
+    # per-build one — the library owns the build's cache; the
+    # package loader underneath remains process-cached, so the
+    # identity pin holds through both layers.
+    assert _CORE_LIBRARY.load("core-check") is _CORE_LIBRARY.load("core-check")
 
 
 def test_unknown_icon_teaches_with_the_roster() -> None:
     with pytest.raises(ValueError, match="unknown icon 'core-nope'"):
-        load_icon("core-nope")
-
-
-def test_icon_names_are_kebab_case() -> None:
-    with pytest.raises(ValueError, match="icon names are lowercase kebab-case"):
-        load_icon("Arrow_Up")
+        _CORE_LIBRARY.load("core-nope")
 
 
 # ---------------------------------------------------------------------------

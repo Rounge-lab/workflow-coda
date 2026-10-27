@@ -101,10 +101,11 @@ def get_plugin() -> ReportPlugin:
             version=metadata.version("workflow-coda"),
             description=(
                 "Generally useful report components shipped with "
-                "workflow-coda: headline metrics, and more as the core "
-                "grows."
+                "workflow-coda: headline metrics and tables, and more "
+                "as the core grows."
             ),
             supported_schema_versions=frozenset({"0.2.0"}),
+            icons_package="workflow_coda.core",
         ),
         components=(_KPI, _TABLE),
     )

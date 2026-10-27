@@ -13,8 +13,10 @@ Its parameter grammar follows the honest-data law:
 * *caption* is authorship: prose, honest because visibly prose;
 * *color*, *variant*, *icon*, and *icon_position* are presentation:
   colors resolve from the report's theme (token names or series
-  entries — never literals), and icons load from the framework's
-  shipped, sanitized set, so the report stays self-contained.
+  entries — never literals), and icons load from the build's icon
+  library through the render context — every installed plugin's
+  shipped, sanitized, namespaced icons — so the report stays
+  self-contained.
 * the vocabulary is closed: unknown parameter keys teach at the
   parse boundary — typos with a closest-match suggestion, and
   placement keys (``on_unavailable`` and friends) with the
@@ -65,7 +67,7 @@ from ..components import (
 )
 from ..context import RenderContext
 from ..errors import ArtifactUnavailableError
-from ..icons import Icon, load_icon
+from ..icons import Icon
 from ..manifest.artifact import ArtifactFormat
 from ..theme import ColorHex, Theme
 
@@ -559,9 +561,9 @@ def render_kpi(
     parameters: ComponentParameters,
 ) -> RenderedComponent:
     """Render one headline number: data from the store, policy from
-    the layout, color from the theme, icons from the framework — the
-    whole card, the resolved title included, because the KPI is a
-    ``TILE`` component.
+    the layout, color from the theme, icons from the build's icon
+    library — the whole card, the resolved title included, because
+    the KPI is a ``TILE`` component.
 
     The orchestrator only sequences the stories: parse the placement's
     parameters (:func:`_parse_spec`), read the artifact value
@@ -573,7 +575,7 @@ def render_kpi(
     unavailable notice here, where the outcome vocabulary lives.
     """
     spec = _parse_spec(parameters)
-    icon = load_icon(spec.icon_name) if spec.icon_name is not None else None
+    icon = context.icons.load(spec.icon_name) if spec.icon_name is not None else None
     try:
         value = _read_value(context, spec)
     except ArtifactUnavailableError as e:

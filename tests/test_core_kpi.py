@@ -22,6 +22,7 @@ from workflow_coda.components import (
 )
 from workflow_coda.context import RenderContext
 from workflow_coda.core.kpi import render_kpi
+from workflow_coda.icons import IconLibrary, IconSource
 from workflow_coda.theme import DEFAULT_THEME
 
 _STATS_TYPE = "org.example.stats"
@@ -86,8 +87,14 @@ def _write_bundle(
 
 
 def _context(store: ArtifactStore) -> RenderContext:
-    """The render context for one bundle under the default theme."""
-    return RenderContext(store=store, theme=DEFAULT_THEME)
+    """The render context for one bundle under the default theme,
+    wired with the real icon library exactly as the builder wires
+    it: core's own declaration."""
+    return RenderContext(
+        store=store,
+        theme=DEFAULT_THEME,
+        icons=IconLibrary((IconSource.for_plugin("core", "workflow_coda.core"),)),
+    )
 
 
 def _kpi(overrides: ComponentParameters | None = None) -> ComponentParameters:

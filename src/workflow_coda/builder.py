@@ -12,7 +12,10 @@ one report document.
 3. Gate plugins by the manifest's schema version.  Excluded plugins do
    not render; placements that reference them are named — with both
    sides' versions — in the failure or diagnostic the ``on_missing``
-   policy chooses.
+   policy chooses.  The gated plugins' icon declarations are also
+   assembled here, into the build's icon library: a gated-out
+   plugin's icons are unaddressable, and its defects must not fail
+   an unrelated report.
 4. Load the theme and embed the declared assets, both under the
    declared-then-strict rule: omitted means default theme and missing
    logo/favicon, each recorded as an informational diagnostic;
@@ -44,6 +47,7 @@ from .assets import embed_asset
 from .components import ComponentStatus, PlacementInfo, ReportComponent
 from .context import RenderContext
 from .errors import ComponentUnavailableError, LayoutError
+from .icons import IconLibrary, IconSource
 from .layout import (
     CardNode,
     ComponentPlacement,
@@ -431,10 +435,14 @@ def build_report(
     Raises :class:`~workflow_coda.errors.LayoutError` for authoring
     problems (the layout file, the theme file it declares, declared
     image assets), :class:`~workflow_coda.errors.PluginLoadError` /
-    ``PluginConflictError`` for a broken plugin environment, and
-    :class:`~workflow_coda.errors.ComponentUnavailableError` when the
-    ``fail`` policy meets an unresolvable placement.  Plugin bugs
-    never propagate — they become ``failed`` entries and diagnostics.
+    ``PluginConflictError`` for a broken plugin environment,
+    :class:`~workflow_coda.errors.PluginAssetError` for a declared
+    icon package that is not importable or whose icons break the
+    namespace laws (a broken installation, not an authoring
+    problem), and :class:`~workflow_coda.errors.ComponentUnavailableError`
+    when the ``fail`` policy meets an unresolvable placement.  Plugin
+    bugs never propagate — they become ``failed`` entries and
+    diagnostics.
     """
     if registry is None:
         registry = PluginRegistry.load()
@@ -470,9 +478,10 @@ def build_report(
     )
 
     # Plugin gating and the walk's resolution tables.
+    gated_plugins = registry.plugins_supporting(manifest.schema_version)
     gated: dict[str, tuple[ReportPlugin, ReportComponent]] = {
         component.id: (plugin, component)
-        for plugin in registry.plugins_supporting(manifest.schema_version)
+        for plugin in gated_plugins
         for component in plugin.components
     }
     full: dict[str, tuple[ReportPlugin, ReportComponent]] = {
@@ -480,7 +489,15 @@ def build_report(
         for plugin in registry.plugins
         for component in plugin.components
     }
-    context = RenderContext(store=store, theme=theme)
+    # The icon library: the gated plugins' declarations, assembled
+    # hard-fail — a declared icon package that is not importable, or
+    # whose icons break the namespace laws, is a broken installation.
+    icon_sources = [
+        IconSource.for_plugin(plugin.metadata.id, plugin.metadata.icons_package)
+        for plugin in gated_plugins
+        if plugin.metadata.icons_package is not None
+    ]
+    context = RenderContext(store=store, theme=theme, icons=IconLibrary(icon_sources))
     state = _WalkState(
         gated=gated,
         full=full,
