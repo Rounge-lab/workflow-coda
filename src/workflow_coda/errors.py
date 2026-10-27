@@ -125,3 +125,9 @@ class RenderError(WorkflowCodaError):
     rendering, so the correction clock is the environment — install
     or reinstall — not the layout, manifest, or plugins.
     """
+
+
+class PluginAssetError(WorkflowCodaError):
+    """A plugin's shipped asset is missing or unreadable — a broken
+    installation, not an authoring failure.  Raised at import, where
+    the plugin's chrome constants are read."""

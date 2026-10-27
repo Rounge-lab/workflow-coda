@@ -1,0 +1,100 @@
+.coda-table__controls {
+  display: none;
+}
+
+.coda-js .coda-table__controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0 0 0.75rem;
+  font-size: 0.9em;
+}
+
+.coda-table__filter,
+.coda-table__copy {
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--coda-border);
+  border-radius: 4px;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+}
+
+.coda-table__copy {
+  padding: 0.15rem 0.75rem;
+  cursor: pointer;
+}
+
+.coda-table__copy:hover {
+  background: var(--coda-accent);
+  /* readable ink on the accent plate, as the KPI computes for the same pair */
+  color: #ffffff;
+}
+
+.coda-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.coda-table th,
+.coda-table td {
+  padding: 0.35rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--coda-border);
+}
+
+.coda-table thead th {
+  border-bottom: 2px solid var(--coda-border);
+  white-space: nowrap;
+}
+
+.coda-table thead th button {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.coda-js .coda-table thead th button::after {
+  content: " ⇅";
+  opacity: 0.4;
+}
+
+.coda-js .coda-table thead th[aria-sort="ascending"] button::after {
+  content: " ▲";
+  opacity: 1;
+}
+
+.coda-js .coda-table thead th[aria-sort="descending"] button::after {
+  content: " ▽";
+  opacity: 1;
+}
+
+.coda-table__caption {
+  margin: 0.5rem 0 0;
+  font-size: 0.9em;
+  opacity: 0.75;
+}
+
+.coda-table--filtered {
+  display: none;
+}
+
+@media print {
+  .coda-js .coda-table__controls {
+    display: none !important;
+  }
+
+  .coda-table--filtered {
+    display: table-row !important;
+  }
+
+  .coda-js .coda-table thead th button::after {
+    content: none !important;
+  }
+}

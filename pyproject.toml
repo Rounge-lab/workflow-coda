@@ -54,7 +54,12 @@ include-package-data = true
 where = ["src"]
 
 [tool.setuptools.package-data]
-workflow_coda = ["templates/*", "assets/icons/*.svg"]
+workflow_coda = [
+    "templates/*",
+    "assets/icons/*.svg",
+    "core/assets/*.css",
+    "core/assets/*.js",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
