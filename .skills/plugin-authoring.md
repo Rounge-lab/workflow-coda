@@ -49,10 +49,13 @@ def get_plugin() -> ReportPlugin:
 - The factory returns a **fresh plugin on every call** — it is a
   factory, not a singleton (the framework's own plugin is pinned on
   exactly this).
-- Register the factory in your package's entry points. The
-  entry-point **group name is defined by the framework's registry** —
-  copy it from the framework's packaging (`pyproject.toml`) or the
-  registry's source. Do not guess it.
+- Register the factory in your package's entry points, under the
+  framework's group **`workflow_coda.plugins`**:
+
+  ```toml
+  [project.entry-points."workflow_coda.plugins"]
+  my_bio = "my_bio.plugin:get_plugin"
+  ```
 - `supported_schema_versions` must be honest: the builder gates
   every placement against the manifest's schema version and
   *excludes* your component with a diagnostic naming both versions
@@ -204,6 +207,30 @@ it never silently adapts.
 - Enhancement chrome is hidden until `coda-js`; anything hidden by
   script for viewing is restored under print.
 
+### Icons, if you ship them
+
+Optional — a plugin with no icons declares nothing, and a layout
+that asks for one teaches honestly. When you do ship icons:
+
+- Declare the package on your metadata:
+  `icons_package="my_bio"` — the importable package whose
+  `assets/icons/` directory holds your SVGs. An empty directory
+  is legal (it ships nothing); a missing one under a declaration
+  is a broken installation.
+- Name every file `<plugin_id>-<name>.svg`. The prefix is law,
+  enforced when the report's icon index is assembled: a mis-named
+  file or a cross-plugin duplicate fails the build as
+  `PluginAssetError` — a defect in your installation, never the
+  author's layout.
+- Each file is plain SVG declaring a `viewBox`; the framework
+  sanitizes it at first use through the public
+  `validate_icon_markup` (shapes, groups, SMIL animation —
+  nothing else rides).
+- Load icons in your render through the context —
+  `context.icons.load(name)` — cached per build; an unknown name
+  teaches as the author's typo. Never read your icon files
+  yourself.
+
 ### Figures, if you chart
 
 Use the framework's figure constructor,
@@ -272,6 +299,15 @@ Everything above, plus:
   rule; core alone owns bare `coda-*`); never restyle framework
   classes.
 
+### Icon shipping
+
+- Core ships the built-in icon set under `core/assets/icons/` —
+  `core-` prefixed, sanitized through the public validator,
+  declared through the same `icons_package` field third parties
+  use, and served through the context's library like anyone
+  else's: the reference implementation of plugin-owned icons, no
+  private doors.
+
 ### Exemplary tests
 
 - The suite in the framework's house pattern (see
@@ -315,3 +351,5 @@ Everything above, plus:
 - Never claim schema-version support you have not tested.
 - Never let a plugin's script make the page a lie: if scripting is
   off, the reader still reads everything.
+- Never load or sanitize icons outside `context.icons` — the
+  library owns caching, teaching, and sanitization.

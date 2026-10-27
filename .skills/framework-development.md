@@ -77,9 +77,10 @@ of artifact files; the renderer is a pure function of the document.
 | `manifest/` | The envelope models (`ReportManifest`, `ProducerMetadata`, `ArtifactDeclaration`), the constrained type aliases, and `load_manifest` — which wraps every OS/JSON/pydantic failure in `ManifestError` with the cause chained, rejects a leading BOM, and pre-checks the declared schema version with a teaching message. |
 | `artifact_store` | `ArtifactStore`: `require(type)` resolves and gates; `read_json` / `read_text` / `read_bytes` are the only artifact readers. |
 | `components` | The component and plugin value models, the `RenderedComponent` outcomes, and `reject_unknown_parameters` (typo suggestions; the nested-placement-key teaching). |
-| `context` | `RenderContext(store, theme)` — what a render function receives. |
+| `context` | `RenderContext(store, theme, icons)` — what a render function receives: the store, the theme, and the build's merged icon library (an empty default for direct construction; the builder wires the real one from the gated plugins' declarations). |
 | `theme` | Design tokens, rendered as `--coda-*` custom properties; additional tokens are usable by plugin css automatically. |
-| `report` / the builder | The report document model and its assembly: plugin resolution, schema-version gating, `on_missing` placement policy, diagnostics collection, version-gate exclusion stories. |
+| `icons` | The icon library: `IconSource` (one plugin's declared, import-probed icon package), `IconLibrary` (the per-build merged name→source index — the two namespace laws, prefix and cross-plugin duplicate, hard-fail at assembly — with lazy, cached loads), and the public `validate_icon_markup`. Icons are plugin-owned files under `assets/icons/`, named `<plugin_id>-<name>.svg`. |
+| `report` / the builder | The report document model and its assembly: plugin resolution, schema-version gating, `on_missing` placement policy, diagnostics collection, version-gate exclusion stories, and the per-build icon library — assembled from the *gated* plugins' declarations, so a gated-out plugin's icon defects cannot fail an unrelated report. |
 | `render` | A pure function of the document: the tree walk, generated split CSS, the page-chrome channel, provenance footer. No registry, no user files, no decisions. |
 | `cli` | `build`: manifest + layout → the written page. |
 | `core/` | The framework's own plugin (`core.kpi`, `core.table`) — dogfooding the same channels third parties use. |
@@ -108,10 +109,13 @@ failure a caller might catch is one type. Beneath it: `ManifestError`
 `ArtifactReadError`), and `RenderError` — *environment failures
 only* (missing chrome files, plotly not installed): with a validated
 document, rendering has no decisions left.
-`PluginAssetError` — a shipped plugin asset is missing or
-unreadable: a broken installation, raised at import where the
-plugin's chrome constants read their files (the core loader is
-`core.assets.read_core_asset`).
+`PluginAssetError` — a shipped plugin asset is broken, all one
+family and never an authoring error: missing or unreadable chrome,
+read at import where the plugin's constants read their files (the
+core loader is `core.assets.read_core_asset`); or a defect on the
+icon side — an unimportable declared icon package, a mis-prefixed
+icon name, a cross-plugin duplicate, an unreadable or
+unsanitizable icon at load.
 
 Rules: teaching messages carry the offending value and the fix;
 wrapped errors name the file and the cause; a raw `ValidationError`
@@ -210,6 +214,15 @@ Small steps, each closing green — no red windows, ever:
   redden), the byte discipline (no leading blank line, exactly one
   trailing newline), and the broken-install teaching with the cause
   chained.
+- **Icon namespace laws are pinned as design decisions.** The
+  library suite pins the two index laws, the family split with
+  causes checked (`ModuleNotFoundError` and `ValueError` pinned
+  exactly; `OSError` by family — its flavor is the platform's),
+  and lazy-by-decision (the index reads names only). The duplicate
+  law has a reason to exist: when one plugin id is a
+  hyphen-prefix of another, a single filename satisfies both
+  prefixes — the index re-checks for exactly that case, as the
+  registry does for component ids.
 - **Grammar moves home.** When a grammar moves to its owning
   component, its test family moves with it; the old home keeps only
   what is still genuinely its own.
@@ -246,6 +259,14 @@ The storage pattern retires the largest risk zone — core chrome is
 edited as real `.css`/`.js` files, with no string-literal emission
 path; the discipline still governs whatever remains in strings
 (test fixtures, generated style blocks, third-party literals).
+A second discipline from the same era: **splice blocks are whole
+syntactic units** — when a delta edits one region of a larger
+unit, emit the enclosing unit in full, or state explicitly which
+parts stand. A block ending at an ambiguous boundary (a
+close-paren that could close either call) has silently dropped a
+required argument and swallowed a raised-family sentence in the
+same landing; mypy named one casualty, a paste-read found the
+other.
 
 ### The ledger
 
@@ -269,6 +290,12 @@ written down will be re-learned the expensive way.
   Chrome ships as files under `core/assets/` (`kpi.css`,
   `table.css`, `table.js`), read once at import; the loader's suite
   is `test_core_assets.py`.
+- Icons are plugin-owned: core's set lives under
+  `core/assets/icons/` (`core-` prefixed), declared through
+  `icons_package` on the plugin metadata and served per build
+  through the context's `IconLibrary`. The module-level
+  `load_icon`/`icon_names` are retired; the library's suite is
+  `test_icons.py`, beside the untouched validator pins.
 - Store readers: `read_json`, `read_text`, `read_bytes` (public; the
   binary door for plugin-defined formats).
 

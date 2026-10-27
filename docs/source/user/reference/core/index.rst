@@ -26,6 +26,11 @@ Identity
   ``get_plugin()`` entry point.
 * **Components:** ``core.kpi`` and ``core.table`` today; the
   roster grows with the framework.
+* **Icons:** ``core`` ships the built-in icon set — ``core-``
+  prefixed SVGs under its own ``assets/icons/``, declared through
+  the plugin's ``icons_package`` field and served through the
+  report's icon library — so ``core.kpi``'s ``icon`` parameter
+  addresses them by name (``core-arrow-up`` and friends).
 
 Schema gating
 -------------
