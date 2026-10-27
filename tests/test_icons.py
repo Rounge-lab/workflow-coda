@@ -11,8 +11,12 @@ inside a report.  The library's defect teachings — an unimportable
 declared package, a missing icon directory, the prefix and duplicate
 laws — live in the loader's own suite."""
 
+from collections.abc import Mapping
+from pathlib import Path
+
 import pytest
 
+from workflow_coda.errors import PluginAssetError
 from workflow_coda.icons import (
     Icon,
     IconLibrary,
@@ -162,3 +166,146 @@ def test_disallowed_attributes_are_rejected(name: str, attribute: str) -> None:
     text = f'<svg xmlns="{_NS}" viewBox="0 0 24 24" {attribute}></svg>'
     with pytest.raises(ValueError, match=f"attribute '{name}' on <svg> is not allowed"):
         validate_icon_markup(text, "test.svg")
+
+
+def _icon_package(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    package: str,
+    files: Mapping[str, str | None],
+) -> None:
+    """A real, importable fixture package shipping icons, so every
+    fixture exercises the import probe and the directory listing —
+    not a hand-built source.  *files* maps icon filename to SVG
+    content; ``None`` writes an empty file, for the index-time laws,
+    which read names only.  Unique package names per test keep
+    ``sys.modules`` clean; monkeypatch removes the path after."""
+    icons = tmp_path / package / "assets" / "icons"
+    icons.mkdir(parents=True)
+    (tmp_path / package / "__init__.py").write_text("", encoding="utf-8")
+    for name, content in files.items():
+        if content is None:
+            (icons / name).touch()
+        else:
+            (icons / name).write_text(content, encoding="utf-8")
+    monkeypatch.syspath_prepend(tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# The library: namespace laws and the defect families
+# ---------------------------------------------------------------------------
+
+
+def test_a_declared_package_must_be_importable() -> None:
+    # The declaration is a claim: an icon package that is not
+    # importable is a broken installation, taught at index build
+    # with the fix — and the ModuleNotFoundError chained as the
+    # cause, so what actually broke survives into the error.
+    with pytest.raises(
+        PluginAssetError, match="but the package is not importable"
+    ) as exc_info:
+        IconSource.for_plugin("bio", "iconfix_absent_package")
+    assert isinstance(exc_info.value.__cause__, ModuleNotFoundError)
+
+
+def test_a_missing_icon_directory_is_a_broken_installation() -> None:
+    # The framework's own package is the natural fixture: after the
+    # move it genuinely ships no assets/icons/ directory — icons live
+    # with their owning plugins now.  A declared source whose
+    # directory is missing is an installation defect, taught with
+    # the source label and the fix; the exact OSError flavor is the
+    # platform's, so only its family is pinned.
+    source = IconSource.for_plugin("broken", "workflow_coda")
+    with pytest.raises(PluginAssetError, match="is missing or unreadable") as exc_info:
+        IconLibrary((source,))
+    assert isinstance(exc_info.value.__cause__, OSError)
+
+
+def test_icon_files_carry_their_plugins_prefix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The prefix is law, enforced at index build on the file itself:
+    # a mis-named icon never reaches a report.  The empty file is
+    # deliberate — index-time laws read names, never contents.
+    _icon_package(tmp_path, monkeypatch, "iconfix_prefix", {"oops.svg": None})
+    source = IconSource.for_plugin("iconfx", "iconfix_prefix")
+    with pytest.raises(PluginAssetError, match="does not carry its plugin's prefix"):
+        IconLibrary((source,))
+
+
+def test_two_plugins_cannot_declare_one_icon(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The prefix law alone cannot prevent this collision — the design
+    # pin this test holds: when one plugin id is a hyphen-prefix of
+    # another ('fake' and 'fake-two'), one filename satisfies both
+    # prefixes, which is exactly why the library re-checks while
+    # building the index, the same defense the registry runs for
+    # component ids.
+    _icon_package(tmp_path, monkeypatch, "iconfix_dupe_a", {"fake-two-dupe.svg": None})
+    _icon_package(tmp_path, monkeypatch, "iconfix_dupe_b", {"fake-two-dupe.svg": None})
+    with pytest.raises(PluginAssetError, match="two plugins declare the icon"):
+        IconLibrary(
+            (
+                IconSource.for_plugin("fake", "iconfix_dupe_a"),
+                IconSource.for_plugin("fake-two", "iconfix_dupe_b"),
+            )
+        )
+
+
+def test_a_corrupt_icon_teaches_at_load_not_at_index(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Lazy by decision, pinned: the index reads names only, so a
+    # corrupt shipped icon harms nothing until addressed — and then
+    # it is the broken-installation family, the validator's own
+    # teaching wrapped, with the ValueError chained as the cause.
+    evil = _svg("<script>alert(1)</script>")
+    _icon_package(tmp_path, monkeypatch, "iconfix_evil", {"iconfx-evil.svg": evil})
+    library = IconLibrary((IconSource.for_plugin("iconfx", "iconfix_evil"),))
+    assert library.names() == frozenset({"iconfx-evil"})  # the index built anyway
+    with pytest.raises(PluginAssetError, match="fails icon validation") as exc_info:
+        library.load("iconfx-evil")
+    assert isinstance(exc_info.value.__cause__, ValueError)
+
+
+def test_an_unreadable_icon_file_teaches_at_load(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The OSError half of the wrap: a directory named like an icon
+    # lists in the index (it ends in .svg) but cannot be read — the
+    # read failure joins the same broken-installation family, and
+    # only the OSError family is pinned, not the platform's flavor.
+    _icon_package(tmp_path, monkeypatch, "iconfix_unread", {})
+    (tmp_path / "iconfix_unread" / "assets" / "icons" / "iconfx-dir.svg").mkdir()
+    library = IconLibrary((IconSource.for_plugin("iconfx", "iconfix_unread"),))
+    with pytest.raises(
+        PluginAssetError, match="unreadable or fails icon validation"
+    ) as exc_info:
+        library.load("iconfx-dir")
+    assert isinstance(exc_info.value.__cause__, OSError)
+
+
+def test_snake_case_plugin_ids_can_ship_icons(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The name grammar is the filenames plus the prefix law — the
+    # old kebab-case pattern died so plugin ids like 'my_plugin'
+    # could ship icons; this is that legality, pinned end to end:
+    # import probe, index, lazy load, and the embed rewrite.
+    leaf = _svg('<path d="M12 3l4 6h-8z"/>')
+    _icon_package(tmp_path, monkeypatch, "iconfix_snake", {"my_plugin-leaf.svg": leaf})
+    library = IconLibrary((IconSource.for_plugin("my_plugin", "iconfix_snake"),))
+    icon = library.load("my_plugin-leaf")
+    assert 'class="coda-icon"' in icon.markup  # sanitized and embed-ready
+
+
+def test_an_empty_library_teaches_honestly() -> None:
+    # The direct-construction default's pins: RenderContext's
+    # icon-free default is exactly IconLibrary(()), so a library with
+    # no sources is that default, and an icon request there teaches
+    # the fact rather than an empty-roster oddity.
+    library = IconLibrary(())
+    assert library.names() == frozenset()
+    with pytest.raises(ValueError, match="no installed plugin ships icons"):
+        library.load("core-check")

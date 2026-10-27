@@ -22,6 +22,9 @@ def test_core_plugin_identity() -> None:
     assert plugin.metadata.name == "Core report components"
     assert plugin.metadata.version == metadata.version("workflow-coda")
     assert plugin.metadata.supported_schema_versions == frozenset({"0.2.0"})
+    # The icon declaration: core ships the framework's icon set
+    # through the same optional field third-party plugins use.
+    assert plugin.metadata.icons_package == "workflow_coda.core"
     assert len(plugin.components) == 2
     kpi = plugin.components[0]
     assert kpi.id == "core.kpi"
