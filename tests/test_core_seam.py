@@ -30,7 +30,7 @@ def _write_bundle(tmp_path: Path) -> Path:
     """A three-artifact bundle: one complete JSON stats file, one
     declared-but-failed artifact whose file need not exist (the
     status check fires before the filesystem is consulted), and one
-    complete core.table-format samples table whose depths are chosen
+    complete core.tabular-format samples table whose depths are chosen
     so numeric and lexicographic sort orders differ — the fixture the
     eyeball session sorts by hand."""
     (tmp_path / "stats.json").write_text(json.dumps({"depth": 12.4}), encoding="utf-8")
@@ -64,7 +64,7 @@ def _write_bundle(tmp_path: Path) -> Path:
                 "type": _SAMPLES_TYPE,
                 "schema_version": "0.1.0",
                 "path": "samples.tsv",
-                "format": "core.table",
+                "format": "core.tabular",
                 "status": "complete",
             },
         ],

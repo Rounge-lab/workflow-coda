@@ -60,7 +60,7 @@ def _write_bundle(
     tmp_path: Path,
     *,
     status: str = "complete",
-    fmt: str = "core.table",
+    fmt: str = "core.tabular",
     content: str = _DEFAULT_TABLE,
     newline: str = "\n",
 ) -> ArtifactStore:
@@ -226,7 +226,7 @@ def test_placement_keys_nested_in_parameters_teach_the_move(
 @pytest.mark.parametrize(
     ("fmt", "pin"),
     [
-        ("json", "core.table reads 'core.table'-format artifacts"),
+        ("json", "core.table reads 'core.tabular'-format artifacts"),
         ("bio.newick", "has format 'bio.newick'"),
     ],
 )

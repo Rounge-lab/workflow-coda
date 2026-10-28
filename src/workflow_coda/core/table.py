@@ -9,12 +9,14 @@ component through the page-chrome channel, enhances the complete
 table in place — sort, filter, copy — so a reader without scripting
 still reads every row, and printing shows the whole table.
 
-The component is the ``core.table`` artifact format's one grammar
-home.  The format is a namespaced plugin convention: the manifest
-declares ``format: core.table`` — a claim whose meaning lives here,
-not in the framework — and the store hands over checksum-verified
-UTF-8 text through ``read_text``, which this module parses under the
-placement's ``sep``.
+``core.tabular`` is the core plugin's namespaced *file format* — a
+delimited-text table, declared in the manifest as
+``format: core.tabular`` — decoupled from any one component, the way
+``json`` is: a claim whose grammar lives in the owning plugin, for
+that plugin's components to interpret.  This module is the format's
+first reader (``core.chart`` is its second); the store hands over
+checksum-verified UTF-8 text through ``read_text``, which this module
+parses under the placement's ``sep``.
 
 The parameter grammar follows the honest-data law:
 
@@ -73,10 +75,11 @@ from ..components import (
 from ..context import RenderContext
 from ..errors import ArtifactReadError, ArtifactUnavailableError
 
-_FORMAT: Final[str] = "core.table"
-"""The artifact format this component reads — its own namespaced
-convention, declared in the manifest as ``format: core.table``: the
-claim whose grammar lives in this module."""
+_FORMAT: Final[str] = "core.tabular"
+"""The tabular file format this component reads — the core plugin's
+namespaced format, declared in the manifest as ``format:
+core.tabular``: a claim whose grammar lives in the core package,
+interpreted by this component and ``core.chart`` alike."""
 
 _TABLE_PARAMETERS: Final[frozenset[str]] = frozenset(
     {"artifact", "caption", "columns", "header", "sep"}
@@ -311,8 +314,8 @@ def _read_table(context: RenderContext, spec: _TableSpec) -> _ParsedTable:
         raise ValueError(
             f"core.table: artifact {spec.artifact_type!r} has format "
             f"'{artifact.declaration.format}'; core.table reads "
-            "'core.table'-format artifacts — declare the artifact's "
-            "format as 'core.table' in the manifest"
+            "'core.tabular'-format artifacts — declare the artifact's "
+            "format as 'core.tabular' in the manifest"
         )
     label = f"{artifact.declaration.id!r} ({spec.artifact_type})"
     entries = _parse_entries(artifact.read_text(), spec.sep, label)
