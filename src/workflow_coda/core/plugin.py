@@ -18,6 +18,7 @@ from typing import Final
 from ..components import ComponentChrome, PluginMetadata, ReportComponent
 from ..plugins import ReportPlugin
 from .assets import read_core_asset
+from .chart import render_chart
 from .kpi import render_kpi
 from .table import render_table
 
@@ -92,6 +93,18 @@ _TABLE: Final[ReportComponent] = ReportComponent(
 """The core plugin's table component"""
 
 
+_CHART: Final[ReportComponent] = ReportComponent(
+    id="core.chart",
+    title="Chart",
+    description="One artifact-backed chart, rendered as an interactive Plotly figure.",
+    render=render_chart,
+    chrome=ComponentChrome.CARD,
+)
+"""The core plugin's chart component: core.tabular data as a
+Plotly figure — the second reader of the tabular format, after
+core.table."""
+
+
 def get_plugin() -> ReportPlugin:
     """The core plugin: workflow-coda's own components."""
     return ReportPlugin(
@@ -101,11 +114,10 @@ def get_plugin() -> ReportPlugin:
             version=metadata.version("workflow-coda"),
             description=(
                 "Generally useful report components shipped with "
-                "workflow-coda: headline metrics and tables, and more "
-                "as the core grows."
+                "workflow-coda: headline metrics, tables, and charts."
             ),
             supported_schema_versions=frozenset({"0.2.0"}),
             icons_package="workflow_coda.core",
         ),
-        components=(_KPI, _TABLE),
+        components=(_KPI, _TABLE, _CHART),
     )
