@@ -157,8 +157,10 @@ def _render(
     fatal, and ``KeyboardInterrupt``/``SystemExit`` still propagate.
     The entry is constructed inside the ``try`` so a render result
     that violates the entry contract is collected as a plugin bug
-    too, not a build crash.  The render call receives the resolved
-    instance title through :class:`PlacementInfo` — the placement's
+    too, not a build crash.  A healthy render's notes merge into the
+    diagnostics ledger after the entry guard has validated the
+    result — informational, in placement order.  The render call
+    receives the resolved instance title through :class:`PlacementInfo` — the placement's
     own when the layout names it, the component declaration's
     default otherwise — so a TILE component can paint it; the entry
     carries the same title plus the component's declared chrome, so
@@ -168,13 +170,22 @@ def _render(
     info = PlacementInfo(title=title)
     try:
         outcome = component.render(context, info, placement.parameters)
-        return ComponentEntry(
+        entry = ComponentEntry(
             kind=EntryKind.RENDERED,
             component_id=placement.id,
             title=title,
             chrome=component.chrome,
             outcome=outcome,
         )
+        for note in outcome.notes:
+            diagnostics.append(
+                Diagnostic(
+                    kind=DiagnosticKind.COMPONENT_NOTE,
+                    subject=placement.id,
+                    message=note,
+                )
+            )
+        return entry
     except Exception as e:  # noqa: BLE001 — the plugin-bug boundary
         error = f"{type(e).__name__}: {e}"
         diagnostics.append(

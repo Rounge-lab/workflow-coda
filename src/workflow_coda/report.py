@@ -86,6 +86,7 @@ class DiagnosticKind(Enum):
     DEFAULT_THEME = "default_theme"
     LOGO_OMITTED = "logo_omitted"
     FAVICON_OMITTED = "favicon_omitted"
+    COMPONENT_NOTE = "component_note"
 
     @property
     def is_problem(self) -> bool:
