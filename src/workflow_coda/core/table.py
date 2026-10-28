@@ -74,6 +74,7 @@ from ..components import (
 )
 from ..context import RenderContext
 from ..errors import ArtifactReadError, ArtifactUnavailableError
+from .parameters import _optional_bool, _optional_text, _required_text, _sep_from
 
 _FORMAT: Final[str] = "core.tabular"
 """The tabular file format this component reads — the core plugin's
@@ -86,57 +87,6 @@ _TABLE_PARAMETERS: Final[frozenset[str]] = frozenset(
 )
 """core.table's accepted parameter vocabulary: the closed set
 :func:`_parse_spec` reads, for the unknown-key teaching."""
-
-
-def _required_text(parameters: ComponentParameters, name: str) -> str:
-    """A required string parameter, or a teaching ``ValueError``."""
-    if name not in parameters:
-        raise ValueError(f"core.table: parameter {name!r} is required")
-    value = parameters[name]
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(
-            f"core.table: parameter {name!r} must be a non-empty string, got {value!r}"
-        )
-    return value
-
-
-def _optional_text(parameters: ComponentParameters, name: str) -> str | None:
-    """An optional string parameter, absent by default."""
-    if name not in parameters:
-        return None
-    value = parameters[name]
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(
-            f"core.table: parameter {name!r}, when given, must be a "
-            f"non-empty string, got {value!r}"
-        )
-    return value
-
-
-def _sep_from(parameters: ComponentParameters) -> str:
-    """The field delimiter: one character, default the tab."""
-    if "sep" not in parameters:
-        return "\t"
-    value = parameters["sep"]
-    if not isinstance(value, str) or len(value) != 1:
-        raise ValueError(
-            f"core.table: parameter 'sep', when given, must be a single "
-            f"character, got {value!r}"
-        )
-    return value
-
-
-def _header_from(parameters: ComponentParameters) -> bool:
-    """Whether the file's first row is a header; the default."""
-    if "header" not in parameters:
-        return True
-    value = parameters["header"]
-    if not isinstance(value, bool):
-        raise ValueError(
-            f"core.table: parameter 'header', when given, must be a "
-            f"boolean, got {value!r}"
-        )
-    return value
 
 
 def _columns_from(parameters: ComponentParameters) -> tuple[str, ...] | None:
@@ -196,11 +146,11 @@ def _parse_spec(parameters: ComponentParameters) -> _TableSpec:
     """
     reject_unknown_parameters("core.table", parameters, _TABLE_PARAMETERS)
     spec = _TableSpec(
-        artifact_type=_required_text(parameters, "artifact"),
-        sep=_sep_from(parameters),
-        header=_header_from(parameters),
+        artifact_type=_required_text("core.table", parameters, "artifact"),
+        sep=_sep_from("core.table", parameters),
+        header=_optional_bool("core.table", parameters, "header", default=True),
         columns=_columns_from(parameters),
-        caption=_optional_text(parameters, "caption"),
+        caption=_optional_text("core.table", parameters, "caption"),
     )
     if spec.columns is not None and not spec.header:
         raise ValueError(

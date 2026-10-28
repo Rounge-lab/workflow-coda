@@ -54,7 +54,6 @@ own, through the grammar helpers shared from the table module):
 
 import html
 import math
-import re
 from dataclasses import dataclass, replace
 from typing import Final, cast
 
@@ -69,6 +68,14 @@ from ..components import (
 from ..context import RenderContext
 from ..errors import ArtifactUnavailableError, RenderError
 from ..theme import ColorHex, Theme
+from .colors import _SERIES_COLOR_PATTERN, _resolve_color
+from .parameters import (
+    _optional_bool,
+    _optional_text,
+    _required_one_of,
+    _required_text,
+    _sep_from,
+)
 from .table import _parse_entries, _require_aligned, _require_header
 
 _FORMAT: Final[str] = "core.tabular"
@@ -100,10 +107,6 @@ _CHART_PARAMETERS: Final[frozenset[str]] = frozenset(
 """core.chart's accepted parameter vocabulary: the closed set
 :func:`_parse_spec` reads, for the unknown-key teaching."""
 
-_SERIES_COLOR_PATTERN: Final[re.Pattern[str]] = re.compile(r"^series-(\d+)$")
-"""A categorical-palette request: ``series-<n>``, 1-based — the KPI's
-grammar, reused."""
-
 
 @dataclass(frozen=True, slots=True)
 class _ChartSpec:
@@ -111,8 +114,8 @@ class _ChartSpec:
 
     *color* rides raw (a token name or a series entry): its shape
     is validated at parse time only against the hue/color rule;
-    its resolution against the theme happens later, in
-    :func:`_resolve_single_color`.
+    its resolution against the theme happens later, through the
+    shared color grammar in the colors module.
     """
 
     artifact_type: str
@@ -141,27 +144,22 @@ def _parse_spec(parameters: ComponentParameters) -> _ChartSpec:
     is wrong on every dataset, not just this report's.
     """
     reject_unknown_parameters("core.chart", parameters, _CHART_PARAMETERS)
-    chart = _required_text(parameters, "chart")
-    if chart not in _CHARTS:
-        choices = ", ".join(f"'{item}'" for item in sorted(_CHARTS))
-        raise ValueError(
-            f"core.chart: parameter 'chart' must be one of {choices}; got {chart!r}"
-        )
-    x = _optional_text(parameters, "x")
-    y = _optional_text(parameters, "y")
-    hue = _optional_text(parameters, "hue")
+    chart = _required_one_of("core.chart", parameters, "chart", _CHARTS)
+    x = _optional_text("core.chart", parameters, "x")
+    y = _optional_text("core.chart", parameters, "y")
+    hue = _optional_text("core.chart", parameters, "hue")
     spec = _ChartSpec(
-        artifact_type=_required_text(parameters, "artifact"),
+        artifact_type=_required_text("core.chart", parameters, "artifact"),
         chart=chart,
         x=x,
         y=y,
         hue=hue,
         color=parameters.get("color"),
-        sep=_sep_from(parameters),
-        grid=_default_true_bool(parameters, "grid"),
-        log_x=_optional_bool(parameters, "log_x"),
-        log_y=_optional_bool(parameters, "log_y"),
-        caption=_optional_text(parameters, "caption"),
+        sep=_sep_from("core.chart", parameters),
+        grid=_optional_bool("core.chart", parameters, "grid", default=True),
+        log_x=_optional_bool("core.chart", parameters, "log_x", default=False),
+        log_y=_optional_bool("core.chart", parameters, "log_y", default=False),
+        caption=_optional_text("core.chart", parameters, "caption"),
     )
     if chart == "histogram":
         if y is not None:
@@ -291,70 +289,6 @@ def _positive_for_log(values: list[float], axis: str, name: str, label: str) -> 
                 f"{position} — Plotly silently drops nonpositive points "
                 f"on log axes; fix the data, or drop 'log_{axis}'"
             )
-
-
-def _required_text(parameters: ComponentParameters, name: str) -> str:
-    """A required string parameter, or a teaching ``ValueError``."""
-    if name not in parameters:
-        raise ValueError(f"core.chart: parameter {name!r} is required")
-    value = parameters[name]
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(
-            f"core.chart: parameter {name!r} must be a non-empty string, got {value!r}"
-        )
-    return value
-
-
-def _optional_text(parameters: ComponentParameters, name: str) -> str | None:
-    """An optional string parameter, absent by default."""
-    if name not in parameters:
-        return None
-    value = parameters[name]
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(
-            f"core.chart: parameter {name!r}, when given, must be a "
-            f"non-empty string, got {value!r}"
-        )
-    return value
-
-
-def _optional_bool(parameters: ComponentParameters, name: str) -> bool:
-    """An optional boolean parameter, ``False`` by default."""
-    if name not in parameters:
-        return False
-    value = parameters[name]
-    if not isinstance(value, bool):
-        raise ValueError(
-            f"core.chart: parameter {name!r}, when given, must be a "
-            f"boolean, got {value!r}"
-        )
-    return value
-
-
-def _default_true_bool(parameters: ComponentParameters, name: str) -> bool:
-    """An optional boolean parameter, ``True`` by default."""
-    if name not in parameters:
-        return True
-    value = parameters[name]
-    if not isinstance(value, bool):
-        raise ValueError(
-            f"core.chart: parameter {name!r}, when given, must be a "
-            f"boolean, got {value!r}"
-        )
-    return value
-
-
-def _sep_from(parameters: ComponentParameters) -> str:
-    """The field delimiter: one character, default the tab."""
-    if "sep" not in parameters:
-        return "\t"
-    value = parameters["sep"]
-    if not isinstance(value, str) or len(value) != 1:
-        raise ValueError(
-            f"core.chart: parameter 'sep', when given, must be a single "
-            f"character, got {value!r}"
-        )
-    return value
 
 
 @dataclass(frozen=True, slots=True)
@@ -537,7 +471,7 @@ def _make_figure(
         single = (
             theme.series[0]
             if spec.color is None
-            else _resolve_single_color(theme, spec.color)
+            else _resolve_color("core.chart", theme, spec.color)
         )
         colors = [single] * len(traces)
     figure = go.Figure()
