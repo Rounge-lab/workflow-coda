@@ -49,6 +49,7 @@ def test_shipped_icon_names() -> None:
     assert _CORE_LIBRARY.names() == {
         "core-arrow-up",
         "core-arrow-down",
+        "core-coda",
         "core-check",
         "core-info",
         "core-warning",
