@@ -51,6 +51,7 @@ def test_shipped_icon_names() -> None:
         "core-arrow-down",
         "core-ascending",
         "core-coda",
+        "core-copy",
         "core-check",
         "core-descending",
         "core-filter",
