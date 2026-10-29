@@ -247,11 +247,16 @@ that asks for one teaches honestly. When you do ship icons:
 
 ### Figures, if you chart
 
-Use the framework's figure constructor,
-`RenderedComponent.from_figure` (see the components module for its
-exact signature): the renderer detects figures by its own marker
-class and inlines Plotly.js exactly when the document contains
-figures. Do not inline chart libraries yourself.
+Use the framework's figure constructor, `RenderedComponent.from_figure`: the
+renderer detects figures by the framework's own marker class and inlines
+Plotly.js exactly when the document contains figures. Do not inline chart
+libraries yourself. Import your charting library inside the render call — a
+chartless report builds on machines without it, and a missing library teaches
+as `RenderError` (the environment family) with the fix in the message. Return
+through `from_figure` with an inferred accessibility label — the figure's own
+facts (type, subject, size, grouping), never the author's — and ride
+informational messages on the notes channel: OK-only, merged into the report's
+diagnostics ledger.
 
 ### Test the honest way
 

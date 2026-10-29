@@ -227,6 +227,15 @@ class RenderedComponent:
     """The explanation for an ``UNAVAILABLE`` outcome.  Required and
     non-empty for ``UNAVAILABLE``, forbidden otherwise."""
 
+    notes: tuple[str, ...] = ()
+    """Informational notes for the report's diagnostics ledger — the
+    component's in-band channel for facts it noticed about the data
+    while rendering (a color palette wrapping around many groups, a
+    suspicious value range): teaching for the reader, never errors.
+    Allowed on ``OK`` outcomes only; each note must contain visible
+    text; the report builder merges them into the document's
+    diagnostics as informational entries."""
+
     def __post_init__(self) -> None:
         """Enforce the status/field invariants."""
         if not isinstance(self.status, ComponentStatus):
@@ -258,6 +267,12 @@ class RenderedComponent:
                 "an 'ok' RenderedComponent takes no message; "
                 "embed notes in the html content"
             )
+        for note in self.notes:
+            if not has_visible_text(note):
+                raise ValueError(
+                    "RenderedComponent notes must contain visible text — "
+                    "they render in the report's diagnostics panel"
+                )
 
     def _validate_unavailable(self) -> None:
         """``UNAVAILABLE`` requires a visible message and no html."""
@@ -273,6 +288,12 @@ class RenderedComponent:
                 "an 'unavailable' RenderedComponent renders no html; "
                 "use status 'ok' to render content"
             )
+        if self.notes:
+            raise ValueError(
+                "an 'unavailable' RenderedComponent carries no notes; "
+                "notes ride healthy content — explain the missing data "
+                "in the message"
+            )
 
     def _validate_skipped(self) -> None:
         """``SKIPPED`` carries no content."""
@@ -281,6 +302,11 @@ class RenderedComponent:
                 "a 'skipped' RenderedComponent carries no content; "
                 "use RenderedComponent.unavailable() to explain a "
                 "missing component"
+            )
+        if self.notes:
+            raise ValueError(
+                "a 'skipped' RenderedComponent carries no notes; notes "
+                "ride healthy content"
             )
 
     @classmethod

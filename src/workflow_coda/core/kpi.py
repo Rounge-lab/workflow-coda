@@ -52,7 +52,6 @@ extension of the ``icon`` parameter; today it accepts shipped,
 namespaced names only (``core-arrow-up`` and friends)."""
 
 import html
-import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
@@ -70,6 +69,8 @@ from ..errors import ArtifactUnavailableError
 from ..icons import Icon
 from ..manifest.artifact import ArtifactFormat
 from ..theme import ColorHex, Theme
+from .colors import _resolve_color
+from .parameters import _optional_one_of, _optional_text, _required_text
 
 _VARIANTS: Final[frozenset[str]] = frozenset({"text", "fill", "gradient"})
 """The plate styles: plain text on the card, a solid color plate, or
@@ -96,9 +97,6 @@ _ICON_POSITIONS: Final[frozenset[str]] = frozenset({"inline", "corner"})
 """Where the icon renders: in the value line, or pinned to the card's
 corner."""
 
-_SERIES_COLOR_PATTERN: Final[re.Pattern[str]] = re.compile(r"^series-(\d+)$")
-"""A categorical-palette request: ``series-<n>``, 1-based."""
-
 
 class KpiStatus(Enum):
     """The status a threshold policy assigns to a KPI value.
@@ -122,31 +120,6 @@ _STATUS_COLOR_TOKENS: Final[dict[KpiStatus, str]] = {
 declared no explicit color: the threshold policy's own vocabulary."""
 
 
-def _required_text(parameters: ComponentParameters, name: str) -> str:
-    """A required string parameter, or a teaching ``ValueError``."""
-    if name not in parameters:
-        raise ValueError(f"core.kpi: parameter {name!r} is required")
-    value = parameters[name]
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(
-            f"core.kpi: parameter {name!r} must be a non-empty string, got {value!r}"
-        )
-    return value
-
-
-def _optional_text(parameters: ComponentParameters, name: str) -> str | None:
-    """An optional string parameter, absent by default."""
-    if name not in parameters:
-        return None
-    value = parameters[name]
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(
-            f"core.kpi: parameter {name!r}, when given, must be a non-empty "
-            f"string, got {value!r}"
-        )
-    return value
-
-
 def _optional_int(parameters: ComponentParameters, name: str) -> int | None:
     """An optional non-negative integer parameter, absent by default."""
     if name not in parameters:
@@ -165,51 +138,6 @@ def _optional_int(parameters: ComponentParameters, name: str) -> int | None:
     return value
 
 
-def _one_of(
-    parameters: ComponentParameters,
-    name: str,
-    allowed: frozenset[str],
-    default: str,
-) -> str:
-    """A closed-vocabulary string parameter with a default."""
-    if name not in parameters:
-        return default
-    value = parameters[name]
-    if not isinstance(value, str) or value not in allowed:
-        choices = ", ".join(f"'{item}'" for item in sorted(allowed))
-        raise ValueError(
-            f"core.kpi: parameter {name!r}, when given, must be one of "
-            f"{choices}; got {value!r}"
-        )
-    return value
-
-
-def _resolve_single_color(theme: Theme, raw: JsonValue) -> ColorHex:
-    """One color request — a theme token or a series entry — to hex."""
-    if not isinstance(raw, str) or not raw.strip():
-        raise ValueError(
-            f"core.kpi: 'color' must be a theme color token (e.g. "
-            f"'primary') or a series entry like 'series-1', got {raw!r}"
-        )
-    match = _SERIES_COLOR_PATTERN.fullmatch(raw)
-    if match is not None:
-        index = int(match.group(1))
-        if not 1 <= index <= len(theme.series):
-            raise ValueError(
-                f"core.kpi: 'color' names {raw!r}, but this theme's series "
-                f"palette has {len(theme.series)} colors (valid: series-1 "
-                f"to series-{len(theme.series)})"
-            )
-        return theme.series[index - 1]
-    if raw in theme.colors:
-        return theme.colors[raw]
-    available = ", ".join(sorted(theme.colors))
-    raise ValueError(
-        f"core.kpi: 'color' must be a theme token this theme declares "
-        f"({available}) or a series entry like 'series-1', got {raw!r}"
-    )
-
-
 def _resolve_gradient_stops(theme: Theme, raw: JsonValue) -> tuple[ColorHex, ColorHex]:
     """A gradient request — a two-entry list — to a pair of hexes."""
     if not isinstance(raw, list) or len(raw) != 2:
@@ -218,7 +146,10 @@ def _resolve_gradient_stops(theme: Theme, raw: JsonValue) -> tuple[ColorHex, Col
             "list [from-color, to-color], e.g. ['primary', 'accent'], "
             f"got {raw!r}"
         )
-    return _resolve_single_color(theme, raw[0]), _resolve_single_color(theme, raw[1])
+    return (
+        _resolve_color("core.kpi", theme, raw[0]),
+        _resolve_color("core.kpi", theme, raw[1]),
+    )
 
 
 def _bound(group: str, bounds: Mapping[str, JsonValue], name: str) -> float | None:
@@ -375,16 +306,18 @@ def _parse_spec(parameters: ComponentParameters) -> _KpiSpec:
     """
     reject_unknown_parameters("core.kpi", parameters, _KPI_PARAMETERS)
     spec = _KpiSpec(
-        artifact_type=_required_text(parameters, "artifact"),
-        key=_required_text(parameters, "key"),
-        variant=_one_of(parameters, "variant", _VARIANTS, default="text"),
-        icon_position=_one_of(
-            parameters, "icon_position", _ICON_POSITIONS, default="inline"
+        artifact_type=_required_text("core.kpi", parameters, "artifact"),
+        key=_required_text("core.kpi", parameters, "key"),
+        variant=_optional_one_of(
+            "core.kpi", parameters, "variant", _VARIANTS, default="text"
         ),
-        unit=_optional_text(parameters, "unit"),
+        icon_position=_optional_one_of(
+            "core.kpi", parameters, "icon_position", _ICON_POSITIONS, default="inline"
+        ),
+        unit=_optional_text("core.kpi", parameters, "unit"),
         decimals=_optional_int(parameters, "decimals"),
-        caption=_optional_text(parameters, "caption"),
-        icon_name=_optional_text(parameters, "icon"),
+        caption=_optional_text("core.kpi", parameters, "caption"),
+        icon_name=_optional_text("core.kpi", parameters, "icon"),
         thresholds=_thresholds_from(parameters),
         color=parameters.get("color"),
     )
@@ -474,7 +407,7 @@ def _resolve_palette(
         stops = _resolve_gradient_stops(theme, spec.color)
         return _Palette(plate=None, stops=stops, ink=theme.text_on(*stops))
     if spec.color is not None:
-        color = _resolve_single_color(theme, spec.color)
+        color = _resolve_color("core.kpi", theme, spec.color)
     elif status is not None:
         color = theme.colors[_STATUS_COLOR_TOKENS[status]]
     else:

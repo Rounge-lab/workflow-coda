@@ -2,17 +2,19 @@
 
 One bundle, one layout placing core.kpi twice — one healthy placement
 with a title override, a threshold policy, and an icon; one untitled
-placement against a failed artifact — and core.table twice — one
-titled placement with the columns policy and a caption, one default —
-plus a placed diagnostics panel, built through the installed
-environment's entry point (no injected registry anywhere): CLI →
-builder → registry → component → renderer → the written page.  The
-seam proof: framework-owned content rendering through the full
-pipeline, through the tab grammar, in both chrome modes — the healthy
-TILE's self-painted card and the CARD's framework-painted card, the
-degraded tile's notice card — with the page-chrome channel census
-pinned end to end, and the diagnostics panel placed where the layout
-chose."""
+placement against a failed artifact — core.table twice — one titled
+placement with the columns policy and a caption, one default — and
+core.chart once — the same samples artifact as a hue-grouped bar
+figure, the tabular format's second reader — plus a placed
+diagnostics panel, built through the installed environment's entry
+point (no injected registry anywhere): CLI → builder → registry →
+component → renderer → the written page.  The seam proof:
+framework-owned content rendering through the full pipeline, through
+the tab grammar, in both chrome modes — the healthy TILE's
+self-painted card and the CARD's framework-painted card, the degraded
+tile's notice card — with the page-chrome channel census and the
+figure channel (Plotly.js plus the figure's own bootstrap) pinned end
+to end, and the diagnostics panel placed where the layout chose."""
 
 import html
 import json
@@ -30,7 +32,7 @@ def _write_bundle(tmp_path: Path) -> Path:
     """A three-artifact bundle: one complete JSON stats file, one
     declared-but-failed artifact whose file need not exist (the
     status check fires before the filesystem is consulted), and one
-    complete core.table-format samples table whose depths are chosen
+    complete core.tabular-format samples table whose depths are chosen
     so numeric and lexicographic sort orders differ — the fixture the
     eyeball session sorts by hand."""
     (tmp_path / "stats.json").write_text(json.dumps({"depth": 12.4}), encoding="utf-8")
@@ -64,7 +66,7 @@ def _write_bundle(tmp_path: Path) -> Path:
                 "type": _SAMPLES_TYPE,
                 "schema_version": "0.1.0",
                 "path": "samples.tsv",
-                "format": "core.table",
+                "format": "core.tabular",
                 "status": "complete",
             },
         ],
@@ -78,8 +80,10 @@ def _write_layout(tmp_path: Path) -> Path:
     """A 0.2.0 tab layout placing core.kpi twice — once titled,
     statused, and iconed; once untitled against the failed artifact —
     core.table twice — once titled with the columns policy and a
-    caption, once default — and the diagnostics panel in its own tab:
-    the tab grammar and both chrome modes, end to end."""
+    caption, once default — core.chart once — the samples artifact as
+    a hue-grouped bar figure beside its table — and the diagnostics
+    panel in its own tab: the tab grammar, both chrome modes, and the
+    figure channel, end to end."""
     layout = """\
 schema_version: "0.2.0"
 title: Sample QC
@@ -111,6 +115,14 @@ tabs:
       - id: core.table
         parameters:
           artifact: org.example.samples
+      - id: core.chart
+        title: Depth by sample
+        parameters:
+          artifact: org.example.samples
+          chart: bar
+          x: sample_id
+          y: depth
+          hue: status
   - title: Diagnostics
     components:
       - type: diagnostics
@@ -185,19 +197,39 @@ def test_core_components_render_through_the_cli(tmp_path: Path) -> None:
     assert page.count("Copy as TSV") == 3
     assert "coda-table--filtered" in page
     assert "navigator.clipboard" in page
+    # The chart placement: the tabular format's second reader — the
+    # same samples artifact as a bar figure, hue-grouped by status
+    # (first-appearance order: passed, then failed — two series-
+    # colored traces), inside the framework's CARD chrome: the
+    # framework painted the card, the placement's resolved title its
+    # heading, and the inferred accessibility label rides the
+    # figure's marker div.
+    assert '<article class="coda-card" data-component="core.chart">' in page
+    assert "<h3>Depth by sample</h3>" in page
+    assert 'class="coda-figure"' in page
+    assert (
+        'aria-label="Bar chart of depth by sample_id, 3 bars, '
+        'colored by status"' in page
+    )
+    assert '"passed"' in page  # the hue groups reached the figure's JSON
+    assert '"failed"' in page
     # The placed diagnostics panel: the build's informational notes,
     # rendered in the tab the layout chose for them.
     assert '<section class="coda-diagnostics"' in page
     assert "no theme file declared in the layout" in page
     # The channel census, end to end, from the settled model: the
     # framework stylesheet and one merged component block inline as
-    # two <style> elements; the tab wiring and one merged component
-    # script as two <script> elements.  The channel stamps each
+    # two <style> elements (core.chart declares no chrome), and four
+    # <script tags in all — the tab wiring, the merged component
+    # script, the inlined Plotly.js (bare tags), and the figure's own
+    # bootstrap (its own tag shape).  The channel stamps each
     # contribution with its component id — /* id */ for css, // id
     # for js — once per report however many placements.  No figures,
-    # so no Plotly.js.
+    # so no Plotly.js — that was the census before charts shipped.
     assert page.count("<style>") == 2
-    assert page.count("<script>") == 2
+    assert (
+        page.count("<script>") == 4
+    )  # bare tags: tab, component block, Plotly.js, plus the figure's own bootstrap tag
     assert page.count("/* core.kpi */") == 1
     assert page.count("/* core.table */") == 1
     assert page.count("// core.table") == 1

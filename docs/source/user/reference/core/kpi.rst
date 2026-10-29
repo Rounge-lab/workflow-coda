@@ -165,10 +165,10 @@ text choice for that background.
 Icons
 .....
 
-Icons load from the framework's shipped, namespaced, sanitized set
-through :py:func:`~workflow_coda.icons.load_icon`, so the report
-stays self-contained; ``inline`` sits in the value line, ``corner``
-pins to the card's top-right.
+Icons load from the report build's icon library through the render
+context — every installed plugin's shipped, namespaced, sanitized
+icons — so the report stays self-contained; ``inline`` sits in the
+value line, ``corner`` pins to the card's top-right.
 
 Outcomes and chrome
 -------------------
