@@ -459,7 +459,7 @@ def _make_figure(
     """
     try:
         import plotly.graph_objects as go
-    except ModuleNotFoundError as e:
+    except ImportError as e:
         raise RenderError(
             "core.chart renders figures with the plotly package, "
             "which is not installed (or cannot be imported) — "
