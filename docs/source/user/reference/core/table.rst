@@ -69,7 +69,7 @@ close, the nearest match.
      - yes
      - non-empty string
      - The artifact's *type*; must be declared with format
-       ``core.table``.
+       ``core.tabular``.
    * - ``sep``
      - no — default ``"\t"``
      - single character
@@ -107,26 +107,18 @@ authorship.  Placement keys — ``title``, ``on_unavailable`` — live
 at the placement level, never inside ``parameters:``; a key nested
 by accident teaches the move.
 
-The ``core.table`` format
--------------------------
+The ``core.tabular`` format
+---------------------------
 
-``core.table`` reads artifacts declared with its own namespaced
-format — ``format: core.table`` in the manifest.  The format is a
-claim, not a service: the store hands the component
-checksum-verified UTF-8 text and parses nothing, and the grammar
-lives in this component (the format value space is documented in
+``core.table`` reads artifacts declared with the core plugin's
+own namespaced file format — ``format: core.tabular`` in the
+manifest.  The format is a claim, not a service: the store hands
+the reader checksum-verified UTF-8 text and parses nothing.  The
+format is decoupled from any one component, the way ``json`` is:
+``core.chart`` (:doc:`chart`) reads the same format and plots it —
+one format, two readers, the grammar living in the core plugin
+(the format value space is documented in
 :doc:`../framework/schemas`).
-
-The file is delimited text, parsed under the placement's ``sep``:
-
-* quoting follows the ``csv`` module's default dialect, so a quoted
-  cell may carry the delimiter itself;
-* blank lines are skipped, and CRLF line endings are tolerated;
-* with ``header: true`` (the default), the first row is a header
-  of unique, non-empty column names — one exception below — and
-  every data row must match the header's field count;
-* with ``header: false``, every row is data and the column count
-  comes from the first row, so the file needs at least one row.
 
 The index-column convention
 ---------------------------
@@ -183,7 +175,7 @@ reader sees.
    * - The layout is wrong: a missing or malformed parameter, an
        unknown key (with a suggestion), a placement key nested in
        ``parameters:``, ``columns`` against ``header: false``, a
-       non-``core.table`` artifact, or a ``columns`` name the header
+       non-``core.tabular`` artifact, or a ``columns`` name the header
        does not carry (taught at data time, against the header's
        own vocabulary)
      - ``ValueError``
@@ -233,7 +225,7 @@ A manifest declaration and a layout placement, together:
      "type": "org.example.samples",
      "schema_version": "0.1.0",
      "path": "samples.tsv",
-     "format": "core.table",
+     "format": "core.tabular",
      "status": "complete"
    }
 

@@ -37,11 +37,14 @@ Non-negotiable. Check every change against these.
 3. **Formats are claims, not services.** An artifact's `format` is
    metadata. The framework's values are the agnostic trio `json`,
    `txt`, `bytes`; anything else is a *namespaced plugin
-   convention* (`core.table`, `bio.newick`) whose grammar lives in
+   convention* (`core.tabular`, `bio.newick`) whose grammar lives in
    its owning plugin. The store never dispatches on format — a
    reader is the consumer's explicit command. This is pinned
    (`test_readers_are_explicit_not_format_dispatched`): adding a
    dispatch layer must be a conscious decision, not a "fix".
+   A namespaced format may have more than one reader: `core.tabular` is read by
+   `core.table` (tables) and `core.chart` (figures) — one format, two readers,
+   the grammar shared from the first reader's module.
 4. **Errors teach.** Every failure message names the fix and the
    offending value. Three families are kept distinct — *who is
    wrong decides what the reader sees*:
@@ -83,7 +86,7 @@ of artifact files; the renderer is a pure function of the document.
 | `report` / the builder | The report document model and its assembly: plugin resolution, schema-version gating, `on_missing` placement policy, diagnostics collection, version-gate exclusion stories, and the per-build icon library — assembled from the *gated* plugins' declarations, so a gated-out plugin's icon defects cannot fail an unrelated report. |
 | `render` | A pure function of the document: the tree walk, generated split CSS, the page-chrome channel, provenance footer. No registry, no user files, no decisions. |
 | `cli` | `build`: manifest + layout → the written page. |
-| `core/` | The framework's own plugin (`core.kpi`, `core.table`) — dogfooding the same channels third parties use. |
+| `core/` | The framework's own plugin (`core.kpi`, `core.table`, `core.chart`) — dogfooding the same channels third parties use. Shared core grammar: `core/parameters.py` (the parse half — theme-free by construction) and `core/colors.py` (the resolution half), both underscore-private with flagged promotions (see Current state). |
 | `errors` | The taxonomy below. |
 
 ## The store contract
@@ -135,7 +138,11 @@ self-containment a read-time property, not just a build promise.
 Plotly.js inlines exactly when the document contains figures
 (detected via the framework's own figure marker class). A
 single-tab, figure-free report inlines no `<script>` at all unless a
-component contributes one.
+component contributes one. The figure channel's census arithmetic: a healthy
+figure adds two script tags — the inlined Plotly.js and the figure's own
+bootstrap — and `core.chart`'s render imports plotly inside the call, so a
+chartless machine builds chartless reports; a missing plotly is `RenderError`
+(the environment family), the fix in the message.
 
 ## House dialects
 
@@ -234,6 +241,23 @@ Small steps, each closing green — no red windows, ever:
   component asks the theme); series bounds derive from
   `len(DEFAULT_THEME.series)` — the hardcoded `series-9` bound
   rotted exactly when the palette grew past nine.
+- **Pin plotly's serialization shape.** `to_html` embeds the figure JSON with
+  compact separators (,, :) and only the config argument default-spaced: figure
+  pins are compact ('"type":"bar"'), config pins are spaced ('"responsive":
+  true'), and quoted strings inside values ride JSON-escaped — the font pin
+  derives `json.dumps(theme.font_body)[1:-1]` rather than hand-rolling the
+  escape. Palette pins derive from the theme as always, and the wrap fixture
+  derives its group count (`len(DEFAULT_THEME.series) + 1`) so the cyclic wrap
+  is a fact about the palette, never a coincidence of the fixture.
+- ** First-offender teachings need first-offender fixtures.** A teaching that names
+  the first offender pins one trigger per column: two word-forms (inf, nan) in
+  one column made a parametrized case unreachable — the second case met the
+  first case's offender and the test lied.
+- The missing-module seam. Halting an import via
+  `monkeypatch.setitem(sys.modules, "plotly.graph_objects", None)` raises plain
+  `ImportError` ("halted; None in sys.modules"), not `ModuleNotFoundError`:
+  production catches the parent — real absence stays the subclass — and the
+  no-plotly test pins through it.
 
 ### Verification rules
 
@@ -274,7 +298,18 @@ parts stand. A block ending at an ambiguous boundary (a
 close-paren that could close either call) has silently dropped a
 required argument and swallowed a raised-family sentence in the
 same landing; mypy named one casualty, a paste-read found the
-other.
+other.  The emission ledger tracks confirmed landings, not transcript
+emissions. A recovery turn must re-list (or re-emit) every block the receiving
+file still needs: "emitted cleanly once" is not "landed." A held-out
+constants-and-helpers block left the file with fifteen undefined-name errors
+after a recovery turn that tracked its own transcript instead of the receiving
+file — the mirror of the splice-casualty rule: an over-wide splice drops
+content; an under-complete recovery never delivers it.  When the delta is
+smaller than the block, name the delta. A two-token change to a held row,
+re-emitted as a whole block, corrupted three times in one turn; the same edit
+stated in prose — change X to Y, everything else stands — cannot corrupt. State
+the contract, emit smallest-first, and reach for the stated-scalar-edit escape
+on held-source micro-edits.
 
 ### The ledger
 
@@ -289,15 +324,17 @@ written down will be re-learned the expensive way.
   version pre-check teaches declared vs. expected). Layout schema:
   `0.2.0`. Artifact content `schema_version`: free-form — the
   content axis, deliberately unpinned.
-- Format value space: `json`, `txt`, `bytes`, plus namespaced
-  conventions. `tsv` is retired: the tabular grammar lives in
-  `core.table` and its suite.
-- Core roster: `core.kpi` (TILE, css) and `core.table` (CARD, css +
-  js — the js channel's first consumer). The roster is append-only:
-  new components are appended, never inserted.
-  Chrome ships as files under `core/assets/` (`kpi.css`,
-  `table.css`, `table.js`), read once at import; the loader's suite
-  is `test_core_assets.py`.
+- Format value space: `json`, `txt`, `bytes`, plus namespaced conventions.
+  `tsv` is retired: the tabular format is `core.tabular`, its grammar lives in
+  `core.table` and shared with `core.chart` — one format, two readers.
+- Core roster: `core.kpi` (TILE, css) and `core.table` (CARD, css + js — the js
+  channel's first consumer), and `core.chart` (CARD, no chrome — the figure
+  channel's first consumer, plotly imported inside the render call). The roster
+  is append-only: new components are appended, never inserted. Chrome ships as
+  files under `core/assets/` (`kpi.css`, `table.css`, `table.js`), read once at
+  import; the loader's suite is `test_core_assets.py`. core.chart declares no
+  chrome at all — its body rides the figure channel; its suite is
+  `test_core_chart.py`.
 - Icons are plugin-owned: core's set lives under
   `core/assets/icons/` (`core-` prefixed), declared through
   `icons_package` on the plugin metadata and served per build
@@ -313,6 +350,18 @@ written down will be re-learned the expensive way.
   aside). The required set is eleven tokens: accent, background,
   border, danger, muted, primary, success, surface, text-dark,
   text-light, warning.
+- Untyped optional dependencies: declared once in mypy config
+  (`ignore_missing_imports` per module), consumed as Any, and trusted exactly
+  once — a cast at the protocol boundary (`SupportsToHtml`), with runtime
+  correctness pinned end to end by the seam. `plotly` is the first and so far
+  only instance.
+- `RenderedComponent.notes`: the OK-only informational channel, merged into the
+  report's diagnostics ledger in placement order; `core.chart`'s hue-wrap note
+  is the first consumer.
+- Flagged promotions, recorded not taken: the parameter-grammar helpers
+  (`core/parameters.py`) beside `reject_unknown_parameters`;
+  `Theme.resolve_color` for the color grammar (`core/colors`.py's
+  `_resolve_color` is its private shadow). Release-train steps, both.
 
 ## Never
 
