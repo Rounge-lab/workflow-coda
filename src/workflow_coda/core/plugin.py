@@ -47,11 +47,12 @@ the page-chrome channel.
 
 Owns the ``coda-table`` vocabulary.  The controls bar is display-none
 until the page is scripted (the framework's ``coda-js`` class gates
-it), so nothing looks interactive that is not; the table's styling
-draws only from theme tokens; sort-state arrows ride ``aria-sort``
-pseudo-content, invisible without scripting; filter-hidden rows hide
+it), so nothing looks interactive that is not; the table's styling draws only from theme
+tokens; sort-state icons ship in the stamped markup — one span per state beside every
+column label, display-none until scripted, shown keyed on the th's aria-sort, which only
+the scripted page writes; filter-hidden rows hide
 by class, never by deletion.  The print block honors the panels law —
-controls gone, hidden rows restored, arrows dropped — so the printed
+controls gone, hidden rows restored, sort icons dropped — so the printed
 page shows the complete table in its current order.  The container
 itself never scrolls: the framework card body's own ``overflow-x``
 rule owns wide tables, per the CARD-mode ruling."""
@@ -73,10 +74,10 @@ class and never deleting them.  Copy exports the current view —
 post-policy columns, sorted, filtered — as TSV through
 ``navigator.clipboard``, quoting cells per the csv dialect, with
 honest feedback both ways and the button restored after a moment.
-The sort affordance is created at runtime by wrapping each header's
-text in a real button, so a page without scripting shows plain text
-headers; a header without visible text (the index column) gets an
-explicit label so its button is not nameless.  House dialect:
+The sort affordance is created at runtime by wrapping each header's contents — label
+text and the build-time sort-state spans alike — in a real button, so a page without
+scripting shows plain text headers; a header without visible text (the index column)
+gets an explicit label so its button is not nameless.  House dialect:
 strict-mode IIFE, ``var``, no dependencies, no network."""
 
 

@@ -29,7 +29,7 @@
 .coda-table__copy:hover {
   background: var(--coda-accent);
   /* readable ink on the accent plate, as the KPI computes for the same pair */
-  color: #ffffff;
+  color: var(--coda-text-light);
 }
 
 .coda-table table {
@@ -60,19 +60,21 @@
   cursor: pointer;
 }
 
-.coda-js .coda-table thead th button::after {
-  content: " ⇅";
-  opacity: 0.4;
+.coda-table__sort-icon {
+  display: none;
 }
 
-.coda-js .coda-table thead th[aria-sort="ascending"] button::after {
-  content: " ▲";
-  opacity: 1;
+.coda-js .coda-table thead th:not([aria-sort]) .coda-table__sort-icon--idle,
+.coda-js .coda-table thead th[aria-sort="ascending"] .coda-table__sort-icon--ascending,
+.coda-js .coda-table thead th[aria-sort="descending"] .coda-table__sort-icon--descending {
+  display: inline-block;
+  margin-left: 0.25rem;
+  vertical-align: -0.1em;
+  opacity: 0.5;
 }
 
-.coda-js .coda-table thead th[aria-sort="descending"] button::after {
-  content: " ▽";
-  opacity: 1;
+.coda-js .coda-table thead th:not([aria-sort]) .coda-table__sort-icon--idle {
+  opacity: 0.15;
 }
 
 .coda-table__caption {
@@ -94,7 +96,7 @@
     display: table-row !important;
   }
 
-  .coda-js .coda-table thead th button::after {
-    content: none !important;
+  .coda-table__sort-icon {
+    display: none !important;
   }
 }

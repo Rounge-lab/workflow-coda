@@ -9,6 +9,11 @@ component through the page-chrome channel, enhances the complete
 table in place — sort, filter, copy — so a reader without scripting
 still reads every row, and printing shows the whole table.
 
+The sort affordance's state icons ship in the markup — one span per state beside every
+column label, loaded from the build's icon library — and the stylesheet shows the one
+span matching the column's aria-sort, which only the scripted page writes: chrome, not
+content, so the complete-and-unscripted law is untouched.
+
 ``core.tabular`` is the core plugin's namespaced *file format* — a
 delimited-text table, declared in the manifest as
 ``format: core.tabular`` — decoupled from any one component, the way
@@ -364,20 +369,23 @@ def _column_type(cells: list[str]) -> str:
     return "numeric" if seen_data else "text"
 
 
-def _assemble_markup(rendered: _RenderedTable, caption: str | None) -> str:
+def _assemble_markup(
+    rendered: _RenderedTable, caption: str | None, sort_icons: str
+) -> str:
     """Emit the complete table: the controls bar, the header with its
-    build-time stamps, every row, the caption.
+    build-time stamps and sort-state icons, every row, the caption.
 
     Pure string assembly — every decision is already made; all
     artifact- and author-sourced text escapes here.  The controls
     bar ships in the markup and is display-none until the page's
     script marks the document scripted — nothing looks interactive
-    that is not.
+    that is not; the sort-state icon stamp rides after every column
+    label, the same law on the same page.
     """
     head = "".join(
         f'<th scope="col" data-key="{html.escape(label)}"'
         f' data-type="{_column_type([row[i] for row in rendered.rows])}">'
-        f"{html.escape(label)}</th>"
+        f"{html.escape(label)}{sort_icons}</th>"
         for i, label in enumerate(rendered.labels)
     )
     body = "".join(
@@ -406,6 +414,36 @@ def _assemble_markup(rendered: _RenderedTable, caption: str | None) -> str:
     )
 
 
+_SORT_ICONS: Final[dict[str, str]] = {
+    "idle": "core-table",
+    "ascending": "core-ascending",
+    "descending": "core-descending",
+}
+"""The sort-state icons by state: the framework's own shipped
+icons, stamped beside every column label.  The state keys ride the
+stamped spans' classes, and the stylesheet shows the one span that
+matches the column's ``aria-sort`` — the state channel the page's
+script owns."""
+
+
+def _sort_icons_html(context: RenderContext) -> str:
+    """The sort-state icon spans, one per state, stamped beside
+    every column label.
+
+    Loads the three shipped icons through the build's icon library
+    — the same sanitized, cached, namespaced door every plugin's
+    icons ride — and wraps each in its state's span.  All three
+    ship in the markup, display-none until the page is scripted:
+    the icons are the sort affordance's chrome, and a reader
+    without scripting loses nothing by their silence.
+    """
+    return "".join(
+        f'<span class="coda-table__sort-icon coda-table__sort-icon--{state}">'
+        f"{context.icons.load(name).markup}</span>"
+        for state, name in _SORT_ICONS.items()
+    )
+
+
 def render_table(
     context: RenderContext,
     _info: PlacementInfo,
@@ -419,9 +457,12 @@ def render_table(
     The orchestrator only sequences the stories: parse the
     placement's parameters (:func:`_parse_spec`), read and parse the
     artifact under the placement's ``sep`` (:func:`_read_table`),
-    apply the ``columns`` policy (:func:`_apply_columns`), and
-    assemble the complete markup (:func:`_assemble_markup`), column
-    types included.  Each helper owns its own errors; missing data
+    load the sort-state icons (:func:`_sort_icons_html` — after
+    the unavailable conversion, so an unavailable placement stays
+    unavailable), apply the ``columns`` policy
+    (:func:`_apply_columns`), and assemble the complete markup
+    (:func:`_assemble_markup`), column types and sort icons
+    included.  Each helper owns its own errors; missing data
     converts to an unavailable notice here, where the outcome
     vocabulary lives.
     """
@@ -430,5 +471,8 @@ def render_table(
         parsed = _read_table(context, spec)
     except ArtifactUnavailableError as e:
         return RenderedComponent.unavailable(str(e))
+    sort_icons = _sort_icons_html(context)
     rendered = _apply_columns(parsed, spec)
-    return RenderedComponent.from_html(_assemble_markup(rendered, spec.caption))
+    return RenderedComponent.from_html(
+        _assemble_markup(rendered, spec.caption, sort_icons)
+    )
