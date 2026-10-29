@@ -9,6 +9,8 @@ authors = [
     {name = "Sverre Branders", email = "sverrbra@uio.no"},
 ]
 readme = { file = "README.rst", content-type = "text/x-rst" }
+license = "GPL-3.0-or-later"
+license-files = ["COPYING"]
 requires-python = ">=3.14"
 dependencies = [
     "jinja2>=3.1",
