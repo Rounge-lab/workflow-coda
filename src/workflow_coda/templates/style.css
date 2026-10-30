@@ -47,7 +47,7 @@ body {
 }
 
 .coda-headerbar-inner {
-  max-width: 60rem;
+  max-width: 120rem;
   margin: 0 auto;
   padding: 0.9rem 1.5rem;
   display: flex;
@@ -64,11 +64,7 @@ body {
   min-width: 0;
 }
 
-/* A small plate in the page's own color keeps transparent logos
-   readable on the colored bar. */
 .coda-logo {
-  background: var(--coda-background);
-  border-radius: 4px;
   padding: 0.25rem 0.5rem;
   max-height: 3.5rem;
   max-width: 14rem;
@@ -134,9 +130,9 @@ body {
 /* --- Page body ---------------------------------------------------------- */
 
 .coda-page {
-  max-width: 60rem;
+  width: min(100%, 120rem);
   margin: 0 auto;
-  padding: 2rem 1.5rem 3rem;
+  padding: max(1rem, min(2vw, 2rem));
 }
 
 /* --- Sections and cards ------------------------------------------------- */
