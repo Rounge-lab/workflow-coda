@@ -2,7 +2,6 @@
   "use strict";
 
   var HIDDEN = "coda-table--filtered";
-  var COPY_LABEL = "Copy as TSV";
   var UNAVAILABLE = "copy unavailable in this browser";
   var FEEDBACK_MS = 1500;
 
@@ -101,7 +100,7 @@
       (function (th, index) {
         var button = document.createElement("button");
         button.type = "button";
-        if (th.textContent.trim() === "") {
+        if (th.getAttribute("data-key") === "") {
           button.setAttribute("aria-label", "Sort");
         }
         while (th.firstChild) {
@@ -126,13 +125,28 @@
     }
 
     if (copyButton) {
-      var feedback = function (message) {
-        copyButton.textContent = message;
+      var copyFeedback = copyButton.querySelector(".coda-table__copy-feedback");
+      var copyCount = copyButton.querySelector(".coda-table__copy-count");
+      var showFeedback = function (message, copied) {
+        if (copied) {
+          copyButton.classList.add("coda-table__copy--copied");
+          if (copyCount) {
+            copyCount.textContent = message;
+          }
+        } else if (copyFeedback) {
+          copyFeedback.textContent = message;
+        }
         if (feedbackTimer !== null) {
           window.clearTimeout(feedbackTimer);
         }
         feedbackTimer = window.setTimeout(function () {
-          copyButton.textContent = COPY_LABEL;
+          copyButton.classList.remove("coda-table__copy--copied");
+          if (copyCount) {
+            copyCount.textContent = "";
+          }
+          if (copyFeedback) {
+            copyFeedback.textContent = "";
+          }
           feedbackTimer = null;
         }, FEEDBACK_MS);
       };
@@ -144,7 +158,7 @@
         var k;
         var row;
         for (j = 0; j < headers.length; j += 1) {
-          cells.push(field(headers[j].textContent));
+          cells.push(field(headers[j].getAttribute("data-key")));
         }
         lines.push(cells.join("\t"));
         for (j = 0; j < tbody.rows.length; j += 1) {
@@ -163,14 +177,14 @@
         if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
           navigator.clipboard.writeText(text).then(
             function () {
-              feedback("Copied " + count + " rows");
+              showFeedback("Copied " + count + " rows", true);
             },
             function () {
-              feedback(UNAVAILABLE);
+              showFeedback(UNAVAILABLE, false);
             }
           );
         } else {
-          feedback(UNAVAILABLE);
+          showFeedback(UNAVAILABLE, false);
         }
       });
     }

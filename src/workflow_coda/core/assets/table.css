@@ -11,9 +11,18 @@
   font-size: 0.9em;
 }
 
-.coda-table__filter,
+.coda-table__filter-wrap,
 .coda-table__copy {
-  padding: 0.15rem 0.5rem;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 2em;
+  box-sizing: border-box;
+}
+
+.coda-table__filter {
+  height: 100%;
+  padding: 0 0.5rem 0 1.6rem;
   border: 1px solid var(--coda-border);
   border-radius: 4px;
   font: inherit;
@@ -21,15 +30,49 @@
   background: transparent;
 }
 
+.coda-table__filter-icon {
+  position: absolute;
+  left: 0.4rem;
+  pointer-events: none;
+}
+
 .coda-table__copy {
-  padding: 0.15rem 0.75rem;
+  width: 2em;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--coda-border);
+  border-radius: 4px;
+  font: inherit;
+  color: inherit;
+  background: transparent;
   cursor: pointer;
 }
 
 .coda-table__copy:hover {
   background: var(--coda-accent);
-  /* readable ink on the accent plate, as the KPI computes for the same pair */
-  color: var(--coda-text-light);
+  color: var(--coda-surface);
+}
+
+.coda-table__copy-check {
+  display: none;
+}
+
+.coda-table__copy--copied .coda-table__copy-icon {
+  display: none;
+}
+
+.coda-table__copy--copied .coda-table__copy-check {
+  display: inline-flex;
+}
+
+.coda-table__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .coda-table table {

@@ -12,7 +12,9 @@ still reads every row, and printing shows the whole table.
 The sort affordance's state icons ship in the markup — one span per state beside every
 column label, loaded from the build's icon library — and the stylesheet shows the one
 span matching the column's aria-sort, which only the scripted page writes: chrome, not
-content, so the complete-and-unscripted law is untouched.
+content, so the complete-and-unscripted law is untouched. The controls bar rides icons
+the same way — the filter field's placeholder stand-in and the copy button's icon face,
+loaded through the build's library: chrome for the scripted enhancements.
 
 ``core.tabular`` is the core plugin's namespaced *file format* — a
 delimited-text table, declared in the manifest as
@@ -370,17 +372,20 @@ def _column_type(cells: list[str]) -> str:
 
 
 def _assemble_markup(
-    rendered: _RenderedTable, caption: str | None, sort_icons: str
+    rendered: _RenderedTable,
+    caption: str | None,
+    sort_icons: str,
+    controls_bar: str,
 ) -> str:
-    """Emit the complete table: the controls bar, the header with its
-    build-time stamps and sort-state icons, every row, the caption.
+    """Emit the complete table: the iconed controls bar, the header
+    with its build-time stamps and sort-state icons, every row, the
+    caption.
 
     Pure string assembly — every decision is already made; all
     artifact- and author-sourced text escapes here.  The controls
-    bar ships in the markup and is display-none until the page's
-    script marks the document scripted — nothing looks interactive
-    that is not; the sort-state icon stamp rides after every column
-    label, the same law on the same page.
+    bar and the sort-state icon stamp ride in prebuilt: chrome,
+    display-none until the page's script marks the document
+    scripted — nothing looks interactive that is not.
     """
     head = "".join(
         f'<th scope="col" data-key="{html.escape(label)}"'
@@ -399,11 +404,7 @@ def _assemble_markup(
     )
     return (
         '<div class="coda-table">'
-        '<div class="coda-table__controls">'
-        "<label>Filter rows "
-        '<input type="search" class="coda-table__filter"></label> '
-        '<button type="button" class="coda-table__copy">Copy as TSV</button>'
-        "</div>"
+        f"{controls_bar}"
         "<table><thead><tr>"
         f"{head}"
         "</tr></thead><tbody>"
@@ -444,6 +445,44 @@ def _sort_icons_html(context: RenderContext) -> str:
     )
 
 
+def _controls_bar(context: RenderContext) -> str:
+    """The controls bar, iconed: the filter field with its permanent
+    decorative prefix and the square copy button — chrome,
+    display-none until the page is scripted.
+
+    The filter's icon rides a wrapper span, always shown: it names
+    the control's purpose beside its aria-label, not a placeholder
+    that empties as the reader types.  The copy button is square —
+    its height the filter field's own, its width its height — and
+    both of its faces ship at build time: the copy icon it shows and
+    the framework's check icon its success state swaps in, by class,
+    never by DOM mutation.  The success count rides a visually
+    hidden live region — the visible feedback is the check icon
+    alone — and a refusal shows its message as text in the visible
+    live region: honest both ways, on both channels.  All three
+    icons load through the build's library: the same sanitized,
+    cached door as the sort states.
+    """
+    filter_icon = context.icons.load("core-filter").markup
+    copy_icon = context.icons.load("core-copy").markup
+    check_icon = context.icons.load("core-check").markup
+    return (
+        '<div class="coda-table__controls">'
+        '<span class="coda-table__filter-wrap">'
+        '<input type="search" class="coda-table__filter" aria-label="Filter rows">'
+        f'<span class="coda-table__filter-icon">{filter_icon}</span>'
+        "</span>"
+        '<button type="button" class="coda-table__copy" aria-label="Copy as TSV">'
+        f'<span class="coda-table__copy-icon">{copy_icon}</span>'
+        f'<span class="coda-table__copy-check">{check_icon}</span>'
+        '<span class="coda-table__copy-feedback" aria-live="polite"></span>'
+        '<span class="coda-table__copy-count coda-table__sr" aria-live="polite">'
+        "</span>"
+        "</button>"
+        "</div>"
+    )
+
+
 def render_table(
     context: RenderContext,
     _info: PlacementInfo,
@@ -457,11 +496,11 @@ def render_table(
     The orchestrator only sequences the stories: parse the
     placement's parameters (:func:`_parse_spec`), read and parse the
     artifact under the placement's ``sep`` (:func:`_read_table`),
-    load the sort-state icons (:func:`_sort_icons_html` — after
-    the unavailable conversion, so an unavailable placement stays
-    unavailable), apply the ``columns`` policy
-    (:func:`_apply_columns`), and assemble the complete markup
-    (:func:`_assemble_markup`), column types and sort icons
+    load the table's icons (:func:`_sort_icons_html` and
+    :func:`_controls_bar` — after the unavailable conversion, so an
+    unavailable placement stays unavailable), apply the ``columns``
+    policy (:func:`_apply_columns`), and assemble the complete markup
+    (:func:`_assemble_markup`), column types and icon chrome
     included.  Each helper owns its own errors; missing data
     converts to an unavailable notice here, where the outcome
     vocabulary lives.
@@ -472,7 +511,8 @@ def render_table(
     except ArtifactUnavailableError as e:
         return RenderedComponent.unavailable(str(e))
     sort_icons = _sort_icons_html(context)
+    controls_bar = _controls_bar(context)
     rendered = _apply_columns(parsed, spec)
     return RenderedComponent.from_html(
-        _assemble_markup(rendered, spec.caption, sort_icons)
+        _assemble_markup(rendered, spec.caption, sort_icons, controls_bar)
     )

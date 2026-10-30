@@ -50,8 +50,10 @@ until the page is scripted (the framework's ``coda-js`` class gates
 it), so nothing looks interactive that is not; the table's styling draws only from theme
 tokens; sort-state icons ship in the stamped markup — one span per state beside every
 column label, display-none until scripted, shown keyed on the th's aria-sort, which only
-the scripted page writes; filter-hidden rows hide
-by class, never by deletion.  The print block honors the panels law —
+the scripted page writes; the controls bar rides icons — the filter field's permanent
+decorative prefix and the square copy button, whose success state swaps its copy icon
+for the framework's check icon by class; filter-hidden rows hide by class, never by
+deletion.  The print block honors the panels law —
 controls gone, hidden rows restored, sort icons dropped — so the printed
 page shows the complete table in its current order.  The container
 itself never scrolls: the framework card body's own ``overflow-x``
@@ -62,23 +64,22 @@ _TABLE_JS: Final[str] = read_core_asset("table.js")
 through the page-chrome channel: the js half of the channel's first
 consumer.
 
-One independent enhancement per placed ``.coda-table``.  Sort is a
-three-state cycle per column — ascending, descending, original file
-order — so the authored order is always one click away, told on the
-``th`` through ``aria-sort``; numeric columns sort by value and text
-by ``localeCompare``, per the build-time ``data-type`` stamps, which
-the script consumes and never re-derives; empty cells sink to the
-bottom in both directions, absent data rather than extremes.  Filter
-is a case-insensitive substring over each row's cells, hiding rows by
-class and never deleting them.  Copy exports the current view —
-post-policy columns, sorted, filtered — as TSV through
-``navigator.clipboard``, quoting cells per the csv dialect, with
-honest feedback both ways and the button restored after a moment.
-The sort affordance is created at runtime by wrapping each header's contents — label
-text and the build-time sort-state spans alike — in a real button, so a page without
-scripting shows plain text headers; a header without visible text (the index column)
-gets an explicit label so its button is not nameless.  House dialect:
-strict-mode IIFE, ``var``, no dependencies, no network."""
+One independent enhancement per placed ``.coda-table``.  Sort is a three-state cycle per
+column — ascending, descending, original file order — so the authored order is always
+one click away, told on the ``th`` through ``aria-sort``; numeric columns sort by value
+and text by ``localeCompare``, per the build-time ``data-type`` stamps, which the script
+consumes and never re-derives; empty cells sink to the bottom in both directions, absent
+data rather than extremes.  Filter is a case-insensitive substring over each row's
+cells, hiding rows by class and never deleting them.  Copy exports the current view —
+post-policy columns, sorted, filtered — as TSV through ``navigator.clipboard``, quoting
+cells per the csv dialect, with honest feedback both ways — success swaps the button's
+copy icon for the framework's check icon by class and announces the copied count to
+screen readers through a visually hidden live region, a refusal shows its message as
+text — and the button is restored after a moment.  The sort affordance is created at
+runtime by wrapping each header's contents — label text and the build-time sort-state
+spans alike — in a real button, so a page without scripting shows plain text headers; a
+header without visible text (the index column) gets an explicit label so its button is
+not nameless.  House dialect: strict-mode IIFE, ``var``, no dependencies, no network."""
 
 
 _TABLE: Final[ReportComponent] = ReportComponent(
