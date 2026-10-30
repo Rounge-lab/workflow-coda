@@ -8,12 +8,20 @@ content-lying family (a file that does not parse under its claimed
 component became the grammar's one home), the index-column
 convention, the columns policy against the header's own vocabulary,
 and the build-time column-type stamps the page script consumes.
+
 The sort-state icon stamps ride the same markup: chrome for the
-scripted sort, stamped complete in every column, hidden until
-the page is scripted, loaded through the build's icon library.
+scripted sort, stamped complete in every column, hidden until the
+page is scripted, loaded through the build's icon library.  The
+controls bar rides icons the same way — the filter field's
+decorative prefix and the copy button's two stamped faces, loaded
+through the build's library: chrome for the scripted enhancements.
+
 The plugin assembly that ships the component is pinned in
 test_core_plugin.py; the component's css and js land with the
-assembly and are pinned end-to-end at the seam."""
+assembly and are pinned end-to-end at the seam — the enhancement
+script's registration census pinned here, because the page merges
+every script and the seam cannot count this one's health alone.
+"""
 
 import json
 from pathlib import Path
@@ -28,6 +36,7 @@ from workflow_coda.components import (
     RenderedComponent,
 )
 from workflow_coda.context import RenderContext
+from workflow_coda.core.assets import read_core_asset
 from workflow_coda.core.table import render_table
 from workflow_coda.errors import ArtifactReadError
 from workflow_coda.icons import IconLibrary, IconSource
@@ -631,13 +640,38 @@ def test_caption_escapes_and_renders_under_the_table(tmp_path: Path) -> None:
 def test_the_controls_bar_ships_in_the_markup(tmp_path: Path) -> None:
     # Display-none until the page script marks the document scripted
     # (the seam pins the gate): the DOM carries no lies — nothing
-    # looks interactive that is not.
+    # looks interactive that is not.  Knowing shift (iconed
+    # controls): was — a <label> naming the filter and a text-face
+    # copy button; now — the filter's name rides aria-label with the
+    # core-filter icon as its permanent decorative prefix, and the
+    # copy button is a square icon button named through aria-label,
+    # both faces stamped at build time: the copy icon it shows and
+    # the check icon its success state swaps in — the count
+    # announced from a visually hidden live region, a refusal shown
+    # as text in the visible one.  The icon payloads derive from
+    # the same library call the render made — like compared with
+    # like.
     context = _context(_write_bundle(tmp_path))
     html = _html(context, _table())
+    filter_icon = context.icons.load("core-filter").markup
+    copy_icon = context.icons.load("core-copy").markup
+    check_icon = context.icons.load("core-check").markup
     assert '<div class="coda-table__controls">' in html
-    assert 'class="coda-table__filter"' in html
-    assert 'class="coda-table__copy">Copy as TSV</button>' in html
-    assert "Filter rows" in html
+    assert (
+        '<span class="coda-table__filter-wrap">'
+        '<input type="search" class="coda-table__filter" aria-label="Filter rows">'
+        f'<span class="coda-table__filter-icon">{filter_icon}</span>'
+        "</span>" in html
+    )
+    assert (
+        '<button type="button" class="coda-table__copy" aria-label="Copy as TSV">'
+        f'<span class="coda-table__copy-icon">{copy_icon}</span>'
+        f'<span class="coda-table__copy-check">{check_icon}</span>'
+        '<span class="coda-table__copy-feedback" aria-live="polite"></span>'
+        '<span class="coda-table__copy-count coda-table__sr" aria-live="polite">'
+        "</span>"
+        "</button>" in html
+    )
 
 
 def test_the_card_body_carries_no_title(tmp_path: Path) -> None:
@@ -681,11 +715,15 @@ def test_sort_state_icons_stamp_every_column(tmp_path: Path) -> None:
     html = _html(context, _table())
     # The census, arithmetic stated: the default artifact has 3
     # columns, so 3 identical stamps — 9 spans (3 states × 3
-    # columns), 9 svgs — and the state class names read 9 in the
-    # markup (one per span; the stylesheet is not in this body).
+    # columns) — and the state class names read 9 in the markup (one
+    # per span; the stylesheet is not in this body).  Knowing shift
+    # (iconed controls): the svg census was 9, the stamps alone; then
+    # 11 for the filter and copy icons; now 12 — the check icon
+    # rides the button at build time too, its success state stamped
+    # rather than fetched.
     assert html.count(stamp) == 3
     assert html.count("coda-table__sort-icon--") == 9
-    assert html.count('class="coda-icon"') == 9
+    assert html.count('class="coda-icon"') == 12
     # Position: the stamp rides after the label, inside the cell —
     # one column shows the contract for all.
     assert f'data-type="numeric">depth{stamp}' in html
@@ -706,11 +744,51 @@ def test_unavailable_tables_never_load_their_icons(tmp_path: Path) -> None:
 
 def test_healthy_tables_require_their_sort_icons(tmp_path: Path) -> None:
     # Design pin: no degradation on icon failure.  A build whose
-    # library does not carry the sort-state icons must not render a
-    # healthy table silently arrow-less — that would hide a broken
-    # installation behind a plausible page — so the load teaches in
-    # place, and the builder reports it as the plugin failure it is.
+    # library does not carry the table's icons — the sort states,
+    # the filter, the copy, the check — must not render a healthy
+    # table silently chrome-less: that would hide a broken
+    # installation behind a plausible page, so the load teaches in
+    # place and the builder reports it as the plugin failure it is.
+    # The match names the first icon the render loads — core-table,
+    # the idle state — so the pin is also the load order: sort
+    # states before controls, first-offender fixtures for
+    # first-offender teachings.
     store = _write_bundle(tmp_path)
     context = RenderContext(store=store, theme=DEFAULT_THEME)
     with pytest.raises(ValueError, match="unknown icon 'core-table'"):
         _render(context, _table())
+
+
+# ---------------------------------------------------------------------------
+# The enhancement script's source census: registration health,
+# counted where the seam cannot
+# ---------------------------------------------------------------------------
+
+
+def test_the_enhancement_script_registration_census() -> None:
+    # The page merges every script — tab wiring, Plotly.js — so a
+    # page-level census over the enhancement script's strings counts
+    # authors this suite does not hold; the honest home for the
+    # census is the file itself, every author held.  Each count
+    # transcribes the landed source with its arithmetic stated; the
+    # two splice casualties this effort shipped — a dead handler
+    # left behind a replacement, a duplicate declaration — would
+    # have reddened here before they shipped.
+    js = read_core_asset("table.js")
+    # Registrations: one header-wrap listener, one copy listener —
+    # the dead-handler casualty read 3.
+    assert js.count('addEventListener("click"') == 2
+    # The stamp consumers: the nameless-button check and the copy
+    # header — a reversion to a textContent read of an icon-stamped
+    # header reads 0.
+    assert js.count('getAttribute("data-key")') == 2
+    # One timer binding — the duplicate-declaration casualty read 2.
+    assert js.count("var feedbackTimer") == 1
+    # The feedback story: one definition, three calls; the retired
+    # text-restore path and its corpse signature read 0.
+    assert js.count("showFeedback") == 4
+    assert js.count('feedback("Copied"') == 0
+    assert js.count("COPY_LABEL") == 0
+    # The success path and the runtime label: one source site each.
+    assert js.count("Copied ") == 1
+    assert js.count('aria-label", "Sort') == 1

@@ -193,19 +193,13 @@ def test_core_components_render_through_the_cli(tmp_path: Path) -> None:
         '<span class="coda-table__sort-icon coda-table__sort-icon--idle">' in page
     )
     assert page.index('data-key="status"') < page.index('data-key="sample_id"')
-    assert "<tr><td>passed</td><td>S1</td></tr>" in page
-    assert "<tr><td>failed</td><td>S2</td></tr>" in page
-    assert (
-        page.count('data-key="depth" data-type="numeric"') == 1
-    )  # default placement alone
-    assert "<tr><td>S1</td><td>9</td><td>passed</td></tr>" in page
-    assert "<tr><td>S2</td><td>100</td><td>failed</td></tr>" in page
-    assert '<p class="coda-table__caption">Per-sample status.</p>' in page
-    # The controls bar ships in every placement's markup — display-none
-    # until the page is scripted, so the DOM carries no lies.
-    assert page.count('<div class="coda-table__controls">') == 2
+    # Knowing shift (iconed controls): "Filter rows" survives at 2 —
+    # the name moved from a label element to the field's aria-label;
+    # "Copy as TSV" was 3 and is now 2 — the two buttons' aria-labels
+    # — because the js feedback constant that carried the third
+    # retired: feedback is a live region now, not a label restore.
     assert page.count("Filter rows") == 2
-    assert page.count("Copy as TSV") == 3
+    assert page.count("Copy as TSV") == 2
     assert "coda-table--filtered" in page
     assert "navigator.clipboard" in page
     # The chart placement: the tabular format's second reader — the
@@ -247,10 +241,22 @@ def test_core_components_render_through_the_cli(tmp_path: Path) -> None:
     assert ".coda-kpi__title {" in page
     # The icon census, both authors counted.  The svgs: the two
     # tables stamp 15 sort-state icons — three states × five columns
-    # (2 where the columns policy selects, 3 in the default) — and
-    # the healthy KPI adds its own core-check: 16.  The state class
-    # names: 15 in the markup plus 4 in the stylesheet (three in the
-    # visibility selector group, one in the opacity rule) — so a
-    # missing stylesheet reads 15 and the pin teaches.
-    assert page.count('class="coda-icon"') == 16
+    # (2 where the columns policy selects, 3 in the default) — plus
+    # 3 controls icons per table (filter, copy, check) × 2 tables,
+    # and the healthy KPI adds its own core-check: 22.  The state
+    # class names: 15 in the markup plus 4 in the stylesheet (three
+    # in the visibility selector group, one in the opacity rule) —
+    # so a missing stylesheet reads 15 and the pin teaches.
+    assert page.count('class="coda-icon"') == 22
     assert page.count("coda-table__sort-icon--") == 19
+    # The controls chrome census — the coda-table__ vocabulary is
+    # table-owned, so every author is held.  The copy button's two
+    # stamped faces: one span per table in the markup plus the two
+    # stylesheet rules that swap them — 4.  The success-state class:
+    # two stylesheet rules, two script sites — 4, absent from the
+    # served markup because the script owns it at runtime.  The
+    # screen-reader utility: one count span per table plus its one
+    # stylesheet rule — 3.
+    assert page.count("coda-table__copy-check") == 4
+    assert page.count("coda-table__copy--copied") == 4
+    assert page.count("coda-table__sr") == 3

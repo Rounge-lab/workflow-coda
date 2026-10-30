@@ -54,7 +54,14 @@ def test_core_plugin_identity() -> None:
     assert table.js is not None
     assert ".coda-table" in table.js
     assert "coda-table--filtered" in table.js
-    assert "Copy as TSV" in table.js
+    # Knowing shift (iconed controls): was — "Copy as TSV" pinned in
+    # the js, the text-face button's label and its restore constant;
+    # now — the button's name rides aria-label in the component's
+    # markup (pinned byte-exact in test_core_table's controls-bar
+    # test), and the js owns the behavior alone: the class-swapped
+    # feedback and the honest-both-ways messages, pinned here.
+    assert "showFeedback" in table.js
+    assert "Copied " in table.js
 
 
 def test_core_plugin_constructs_fresh_each_call() -> None:
