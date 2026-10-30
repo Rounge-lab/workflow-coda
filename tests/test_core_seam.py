@@ -245,3 +245,12 @@ def test_core_components_render_through_the_cli(tmp_path: Path) -> None:
     assert page.count("/* core.table */") == 1
     assert page.count("// core.table") == 1
     assert ".coda-kpi__title {" in page
+    # The icon census, both authors counted.  The svgs: the two
+    # tables stamp 15 sort-state icons — three states × five columns
+    # (2 where the columns policy selects, 3 in the default) — and
+    # the healthy KPI adds its own core-check: 16.  The state class
+    # names: 15 in the markup plus 4 in the stylesheet (three in the
+    # visibility selector group, one in the opacity rule) — so a
+    # missing stylesheet reads 15 and the pin teaches.
+    assert page.count('class="coda-icon"') == 16
+    assert page.count("coda-table__sort-icon--") == 19

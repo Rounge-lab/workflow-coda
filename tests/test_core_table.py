@@ -8,6 +8,9 @@ content-lying family (a file that does not parse under its claimed
 component became the grammar's one home), the index-column
 convention, the columns policy against the header's own vocabulary,
 and the build-time column-type stamps the page script consumes.
+The sort-state icon stamps ride the same markup: chrome for the
+scripted sort, stamped complete in every column, hidden until
+the page is scripted, loaded through the build's icon library.
 The plugin assembly that ships the component is pinned in
 test_core_plugin.py; the component's css and js land with the
 assembly and are pinned end-to-end at the seam."""
@@ -647,3 +650,67 @@ def test_the_card_body_carries_no_title(tmp_path: Path) -> None:
     assert outcome.html is not None
     assert "Never rendered" not in outcome.html
     assert outcome.html.startswith('<div class="coda-table">')
+
+
+# ---------------------------------------------------------------------------
+# The sort-state icon stamp: chrome for the scripted sort, shipped
+# complete
+# ---------------------------------------------------------------------------
+
+
+def test_sort_state_icons_stamp_every_column(tmp_path: Path) -> None:
+    # The stamp, transcribed whole: one span per state, in the fixed
+    # state order, beside every column label.  The expected string
+    # transcribes the landed assembly byte-for-byte — the wrapper
+    # spans and the state-to-icon mapping from core's own constant —
+    # with the svg payloads read through the same library door
+    # production reads, so a wrong state order or a renamed icon
+    # reddens as a count of zero, and a deleted shipped icon reds
+    # here as the unknown-name teaching: this pin is the table's
+    # roster pin for the three icons it depends on.
+    context = _context(_write_bundle(tmp_path))
+    stamp = "".join(
+        f'<span class="coda-table__sort-icon coda-table__sort-icon--{state}">'
+        f"{context.icons.load(name).markup}</span>"
+        for state, name in (
+            ("idle", "core-table"),
+            ("ascending", "core-ascending"),
+            ("descending", "core-descending"),
+        )
+    )
+    html = _html(context, _table())
+    # The census, arithmetic stated: the default artifact has 3
+    # columns, so 3 identical stamps — 9 spans (3 states × 3
+    # columns), 9 svgs — and the state class names read 9 in the
+    # markup (one per span; the stylesheet is not in this body).
+    assert html.count(stamp) == 3
+    assert html.count("coda-table__sort-icon--") == 9
+    assert html.count('class="coda-icon"') == 9
+    # Position: the stamp rides after the label, inside the cell —
+    # one column shows the contract for all.
+    assert f'data-type="numeric">depth{stamp}' in html
+
+
+def test_unavailable_tables_never_load_their_icons(tmp_path: Path) -> None:
+    # The ordering pin: the sort-state icons load only after the
+    # unavailable conversion.  Missing data is a fact about the run,
+    # and a build whose icon library is empty or broken must not
+    # turn an unavailable placement into a crash — the bare context
+    # (the empty-library default) proves the icon door is never
+    # consulted on the unavailable path.
+    store = _write_bundle(tmp_path, status="failed")
+    context = RenderContext(store=store, theme=DEFAULT_THEME)
+    message = _unavailable_message(context, _table())
+    assert "declared with status 'failed'" in message
+
+
+def test_healthy_tables_require_their_sort_icons(tmp_path: Path) -> None:
+    # Design pin: no degradation on icon failure.  A build whose
+    # library does not carry the sort-state icons must not render a
+    # healthy table silently arrow-less — that would hide a broken
+    # installation behind a plausible page — so the load teaches in
+    # place, and the builder reports it as the plugin failure it is.
+    store = _write_bundle(tmp_path)
+    context = RenderContext(store=store, theme=DEFAULT_THEME)
+    with pytest.raises(ValueError, match="unknown icon 'core-table'"):
+        _render(context, _table())
