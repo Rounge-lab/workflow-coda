@@ -27,6 +27,7 @@ from workflow_coda.components import (
 from workflow_coda.context import RenderContext
 from workflow_coda.core.table import render_table
 from workflow_coda.errors import ArtifactReadError
+from workflow_coda.icons import IconLibrary, IconSource
 from workflow_coda.theme import DEFAULT_THEME
 
 _TABLE_TYPE = "org.example.metrics"
@@ -91,8 +92,24 @@ def _write_bundle(
 
 
 def _context(store: ArtifactStore) -> RenderContext:
-    """The render context for one bundle under the default theme."""
-    return RenderContext(store=store, theme=DEFAULT_THEME)
+    """The render context for one bundle under the default theme,
+    wired with the core plugin's own icon library — the same source
+    the real build assembles from the plugin's declaration, because
+    the table stamps its sort-state icons through the build's
+    library.
+
+    Knowing shift (sort-state icons): was — the bare context (store
+    and theme; the empty icon library default), honest because the
+    table read no icons; now — every healthy table loads its three
+    sort-state icons through the build's library, and the empty
+    default would teach a false unknown-icon error on every render;
+    why — the vehicle follows the feature, the same door the
+    builder wires."""
+    return RenderContext(
+        store=store,
+        theme=DEFAULT_THEME,
+        icons=IconLibrary([IconSource.for_plugin("core", "workflow_coda.core")]),
+    )
 
 
 def _table(overrides: ComponentParameters | None = None) -> ComponentParameters:
@@ -402,12 +419,24 @@ def test_unknown_column_teaches_the_headers_vocabulary(tmp_path: Path) -> None:
 
 
 def test_columns_order_and_inclusion(tmp_path: Path) -> None:
+    # Knowing shift (sort-state icons): was — the two header cells
+    # pinned byte-adjacent (…>status</th><th…>sample_id</th>); now —
+    # every column label carries the sort-state stamp between it and
+    # its </th>, so byte adjacency cannot survive; each label pins
+    # against the stamp's opening (idle first, the stamp's state
+    # order), and the position assert carries what adjacency encoded:
+    # status before sample_id, the columns policy's order.
     context = _context(_write_bundle(tmp_path))
     html = _html(context, _table({"columns": ["status", "sample_id"]}))
     assert (
-        '<th scope="col" data-key="status" data-type="text">status</th>'
-        '<th scope="col" data-key="sample_id" data-type="text">sample_id</th>' in html
+        '<th scope="col" data-key="status" data-type="text">status'
+        '<span class="coda-table__sort-icon coda-table__sort-icon--idle">' in html
     )
+    assert (
+        '<th scope="col" data-key="sample_id" data-type="text">sample_id'
+        '<span class="coda-table__sort-icon coda-table__sort-icon--idle">' in html
+    )
+    assert html.index('data-key="status"') < html.index('data-key="sample_id"')
     assert 'data-key="depth"' not in html  # not selected, not shown
     assert "<tr><td>passed</td><td>S1</td></tr>" in html
 
@@ -420,24 +449,45 @@ def test_columns_order_and_inclusion(tmp_path: Path) -> None:
 def test_blank_first_header_cell_declares_an_index(tmp_path: Path) -> None:
     # The producer's in-band declaration: a blank first header cell
     # means the first column is a row index — rendered first,
-    # without a label.
+    # without a label.  Knowing shift (sort-state icons): was — the
+    # three header cells pinned byte-adjacent (…></th><th…); now —
+    # every label carries the sort-state stamp before its </th>, so
+    # each label pins against the stamp's opening — here directly
+    # after the empty label — and each pin names its column, so
+    # order rides the fixture's own content.
     context = _context(_write_bundle(tmp_path, content=_INDEX_TABLE))
     html = _html(context, _table())
-    assert '<th scope="col" data-key="" data-type="text"></th>' in html
     assert (
-        '<th scope="col" data-key="sample" data-type="text">sample</th>'
-        '<th scope="col" data-key="depth" data-type="numeric">depth</th>' in html
+        '<th scope="col" data-key="" data-type="text">'
+        '<span class="coda-table__sort-icon coda-table__sort-icon--idle">' in html
+    )
+    assert (
+        '<th scope="col" data-key="sample" data-type="text">sample'
+        '<span class="coda-table__sort-icon coda-table__sort-icon--idle">' in html
+    )
+    assert (
+        '<th scope="col" data-key="depth" data-type="numeric">depth'
+        '<span class="coda-table__sort-icon coda-table__sort-icon--idle">' in html
     )
     assert "<tr><td>S1</td><td>A</td><td>30.5</td></tr>" in html
 
 
 def test_index_column_stays_first_under_the_columns_policy(tmp_path: Path) -> None:
+    # Knowing shift (sort-state icons): was — the two header cells
+    # pinned byte-adjacent, adjacency carrying the columns policy's
+    # order; now — each label pins against the stamp's opening and
+    # an index assert carries the order adjacency encoded.
     context = _context(_write_bundle(tmp_path, content=_INDEX_TABLE))
     html = _html(context, _table({"columns": ["depth", "sample"]}))
     assert (
-        '<th scope="col" data-key="depth" data-type="numeric">depth</th>'
-        '<th scope="col" data-key="sample" data-type="text">sample</th>' in html
+        '<th scope="col" data-key="depth" data-type="numeric">depth'
+        '<span class="coda-table__sort-icon coda-table__sort-icon--idle">' in html
     )
+    assert (
+        '<th scope="col" data-key="sample" data-type="text">sample'
+        '<span class="coda-table__sort-icon coda-table__sort-icon--idle">' in html
+    )
+    assert html.index('data-key="depth"') < html.index('data-key="sample"')
     assert "<tr><td>S1</td><td>30.5</td><td>A</td></tr>" in html
 
 
@@ -449,15 +499,25 @@ def test_index_column_stays_first_under_the_columns_policy(tmp_path: Path) -> No
 def test_headerless_renders_positional_labels(tmp_path: Path) -> None:
     # A producer emitting a grid without a header declares position
     # as meaning; positional vocabulary is honest, not invented.
+    # Knowing shift (sort-state icons): same shift as the suite —
+    # each label pins against the stamp's opening; the per-column
+    # data-type stamps already name each column's position.
     context = _context(
         _write_bundle(tmp_path, content="S1\t30.5\tpassed\nS2\t0\tfailed\n")
     )
     html = _html(context, _table({"header": False}))
-    assert '<th scope="col" data-key="Column 1" data-type="text">Column 1</th>' in html
     assert (
-        '<th scope="col" data-key="Column 2" data-type="numeric">Column 2</th>' in html
+        '<th scope="col" data-key="Column 1" data-type="text">Column 1'
+        '<span class="coda-table__sort-icon coda-table__sort-icon--idle">' in html
     )
-    assert '<th scope="col" data-key="Column 3" data-type="text">Column 3</th>' in html
+    assert (
+        '<th scope="col" data-key="Column 2" data-type="numeric">Column 2'
+        '<span class="coda-table__sort-icon coda-table__sort-icon--idle">' in html
+    )
+    assert (
+        '<th scope="col" data-key="Column 3" data-type="text">Column 3'
+        '<span class="coda-table__sort-icon coda-table__sort-icon--idle">' in html
+    )
     assert "<tr><td>S1</td><td>30.5</td><td>passed</td></tr>" in html
 
 
@@ -469,40 +529,61 @@ def test_headerless_renders_positional_labels(tmp_path: Path) -> None:
 def test_column_types_stamp_numeric_and_text(tmp_path: Path) -> None:
     # Stamped at build time, never re-derived at read time: numeric
     # when every non-empty cell parses as a finite number, else text.
-    # The default artifact carries one column of each.
+    # The default artifact carries one column of each.  Knowing
+    # shift (sort-state icons): same shift as the suite — each label
+    # pins against the stamp's opening.
     context = _context(_write_bundle(tmp_path))
     html = _html(context, _table())
-    assert '<th scope="col" data-key="depth" data-type="numeric">depth</th>' in html
     assert (
-        '<th scope="col" data-key="sample_id" data-type="text">sample_id</th>' in html
+        '<th scope="col" data-key="depth" data-type="numeric">depth'
+        '<span class="coda-table__sort-icon coda-table__sort-icon--idle">' in html
     )
-    assert '<th scope="col" data-key="status" data-type="text">status</th>' in html
+    assert (
+        '<th scope="col" data-key="sample_id" data-type="text">sample_id'
+        '<span class="coda-table__sort-icon coda-table__sort-icon--idle">' in html
+    )
+    assert (
+        '<th scope="col" data-key="status" data-type="text">status'
+        '<span class="coda-table__sort-icon coda-table__sort-icon--idle">' in html
+    )
 
 
 def test_nan_and_inf_stamp_as_text(tmp_path: Path) -> None:
-    # In this domain they are words about data, not data.
+    # In this domain they are words about data, not data.  Knowing
+    # shift (sort-state icons): same shift as the suite.
     context = _context(
         _write_bundle(tmp_path, content="sample\tdepth\nS1\tnan\nS2\tinf\n")
     )
     html = _html(context, _table())
-    assert '<th scope="col" data-key="depth" data-type="text">depth</th>' in html
+    assert (
+        '<th scope="col" data-key="depth" data-type="text">depth'
+        '<span class="coda-table__sort-icon coda-table__sort-icon--idle">' in html
+    )
 
 
 def test_all_empty_column_stamps_text(tmp_path: Path) -> None:
     # No data seen means nothing to sort numerically: text is the
-    # safe default, and the stamp stays honest.
+    # safe default, and the stamp stays honest.  Knowing shift
+    # (sort-state icons): same shift as the suite.
     context = _context(_write_bundle(tmp_path, content="a\tb\nS1\t\nS2\t\n"))
     html = _html(context, _table())
-    assert '<th scope="col" data-key="b" data-type="text">b</th>' in html
+    assert (
+        '<th scope="col" data-key="b" data-type="text">b'
+        '<span class="coda-table__sort-icon coda-table__sort-icon--idle">' in html
+    )
 
 
 def test_header_only_table_renders_an_empty_body(tmp_path: Path) -> None:
     # Columns declared, no data rows — a valid table, rendered
     # honestly: the header with text stamps (no data seen), an
-    # empty body.
+    # empty body.  Knowing shift (sort-state icons): same shift as
+    # the suite.
     context = _context(_write_bundle(tmp_path, content="sample\tdepth\n"))
     html = _html(context, _table())
-    assert '<th scope="col" data-key="depth" data-type="text">depth</th>' in html
+    assert (
+        '<th scope="col" data-key="depth" data-type="text">depth'
+        '<span class="coda-table__sort-icon coda-table__sort-icon--idle">' in html
+    )
     assert "<tbody></tbody>" in html
 
 
@@ -523,13 +604,18 @@ def test_cells_escape_html(tmp_path: Path) -> None:
 
 def test_header_names_escape_in_key_and_text(tmp_path: Path) -> None:
     # The stamped data-key escapes too — it is artifact-sourced like
-    # the visible header text it mirrors.
+    # the visible header text it mirrors.  Knowing shift (sort-state
+    # icons): was — the escaped label pinned against its </th>; now —
+    # against the stamp's opening, which follows the escaped label.
     context = _context(
         _write_bundle(tmp_path, content="depth<1>\tstatus\nS1\tpassed\n")
     )
     html = _html(context, _table())
     assert 'data-key="depth&lt;1&gt;"' in html
-    assert ">depth&lt;1&gt;</th>" in html
+    assert (
+        ">depth&lt;1&gt;"
+        '<span class="coda-table__sort-icon coda-table__sort-icon--idle">' in html
+    )
 
 
 def test_caption_escapes_and_renders_under_the_table(tmp_path: Path) -> None:

@@ -178,10 +178,21 @@ def test_core_components_render_through_the_cli(tmp_path: Path) -> None:
     assert page.count('<div class="coda-table">') == 2
     assert "<h3>Sample status</h3>" in page  # the placement's resolved title
     assert "<h3>Table</h3>" in page  # the untitled placement: the declaration default
+    # Knowing shift (sort-state icons): was — the two header cells
+    # pinned byte-adjacent, adjacency carrying the columns policy's
+    # order; now — every column label carries the sort-state stamp
+    # before its </th>, so each label pins against the stamp's
+    # opening and an index assert carries the order.  Everything
+    # else in this census survives: substring pins.
     assert (
-        '<th scope="col" data-key="status" data-type="text">status</th>'
-        '<th scope="col" data-key="sample_id" data-type="text">sample_id</th>' in page
+        '<th scope="col" data-key="status" data-type="text">status'
+        '<span class="coda-table__sort-icon coda-table__sort-icon--idle">' in page
     )
+    assert (
+        '<th scope="col" data-key="sample_id" data-type="text">sample_id'
+        '<span class="coda-table__sort-icon coda-table__sort-icon--idle">' in page
+    )
+    assert page.index('data-key="status"') < page.index('data-key="sample_id"')
     assert "<tr><td>passed</td><td>S1</td></tr>" in page
     assert "<tr><td>failed</td><td>S2</td></tr>" in page
     assert (
