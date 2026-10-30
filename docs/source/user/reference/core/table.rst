@@ -147,15 +147,18 @@ interactive that is not.
   each header as ``data-type``: ``numeric`` when the column has data
   and every non-empty cell parses as a finite number, else ``text``
   — ``nan`` and ``inf`` read as text, words about data rather than
-  data.  State is announced on the ``th`` through ``aria-sort``.
+  data. State is announced on the ``th`` through ``aria-sort`` — the
+  single announced channel.
 * **Filter** is a case-insensitive substring match across each
   row's cells; matching rows hide by class and are never deleted,
-  so clearing the filter restores the table exactly.
+  so clearing the filter restores the table exactly.  The field is
+  named through its ``aria-label``, with the framework's filter
+  icon as a decorative prefix.
 * **Copy** exports the current view — post-``columns`` columns,
   sorted, filtered — as TSV through ``navigator.clipboard``, cells
-  quoted per the ``csv`` dialect, with honest feedback both ways:
-  the button reports the copied row count, or that the browser
-  refuses the clipboard, and restores its label after a moment.
+  quoted per the ``csv`` dialect. The button is named through its
+  ``aria-label``. Success shows a check icon, clipboard refusal shows
+  a message. The button icon is restored after a moment.
 * **Print** honors the panels law: the controls bar is hidden and
   filter-hidden rows are restored, so the printed page shows the
   complete table in its current order.
