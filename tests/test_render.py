@@ -24,10 +24,11 @@ from workflow_coda.report import (
     EmbeddedAsset,
     EntryKind,
     GridEntry,
+    InlineLogo,
     ReportDocument,
     RowEntry,
 )
-from workflow_coda.theme import DEFAULT_THEME, Theme
+from workflow_coda.theme import DEFAULT_THEME, Theme, ThemeToken
 
 
 def figure_entry() -> ComponentEntry:
@@ -123,9 +124,10 @@ def make_document(
     subtitle: str | None = None,
     author: str | None = None,
     version: str | None = None,
-    logo: EmbeddedAsset | None = None,
+    logo: EmbeddedAsset | InlineLogo | None = None,
     favicon: EmbeddedAsset | None = None,
     theme: Theme = DEFAULT_THEME,
+    header_color: ThemeToken | None = None,
     manifest: ReportManifest | None = None,
     tabs: tuple[DocumentTab, ...] = (
         DocumentTab(title="Quality control", nodes=(ok_entry(),)),
@@ -148,6 +150,7 @@ def make_document(
         tabs=tabs,
         diagnostics=diagnostics,
         chrome=chrome,
+        header_color=header_color,
     )
 
 
@@ -197,6 +200,32 @@ def test_logo_and_favicon_render_from_data_uris() -> None:
     html = render_report(make_document(logo=asset("logo"), favicon=asset("favicon")))
     assert '<img class="coda-logo" src="data:image/png;base64,aGVsbG8=" alt="">' in html
     assert '<link rel="icon" href="data:image/png;base64,aGVsbG8=">' in html
+
+
+def test_an_inline_logo_renders_as_svg_in_the_brand() -> None:
+    # The logo's second shape: inlined svg markup, not a data-URI
+    # <img> — an image is an isolated document whose currentColor
+    # can never reach the page, and real markup inherits the
+    # header's contrast-picked ink.  The markup rides raw
+    # (sanitized at build, upstream of the document), first in the
+    # brand block; the scoped sizing rule is the framework
+    # stylesheet's own.
+    markup = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" '
+        'class="coda-icon" aria-hidden="true" focusable="false" '
+        'width="1em" height="1em">'
+        '<path fill="currentColor" d="M12 3l7 18-7-4-7 4z"/></svg>'
+    )
+    logo = InlineLogo(source="core-arrow-up", markup=markup)
+    html = render_report(make_document(logo=logo))
+    assert markup in html
+    assert '<img class="coda-logo"' not in html
+    assert (
+        html.index('class="coda-brand"')
+        < html.index(markup)
+        < html.index('class="coda-brand-text"')
+    )
+    assert ".coda-brand > svg.coda-icon {" in html  # the scoped sizing rule
 
 
 # ---------------------------------------------------------------------------
@@ -637,6 +666,50 @@ def test_custom_theme_tokens_and_series_length() -> None:
     assert "--coda-series-2: #222222;" in html
     assert "--coda-series-3" not in html
     assert "--coda-font-body: Georgia, serif;" in html
+
+
+def test_the_header_pair_derives_from_the_layouts_token() -> None:
+    # The header derives like --coda-text: the background from the
+    # layout's token — primary when the layout is silent, a core
+    # token every theme carries — and the ink contrast-picked
+    # against it, so the bar reads on any theme without the author
+    # choosing.  The stylesheet wires the bar to the pair.
+    html = render_report(make_document())
+    primary = DEFAULT_THEME.colors["primary"]
+    assert f"--coda-header-background: {primary};" in html
+    assert f"--coda-header-text: {DEFAULT_THEME.text_on(primary)};" in html
+    assert "background: var(--coda-header-background);" in html
+    assert "color: var(--coda-header-text);" in html
+    accent = DEFAULT_THEME.colors["accent"]
+    declared = render_report(make_document(header_color="accent"))
+    assert f"--coda-header-background: {accent};" in declared
+    assert f"--coda-header-text: {DEFAULT_THEME.text_on(accent)};" in declared
+
+
+def test_declared_header_tokens_win_over_the_derivation() -> None:
+    # The declared-token-wins law, --coda-text's precedent: a theme
+    # that declares its own header-background / header-text tokens
+    # outranks the derivation — and the layout's token with it; the
+    # theme is the design authority, the layout borrows its
+    # vocabulary.  The pair appears exactly once.  The ink still
+    # derives when the theme declares the background alone,
+    # contrast-picked against the declared color.
+    payload = DEFAULT_THEME.model_dump()
+    payload["colors"]["header-background"] = "#123456"
+    payload["colors"]["header-text"] = "#654321"
+    both = Theme.model_validate(payload)
+    html = render_report(make_document(theme=both, header_color="accent"))
+    assert "--coda-header-background: #123456;" in html
+    assert "--coda-header-text: #654321;" in html
+    assert html.count("--coda-header-background:") == 1
+    assert html.count("--coda-header-text:") == 1
+    payload = DEFAULT_THEME.model_dump()
+    payload["colors"]["header-background"] = "#123456"
+    background_only = Theme.model_validate(payload)
+    page = render_report(make_document(theme=background_only))
+    assert "--coda-header-background: #123456;" in page
+    assert f"--coda-header-text: {background_only.text_on('#123456')};" in page
+    assert page.count("--coda-header-background:") == 1
 
 
 # ---------------------------------------------------------------------------

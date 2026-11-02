@@ -19,6 +19,7 @@ from workflow_coda.report import (
     EmbeddedAsset,
     EntryKind,
     GridEntry,
+    InlineLogo,
     ReportDocument,
     RowEntry,
 )
@@ -249,6 +250,43 @@ def test_embedded_asset_is_frozen_and_slotted() -> None:
     assert_frozen_dataclass(asset, "path")
     with pytest.raises(AttributeError):
         asset.extra = "nope"  # type: ignore[attr-defined]
+
+
+# ---------------------------------------------------------------------------
+# InlineLogo
+# ---------------------------------------------------------------------------
+
+
+def test_inline_logo_round_trip() -> None:
+    logo = InlineLogo(source="core-arrow-up", markup='<svg viewBox="0 0 24 24"/>')
+    assert logo.source == "core-arrow-up"
+    assert logo.markup.startswith("<svg")
+    assert logo.is_inline is True
+
+
+def test_the_logo_branch_markers() -> None:
+    # The template's dispatch: an inline logo is markup, an embedded
+    # asset is a data URI — one marker property tells the two shapes
+    # apart.
+    assert make_asset().is_inline is False
+
+
+def test_inline_logo_requires_visible_source_and_markup() -> None:
+    with pytest.raises(
+        ValueError, match="inline logo source must contain visible text"
+    ):
+        InlineLogo(source="   ", markup="<svg/>")
+    with pytest.raises(
+        ValueError, match="inline logo markup must contain visible markup"
+    ):
+        InlineLogo(source="core-arrow-up", markup="   ")
+
+
+def test_inline_logo_is_frozen_and_slotted() -> None:
+    logo = InlineLogo(source="core-arrow-up", markup="<svg/>")
+    assert_frozen_dataclass(logo, "source")
+    with pytest.raises(AttributeError):
+        logo.extra = "nope"  # type: ignore[attr-defined]
 
 
 # ---------------------------------------------------------------------------
@@ -516,6 +554,17 @@ def test_document_carries_the_report_version() -> None:
     versioned = replace(document, version="1.2.0")
     assert versioned.version == "1.2.0"
     assert versioned != document
+
+
+def test_document_carries_the_header_color_token() -> None:
+    # The styling-default contract: omission rides as None — the
+    # renderer derives primary — and a declared token rides as
+    # written, validated against the loaded theme upstream at build.
+    document = make_document()
+    assert document.header_color is None
+    colored = replace(document, header_color="accent")
+    assert colored.header_color == "accent"
+    assert colored != document
 
 
 @pytest.mark.parametrize(

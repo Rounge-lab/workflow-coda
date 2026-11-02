@@ -1,4 +1,4 @@
-"""Tests for the design-token theme model."""
+"""Tests for the design-token theme model and its shared color grammar."""
 
 import pytest
 from factories import make_theme_payload
@@ -217,3 +217,70 @@ def test_theme_fonts_reject_fetched_files() -> None:
     payload["font_body"] = "url(https://fonts.example.com/font.woff2)"
     with pytest.raises(ValidationError, match="font-family names, not fetched"):
         Theme.model_validate(payload)
+
+
+# ---------------------------------------------------------------------------
+# The shared color grammar: Theme.resolve_color
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_color_maps_a_token_to_the_theme_hex() -> None:
+    # The grammar's first half: a declared token resolves to the
+    # theme's own hex — never a literal, never a re-derivation.  The
+    # expected value derives from the default theme, as throughout
+    # this suite: a theme edit is never a test sweep.
+    theme = Theme.model_validate(make_theme_payload())
+    assert (
+        theme.resolve_color("core.example", "primary")
+        == DEFAULT_THEME.colors["primary"]
+    )
+
+
+def test_resolve_color_maps_series_entries_into_the_palette() -> None:
+    # The second half: series-N is 1-based into the categorical
+    # palette — the entry core.kpi and core.chart resolve for their
+    # authors, now through the theme's own door.
+    theme = Theme.model_validate(make_theme_payload())
+    assert theme.resolve_color("core.example", "series-2") == DEFAULT_THEME.series[1]
+
+
+def test_resolve_color_names_the_requester_in_every_teaching() -> None:
+    # The first argument is the door the teaching points at — the
+    # component that asked, carried into every error the grammar
+    # raises, so a plugin author reads their own id in the fix.
+    theme = Theme.model_validate(make_theme_payload())
+    for raw in (5, f"series-{len(DEFAULT_THEME.series) + 1}", "chartreuse"):
+        with pytest.raises(ValueError, match="core.example: 'color'"):
+            theme.resolve_color("core.example", raw)
+
+
+@pytest.mark.parametrize("raw", [5, "", "   "])
+def test_resolve_color_rejects_non_string_and_blank_requests(raw: object) -> None:
+    # A color request is a theme token name or a series entry — a
+    # number, an empty string, or whitespace teaches the vocabulary
+    # before anything is resolved.
+    theme = Theme.model_validate(make_theme_payload())
+    with pytest.raises(ValueError, match="must be a theme color token"):
+        theme.resolve_color("core.example", raw)
+
+
+def test_resolve_color_teaches_the_series_bound_from_the_palette() -> None:
+    # The bound derives from the palette's own length — the rotted-
+    # hardcode lesson: a longer palette never silently invalidates
+    # the pin.
+    theme = Theme.model_validate(make_theme_payload())
+    beyond = f"series-{len(DEFAULT_THEME.series) + 1}"
+    with pytest.raises(ValueError, match=f"names {beyond!r}, but this theme's"):
+        theme.resolve_color("core.example", beyond)
+
+
+def test_resolve_color_teaches_the_theme_vocabulary() -> None:
+    # An unknown token names what the theme actually declares: the
+    # sorted token vocabulary rides the teaching, so the typo
+    # teaches the move.
+    theme = Theme.model_validate(make_theme_payload())
+    with pytest.raises(
+        ValueError, match="must be a theme token this theme declares"
+    ) as exc_info:
+        theme.resolve_color("core.example", "chartreuse")
+    assert "primary" in str(exc_info.value)  # the theme's own vocabulary rides the fix

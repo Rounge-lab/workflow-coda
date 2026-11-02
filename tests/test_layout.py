@@ -46,6 +46,7 @@ def test_valid_layout_loads_with_defaults() -> None:
     assert layout.theme is None
     assert layout.logo is None
     assert layout.favicon is None
+    assert layout.header_color is None
     assert layout.on_missing is MissingPolicy.FAIL
     assert layout.on_unavailable is UnavailablePolicy.NOTICE
     (tab,) = layout.tabs
@@ -66,12 +67,14 @@ def test_optional_identity_fields_round_trip() -> None:
             theme="themes/ntnu.yaml",
             logo="assets/logo.png",
             favicon="assets/favicon.ico",
+            header_color="accent",
         )
     )
     assert layout.subtitle == "Optional one-liner"
     assert layout.theme == "themes/ntnu.yaml"
     assert layout.logo == "assets/logo.png"
     assert layout.favicon == "assets/favicon.ico"
+    assert layout.header_color == "accent"
 
 
 def test_placement_constructs_directly_with_defaults() -> None:
@@ -87,6 +90,30 @@ def test_placement_title_overrides_the_default() -> None:
     (placement,) = layout.tabs[0].components
     assert isinstance(placement, ComponentPlacement)
     assert placement.title == "Mean depth"
+
+
+# ---------------------------------------------------------------------------
+# The header color: one theme token, taught by shape
+# ---------------------------------------------------------------------------
+
+
+def test_header_color_literals_teach_the_token_law() -> None:
+    # A color literal is not a token name: the validator teaches the
+    # move before any theme is loaded — declare the color in the
+    # report's theme and name the token here.
+    with pytest.raises(ValidationError, match="never a color literal"):
+        ReportLayout.model_validate(make_layout_payload(header_color="#ff0000"))
+
+
+@pytest.mark.parametrize(
+    "bad",
+    ["Background", "1background", "-background", "background_color", ""],
+)
+def test_header_color_must_be_a_token_shape(bad: str) -> None:
+    # The canonical ThemeToken pattern — lowercase kebab-case — the
+    # same shape every theme token carries, reused, not re-declared.
+    with pytest.raises(ValidationError):
+        ReportLayout.model_validate(make_layout_payload(header_color=bad))
 
 
 # ---------------------------------------------------------------------------

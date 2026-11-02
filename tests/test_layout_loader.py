@@ -83,6 +83,7 @@ subtitle: Optional one-liner
 theme: themes/ntnu.yaml
 logo: assets/logo.png
 favicon: assets/favicon.ico
+header_color: accent
 on_missing: notice
 tabs:
   - title: Quality control
@@ -97,6 +98,7 @@ tabs:
     assert layout.theme == "themes/ntnu.yaml"
     assert layout.logo == "assets/logo.png"
     assert layout.favicon == "assets/favicon.ico"
+    assert layout.header_color == "accent"
     # The YAML word "notice" becomes the enum member by value.
     assert layout.on_missing is MissingPolicy.NOTICE
     (tab,) = layout.tabs
@@ -236,6 +238,17 @@ def test_boolean_in_policy_field_explains_too(tmp_path: Path) -> None:
     # The union field produces the explanation per branch; the valid
     # values ride along in pydantic's parenthetical message.
     with pytest.raises(LayoutError, match="YAML parsed this as the boolean False"):
+        load_layout(write_layout(tmp_path, text))
+
+
+def test_boolean_in_header_color_explains_too(tmp_path: Path) -> None:
+    # The trap machinery is field-agnostic: a bare yes in the new
+    # token field is a boolean, and the loader explains the quoting
+    # rule with the field's own name in the example.
+    text = MINIMAL_YAML.replace(
+        'schema_version: "0.2.0"', 'schema_version: "0.2.0"\nheader_color: yes'
+    )
+    with pytest.raises(LayoutError, match="YAML parsed this as the boolean True"):
         load_layout(write_layout(tmp_path, text))
 
 
