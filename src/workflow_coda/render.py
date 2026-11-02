@@ -36,12 +36,11 @@ like plugin html and never escaped.
 
 Self-containment holds as before: the theme ships as generated CSS
 custom properties, the stylesheet, split rules, and tab script are
-inlined, the logo and favicon are data URIs, and Plotly.js is inlined
-from the installed ``plotly`` package exactly when the document contains figures.  The
-page's Content-Security-Policy meta makes self-containment a read-time property, not
-just a build promise: the reader's browser blocks every network request the page — or a
-plugin's style or script — could attempt. A single-tab, figure-free report inlines no
-<script> at all unless a component contributes one.
+inlined, the favicon is a data URI and the logo either a data URI or
+inlined svg markup — an inline logo is real markup in the page, so
+``currentColor`` inherits the header's ink — and Plotly.js is inlined
+from the installed ``plotly`` package exactly when the document
+contains figures.
 
 Failures are environment failures, never authoring failures.
 :class:`~workflow_coda.errors.RenderError` names the fix — install

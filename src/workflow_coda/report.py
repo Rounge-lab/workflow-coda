@@ -19,10 +19,14 @@ diagnostics node in the layout becomes a :class:`DiagnosticsEntry`
 marker: the builder records the diagnostics themselves on the
 document as it builds, and the renderer fills the marker from the
 complete ledger — a plugin bug in the last tab exists by the time
-rendering runs, wherever the marker sits.  The theme is loaded, and
-the logo and favicon are already embedded as data URIs: the built
-report is one self-contained page, holding no paths that only the
-build machine could resolve.
+rendering runs, wherever the marker sits.
+
+The theme is loaded, and the logo and favicon are already embedded:
+the favicon as a data URI, the logo as a data URI for raster images
+or as sanitized svg markup inlined for SVG files and bundled icons —
+so a logo authored with ``currentColor`` follows the header's ink.
+The built report is one self-contained page, holding no paths that
+only the build machine could resolve.
 
 **Degradation is still data.**  The outcome model continues unchanged:
 a rendered component entry carries its

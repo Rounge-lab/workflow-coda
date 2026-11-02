@@ -17,6 +17,12 @@ The theme is also the home of the shared color grammar:
 or a ``series-N`` entry — into the theme's own hex, with the
 requester named in every teaching, so every component that asks for
 colors speaks one vocabulary.
+
+Three page properties derive rather than declare — the body ink
+``--coda-text`` and the header pair ``--coda-header-background`` /
+``--coda-header-text``, the latter pair from the layout's
+``header_color`` token — each contrast-picked by the renderer; a
+theme that declares those tokens wins.
 """
 
 import re

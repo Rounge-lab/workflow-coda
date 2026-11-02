@@ -32,6 +32,9 @@ The validator rewrites the root to embed-ready form — sized ``1em``,
 decorative (``aria-hidden``), not focusable, classed ``coda-icon`` —
 while the file's own ``currentColor`` fills and strokes ride through,
 so an icon inherits the color of the text around it.
+The logo's SVG sources pass the same door
+(:func:`workflow_coda.assets.embed_inline_svg`): one boundary for
+every svg that reaches a page, shipped or user-authored.
 """
 
 import xml.etree.ElementTree as ET

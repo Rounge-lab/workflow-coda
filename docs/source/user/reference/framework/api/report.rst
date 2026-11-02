@@ -27,6 +27,9 @@ Entries and diagnostics
 .. autoclass:: workflow_coda.report.EmbeddedAsset
    :members:
 
+.. autoclass:: workflow_coda.report.InlineLogo
+   :members:
+
 .. autoclass:: workflow_coda.report.ComponentEntry
    :members:
 

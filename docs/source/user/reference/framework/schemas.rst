@@ -238,14 +238,28 @@ Identity
        grammar is documented in its own section below.
    * - ``logo``
      - no
-     - relative path
+     - relative path, or a bundled icon name
      - Logo image; omitted renders without one (with a diagnostic
-       explaining how to add one).  Embedded as a data URI at build
-       time.
+       explaining how to add one).  A relative path addresses an
+       image file next to the layout: raster formats embed as a data
+       URI; an SVG file inlines as sanitized markup, so a logo
+       authored with ``currentColor`` inherits the header's ink.
+       Anything else — no path separators, no dots — is a bundled
+       icon's name (``core-arrow-up`` and friends), loaded through
+       the build's icon library and inlined the same way.
    * - ``favicon``
      - no
      - relative path
      - Same declared-then-strict rule as ``logo``.
+   * - ``header_color``
+     - no
+     - theme token name — never a color literal
+     - The page header's background as a theme token the report's
+       theme declares, ``primary`` by default.  The bar's ink is
+       contrast-picked from the theme's text pair, so it reads on
+       any theme.  Declared, the token must exist in the loaded
+       theme; omitted is a styling default, not a diagnostic-noted
+       absence.
    * - ``on_missing``
      - no
      - ``fail`` (default) | ``notice`` | ``skip``
@@ -264,9 +278,13 @@ Identity
 
 ``theme``, ``logo``, and ``favicon`` follow one rule: **declared,
 then strict** — omitted is a valid, diagnostic-noted absence;
-declared means the file must exist and load.  The report never
-references external files: declared assets are embedded as data
-URIs at build time, so the written page is self-contained.
+declared means the file must exist and load.  ``header_color``
+follows the strict half only: declared, the theme must carry the
+token; omitted means ``primary``, silently — a styling default,
+not a missing file.  The report never references external files:
+declared assets are embedded at build time (the favicon and raster
+logos as data URIs; SVG logos and named icons as inlined svg
+markup), so the written page is self-contained.
 
 Tabs and placements
 ...................
@@ -452,14 +470,15 @@ exactly this list.
    * - Token
      - Meaning
    * - ``background``
-     - The page background — and the header bar's ink (the bar wears
-       ``primary``).
+     - The page background.
    * - ``surface``
      - Cards', groups', and panels' background.
    * - ``border``
      - Hairlines: card and group borders, section rules, badges.
    * - ``primary``
-     - The header bar's color; the theme's principal accent.
+     - The header bar's default color (the layout's
+       ``header_color`` may name another token); the theme's
+       principal accent.
    * - ``accent``
      - Interactive highlights (tab hover).
    * - ``success`` / ``warning`` / ``danger``
@@ -486,10 +505,15 @@ The page's own body ink follows the same rule and is **derived**:
 the renderer emits ``--coda-text`` as the pair's contrast winner
 against the theme's ``background``, beside one ``--coda-<token>``
 per declared color, the ``--coda-series-N`` entries, and the two
-font stacks.  The ``text`` token is retired — no longer required,
-and themes need not declare it.  A theme that still declares
-``text`` keeps its own ink: declared tokens ride through, and the
-derivation steps aside.
+font stacks.  The header bar's pair derives the same way:
+``--coda-header-background`` carries the layout's ``header_color``
+token (``primary`` when the layout is silent), and
+``--coda-header-text`` is the pair's contrast winner against it.
+The ``text`` token is retired — no longer required, and themes
+need not declare it.  A theme that still declares ``text`` — or
+that declares ``header-background`` or ``header-text`` — keeps its
+own value: declared tokens ride through, and the derivation steps
+aside.
 
 Loading rules
 .............
