@@ -1,8 +1,8 @@
 """The report layout contract: how a report author composes a report.
 
 The layout is the framework's most human-facing input: a small YAML
-file in which the author declares the report's identity (title,
-optional subtitle, logo, favicon, theme) and an ordered list of
+file in which the author declares the report's identity (title, optional
+subtitle, logo, favicon, theme, header color) and an ordered list of
 *tabs*, each composing components through a small layout grammar.
 This module is the layout's *data model* — the shape of that file as
 strict pydantic models, format-agnostic.  The layout loader turns
@@ -66,6 +66,7 @@ from pydantic_core import ErrorDetails
 from .artifact_store import JsonValue
 from .components import COMPONENT_ID_PATTERN
 from .text import has_visible_text
+from .theme import ThemeToken
 
 LayoutSchemaVersion = Literal["0.2.0"]
 """The layout contract's own version.
@@ -85,6 +86,17 @@ def _require_visible_text(value: str) -> str:
     """Reject whitespace-only text: always an authoring mistake."""
     if not has_visible_text(value):
         raise ValueError("must contain visible text, not only whitespace")
+    return value
+
+
+def _require_token_name(value: object) -> object:
+    """Teach the literal trap: the header color names a theme token."""
+    if isinstance(value, str) and value.startswith("#"):
+        raise ValueError(
+            "the header color is a theme token name (e.g. 'primary'), "
+            "never a color literal — declare the color in the report's "
+            "theme and name the token here"
+        )
     return value
 
 
@@ -481,6 +493,16 @@ class ReportLayout(BaseModel):
     favicon: VisibleText | None = None
     """Optional path to a favicon image, relative to the layout file;
     embedded into the report at build time."""
+
+    header_color: Annotated[ThemeToken | None, BeforeValidator(_require_token_name)] = (
+        None
+    )
+    """Optional theme token for the page header's background, e.g.
+    ``primary`` (the default) or ``accent``.  A token *name*, never a
+    color literal: the header's ink is the theme's own contrast-picked
+    text against it, so the bar reads on any theme without the author
+    choosing.  The builder validates the token against the loaded
+    theme; the renderer derives the page's header properties from it."""
 
     on_missing: MissingPolicy = MissingPolicy.FAIL
     """The default placement policy when a component id resolves to

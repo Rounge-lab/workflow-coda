@@ -22,8 +22,8 @@ The honest-data law, chart edition:
   cycle, and a note in the report's diagnostics ledger says so;
 * ``color``, ``grid``, ``log_x``, and ``log_y`` are presentation:
   colors resolve from the report's theme (token names or series
-  entries — never literals), exactly the grammar ``core.kpi``
-  established; log axes refuse the nonpositive values Plotly would
+  entries — never literals), the shared grammar the theme itself
+  resolves; log axes refuse the nonpositive values Plotly would
   silently drop;
 * ``caption`` is authorship: prose, honest because visibly prose;
 * the accessibility description is *inferred* from the figure's
@@ -67,8 +67,7 @@ from ..components import (
 )
 from ..context import RenderContext
 from ..errors import ArtifactUnavailableError, RenderError
-from ..theme import ColorHex, Theme
-from .colors import _SERIES_COLOR_PATTERN, _resolve_color
+from ..theme import Theme
 from .parameters import (
     _optional_bool,
     _optional_text,
@@ -308,34 +307,6 @@ class _TraceData:
     ys: list[float] | None
 
 
-def _resolve_single_color(theme: Theme, raw: JsonValue) -> ColorHex:
-    """One color request — a theme token or a series entry — to
-    hex: the resolution grammar core.kpi established, reused."""
-    if not isinstance(raw, str) or not raw.strip():
-        raise ValueError(
-            f"core.chart: 'color' must be a theme color token (e.g. "
-            f"'primary') or a series entry like 'series-1', got {raw!r}"
-        )
-    match = _SERIES_COLOR_PATTERN.fullmatch(raw)
-    if match is not None:
-        index = int(match.group(1))
-        if not 1 <= index <= len(theme.series):
-            raise ValueError(
-                f"core.chart: 'color' names {raw!r}, but this theme's "
-                f"series palette has {len(theme.series)} colors "
-                f"(valid: series-1 to series-{len(theme.series)})"
-            )
-        return theme.series[index - 1]
-    if raw in theme.colors:
-        return theme.colors[raw]
-    available = ", ".join(sorted(theme.colors))
-    raise ValueError(
-        f"core.chart: 'color' must be a theme token this theme "
-        f"declares ({available}) or a series entry like 'series-1', "
-        f"got {raw!r}"
-    )
-
-
 def _chart_data(
     theme: Theme,
     spec: _ChartSpec,
@@ -471,7 +442,7 @@ def _make_figure(
         single = (
             theme.series[0]
             if spec.color is None
-            else _resolve_color("core.chart", theme, spec.color)
+            else theme.resolve_color("core.chart", spec.color)
         )
         colors = [single] * len(traces)
     figure = go.Figure()

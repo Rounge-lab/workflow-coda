@@ -36,6 +36,7 @@ from workflow_coda.report import (
     Diagnostic,
     DiagnosticKind,
     DiagnosticsEntry,
+    EmbeddedAsset,
     EntryKind,
     GridEntry,
     ReportDocument,
@@ -1085,6 +1086,11 @@ def test_declared_logo_embeds_as_a_data_uri(tmp_path: Path) -> None:
     layout_path = write_layout(tmp_path, logo="logo.png", tabs=[qc_tab("run A")])
     document = build(tmp_path, layout_path, current_plugin())
     assert document.logo is not None
+    # The logo is a two-shape union since InlineLogo arrived: this
+    # fixture pins the file branch — the data URI — and the assert
+    # narrows the union for the attribute reads below; the icon-name
+    # branch gets its own tests with the builder feature.
+    assert isinstance(document.logo, EmbeddedAsset)
     assert document.logo.path == "logo.png"
     assert document.logo.media_type == "image/png"
     expected = "data:image/png;base64," + base64.b64encode(data).decode("ascii")

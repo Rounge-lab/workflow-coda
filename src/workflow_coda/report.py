@@ -45,7 +45,7 @@ from .components import ComponentChrome, RenderedComponent
 from .layout import CardLayoutKind
 from .manifest import ReportManifest
 from .text import has_visible_text
-from .theme import Theme
+from .theme import Theme, ThemeToken
 
 
 class EntryKind(Enum):
@@ -318,6 +318,47 @@ class EmbeddedAsset:
                 f"embedded asset {self.path!r}: data URI must start with {prefix!r}"
             )
 
+    @property
+    def is_inline(self) -> bool:
+        """The logo branch marker: a data URI, not inlined markup."""
+        return False
+
+
+@dataclass(frozen=True, slots=True)
+class InlineLogo:
+    """The report logo inlined as sanitized svg markup.
+
+    The logo a theme can reach: an svg embedded as markup, not a
+    data-URI ``<img>`` — an image is an isolated document whose
+    ``currentColor`` resolves against the browser default, never the
+    page.  Inline, the svg's ``currentColor`` fills and strokes
+    resolve against the header's contrast-picked ink, so a logo
+    authored for inheritance follows the theme while an explicitly
+    colored one keeps its own.  The markup arrives sanitized through
+    the icon validator's deny-by-default allowlists — the same
+    boundary shipped icons pass — decorative and embed-ready.  Built
+    from either source the layout's ``logo`` key addresses: a bundled
+    icon by name or an SVG file by path.
+    """
+
+    source: str
+    """The declared string as written: an icon name or a file path."""
+
+    markup: str
+    """The sanitized, embed-ready svg — raw into the page, guarded at
+    build like other chrome."""
+
+    @property
+    def is_inline(self) -> bool:
+        """The logo branch marker: inlined markup, not a data URI."""
+        return True
+
+    def __post_init__(self) -> None:
+        if not has_visible_text(self.source):
+            raise ValueError("inline logo source must contain visible text")
+        if not has_visible_text(self.markup):
+            raise ValueError("inline logo markup must contain visible markup")
+
 
 @dataclass(frozen=True, slots=True)
 class Diagnostic:
@@ -371,8 +412,11 @@ class ReportDocument:
     theme: Theme
     """The loaded theme the report is rendered with."""
 
-    logo: EmbeddedAsset | None
-    """The embedded logo, or ``None`` when the layout declared none."""
+    logo: EmbeddedAsset | InlineLogo | None
+    """The report's logo, or ``None`` when the layout declared none:
+    a data-URI asset for raster files, inlined sanitized svg when the
+    logo is a bundled icon or an SVG file — so currentColor-authored
+    logos inherit the header's ink."""
 
     favicon: EmbeddedAsset | None
     """The embedded favicon, or ``None`` when the layout declared none."""
@@ -395,3 +439,11 @@ class ReportDocument:
     inlines the stylesheets after the framework's own and the scripts
     after the framework's.  Empty by default: a document built from
     chrome-less components inlines no plugin chrome at all."""
+
+    header_color: ThemeToken | None = None
+    """The header color's theme token as declared in the layout, or
+    ``None`` for the ``primary`` default.  Validated against the
+    theme at build; the renderer derives the bar's background and
+    its contrast-picked ink from it, unless the theme itself declares
+    the ``header-background`` / ``header-text`` tokens — a declared
+    token wins, the ``--coda-text`` precedent."""

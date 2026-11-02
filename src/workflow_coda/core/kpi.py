@@ -69,7 +69,6 @@ from ..errors import ArtifactUnavailableError
 from ..icons import Icon
 from ..manifest.artifact import ArtifactFormat
 from ..theme import ColorHex, Theme
-from .colors import _resolve_color
 from .parameters import _optional_one_of, _optional_text, _required_text
 
 _VARIANTS: Final[frozenset[str]] = frozenset({"text", "fill", "gradient"})
@@ -147,8 +146,8 @@ def _resolve_gradient_stops(theme: Theme, raw: JsonValue) -> tuple[ColorHex, Col
             f"got {raw!r}"
         )
     return (
-        _resolve_color("core.kpi", theme, raw[0]),
-        _resolve_color("core.kpi", theme, raw[1]),
+        theme.resolve_color("core.kpi", raw[0]),
+        theme.resolve_color("core.kpi", raw[1]),
     )
 
 
@@ -407,7 +406,7 @@ def _resolve_palette(
         stops = _resolve_gradient_stops(theme, spec.color)
         return _Palette(plate=None, stops=stops, ink=theme.text_on(*stops))
     if spec.color is not None:
-        color = _resolve_color("core.kpi", theme, spec.color)
+        color = theme.resolve_color("core.kpi", spec.color)
     elif status is not None:
         color = theme.colors[_STATUS_COLOR_TOKENS[status]]
     else:

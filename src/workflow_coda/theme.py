@@ -11,8 +11,15 @@ tokens beyond the core set, which CSS and plugins may use
 opportunistically.  Plugins never declare tokens of their own and never
 hard-code colors, so a plugin renders correctly against any theme and a
 theme restyles any plugin's output.
+
+The theme is also the home of the shared color grammar:
+:meth:`Theme.resolve_color` turns one color request — a token name
+or a ``series-N`` entry — into the theme's own hex, with the
+requester named in every teaching, so every component that asks for
+colors speaks one vocabulary.
 """
 
+import re
 from typing import Annotated, Final
 
 from pydantic import (
@@ -55,6 +62,9 @@ type ThemeToken = Annotated[
     str, StringConstraints(strict=True, pattern=r"^[a-z][a-z0-9-]*$")
 ]
 """A lowercase kebab-case token name, e.g. ``background`` or ``sample-highlight``."""
+
+_SERIES_COLOR_PATTERN: Final[re.Pattern[str]] = re.compile(r"^series-(\d+)$")
+"""A categorical-palette request: ``series-<n>``, 1-based."""
 
 #: Semantic color tokens that every theme must provide.
 CORE_COLOR_TOKENS: Final[frozenset[str]] = frozenset(
@@ -151,6 +161,43 @@ class Theme(BaseModel):
         light = self.colors["text-light"]
         dark = self.colors["text-dark"]
         return light if contrast(light) > contrast(dark) else dark
+
+    def resolve_color(self, requester: str, raw: object) -> ColorHex:
+        """One color request — a theme token or a series entry — to
+        hex.
+
+        The shared color grammar: a theme token this theme declares
+        (``primary``) or a categorical-series entry (``series-2``),
+        resolved to the theme's own ``#rrggbb`` — never a literal.
+        *requester* names the placement that asked (a component id),
+        so every teaching error points at the right door.  The
+        grammar the core components established, promoted to the
+        theme itself — the owner of the tokens and the palette — so
+        plugins ask instead of re-implementing.
+        """
+        if not isinstance(raw, str) or not raw.strip():
+            raise ValueError(
+                f"{requester}: 'color' must be a theme color token (e.g. "
+                f"'primary') or a series entry like 'series-1', got {raw!r}"
+            )
+        match = _SERIES_COLOR_PATTERN.fullmatch(raw)
+        if match is not None:
+            index = int(match.group(1))
+            if not 1 <= index <= len(self.series):
+                raise ValueError(
+                    f"{requester}: 'color' names {raw!r}, but this theme's "
+                    f"series palette has {len(self.series)} colors "
+                    f"(valid: series-1 to series-{len(self.series)})"
+                )
+            return self.series[index - 1]
+        if raw in self.colors:
+            return self.colors[raw]
+        available = ", ".join(sorted(self.colors))
+        raise ValueError(
+            f"{requester}: 'color' must be a theme token this theme "
+            f"declares ({available}) or a series entry like 'series-1', "
+            f"got {raw!r}"
+        )
 
 
 #: The built-in ``default`` theme, used when no theme is explicitly
