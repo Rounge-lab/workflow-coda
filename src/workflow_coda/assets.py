@@ -13,6 +13,12 @@ the fix.
 Embedding (rather than linking) is what keeps the report one
 self-contained HTML file: the report reader's machine never has to
 resolve a path that only the build machine knew.
+
+The logo's SVG branch inlines rather than embeds: an SVG read as text
+and sanitized through the icon validator's deny-by-default allowlists
+becomes markup in the page, not a data-URI <img> — an image is an
+isolated document whose currentColor can never reach the page, and a
+logo authored for inheritance follows the header's ink only as markup.
 """
 
 import base64
@@ -20,7 +26,8 @@ from collections.abc import Callable
 from pathlib import Path
 
 from .errors import LayoutError
-from .report import EmbeddedAsset
+from .icons import validate_icon_markup
+from .report import EmbeddedAsset, InlineLogo
 
 
 def _is_png(data: bytes) -> bool:
@@ -98,3 +105,32 @@ def embed_asset(layout_path: Path, declared: str, role: str) -> EmbeddedAsset:
         )
     data_uri = f"data:{media_type};base64," + base64.b64encode(data).decode("ascii")
     return EmbeddedAsset(path=declared, media_type=media_type, data_uri=data_uri)
+
+
+def embed_inline_svg(layout_path: Path, declared: str, role: str) -> InlineLogo:
+    """Read and sanitize a declared SVG file for inlining as markup.
+
+    The logo's SVG branch: the text passes the icon validator —
+    the same boundary every shipped icon crosses — so a logo
+    copied from elsewhere teaches at build time with the offender
+    named, and the markup arrives decorative and embed-ready.
+    """
+    path = layout_path.parent / declared
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as e:
+        raise LayoutError(
+            f"cannot read the declared {role} {declared!r} at {path}: "
+            f"{e.strerror or e} — place the file next to the layout "
+            f"({layout_path.name!r}) or correct the path"
+        ) from e
+    except UnicodeDecodeError as e:
+        raise LayoutError(
+            f"cannot read the declared {role} {declared!r} as UTF-8 "
+            f"text ({e}) — save the SVG as UTF-8"
+        ) from e
+    try:
+        markup = validate_icon_markup(text, source=f"the declared {role} {declared!r}")
+    except ValueError as e:
+        raise LayoutError(str(e)) from e
+    return InlineLogo(source=declared, markup=markup)

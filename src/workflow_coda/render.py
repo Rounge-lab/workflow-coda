@@ -74,7 +74,7 @@ from .report import (
     ReportDocument,
     RowEntry,
 )
-from .theme import Theme
+from .theme import Theme, ThemeToken
 
 _ENV: Final[Environment] = Environment(
     loader=PackageLoader("workflow_coda", "templates"),
@@ -99,7 +99,7 @@ def _slugify(value: str) -> str:
 _ENV.filters["slugify"] = _slugify
 
 
-def _css_tokens(theme: Theme) -> str:
+def _css_tokens(theme: Theme, header_color: ThemeToken | None) -> str:
     """The ``:root`` custom-property block for one theme.
 
     One rule, no special cases: every theme color token becomes
@@ -107,6 +107,16 @@ def _css_tokens(theme: Theme) -> str:
     ``--coda-series-1..N``, and the two font stacks become
     ``--coda-font-body`` and ``--coda-font-heading``.  Additional
     theme tokens become usable by plugin-supplied html automatically.
+
+    Three properties derive rather than declare: ``--coda-text``,
+    the theme's contrast-picked ink on the page background, and
+    the header pair — ``--coda-header-background`` from the
+    layout's header color token (``primary`` when the layout is
+    silent), with ``--coda-header-text`` contrast-picked against
+    the effective background.  A theme that declares its own
+    ``text``, ``header-background``, or ``header-text`` tokens
+    wins: the loop above emitted them, and the derivation yields
+    — the declared token rides through.
     """
     lines = [":root {"]
     for token, color in theme.colors.items():
@@ -118,6 +128,14 @@ def _css_tokens(theme: Theme) -> str:
         # `text` token keeps its own ink — the loop above emitted
         # it, and a declared token wins.
         lines.append(f"  --coda-text: {theme.text_on(theme.colors['background'])};")
+    if "header-background" in theme.colors:
+        header_background = theme.colors["header-background"]
+    else:
+        token = header_color if header_color is not None else "primary"
+        header_background = theme.colors[token]
+        lines.append(f"  --coda-header-background: {header_background};")
+    if "header-text" not in theme.colors:
+        lines.append(f"  --coda-header-text: {theme.text_on(header_background)};")
     for index, color in enumerate(theme.series, start=1):
         lines.append(f"  --coda-series-{index}: {color};")
     lines.append(f"  --coda-font-body: {theme.font_body};")
@@ -482,7 +500,7 @@ def render_report(document: ReportDocument) -> str:
         document=document,
         tabs=tabs,
         has_tabs=has_tabs,
-        css_tokens=_css_tokens(document.theme),
+        css_tokens=_css_tokens(document.theme, document.header_color),
         css_base=_chrome_file("style.css"),
         css_layout=_splits_css(document),
         component_css=_component_css(document),

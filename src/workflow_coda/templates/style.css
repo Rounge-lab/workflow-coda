@@ -20,9 +20,13 @@
  * first).  Plugin-supplied html may use the custom properties
  * (including --coda-series-N) to match the theme.
  *
- * The header bar wears the theme's primary color with the theme's own
- * background color as its text — both ends belong to the theme author,
- * so the bar adapts to light and dark themes alike.
+ * The header bar wears the color the layout's header_color names —
+ * a theme token, primary by default — with the theme's own
+ * contrast-picked text as its ink (the derived
+ * --coda-header-background / --coda-header-text properties; a
+ * theme declaring those tokens wins).  The bar adapts to light and
+ * dark themes alike, and an inline svg logo follows the ink through
+ * currentColor when its author wrote it that way.
  */
 
 *,
@@ -42,8 +46,8 @@ body {
 /* --- Header bar ------------------------------------------------------- */
 
 .coda-headerbar {
-  background: var(--coda-primary);
-  color: var(--coda-background);
+  background: var(--coda-header-background);
+  color: var(--coda-header-text);
 }
 
 .coda-headerbar-inner {
@@ -67,6 +71,17 @@ body {
 .coda-logo {
   padding: 0.25rem 0.5rem;
   max-height: 3.5rem;
+  max-width: 14rem;
+}
+
+/* A bundled-icon or SVG-file logo inlines as a real <svg> — sized
+   here, not by the icon rewrite's 1em stamp (CSS wins), so
+   currentColor fills inherit the header's ink.  Scoped to the
+   brand block: every other coda-icon in the page keeps its size. */
+.coda-brand > svg.coda-icon {
+  padding: 0.25rem 0.5rem;
+  height: 3.5rem;
+  width: auto;
   max-width: 14rem;
 }
 

@@ -15,11 +15,16 @@ one report document.
    policy chooses.  The gated plugins' icon declarations are also
    assembled here, into the build's icon library: a gated-out
    plugin's icons are unaddressable, and its defects must not fail
-   an unrelated report.
-4. Load the theme and embed the declared assets, both under the
-   declared-then-strict rule: omitted means default theme and missing
-   logo/favicon, each recorded as an informational diagnostic;
-   declared must load, or the build fails.
+   an unrelated report. The library is assembled before the declared
+   assets are prepared, because the logo's icon-name branch loads
+   through it.
+4. Load the theme, validate the declared header_color token against it
+   (omitted carries None to the document — the renderer derives primary),
+   and embed the declared assets, both under the declared-then-strict
+   rule: omitted means the default theme and missing logo/favicon, each
+   recorded as an informational diagnostic (the header color excepted —
+   a styling default, not an omission); declared must load, or the
+   build fails.
 5. Walk every tab's composition: resolve each placement against the
    *gated* plugins and apply the ``on_missing`` policy (layout-level
    default, per-placement override); render the resolved ones; and
@@ -43,7 +48,7 @@ import yaml
 from pydantic import ValidationError
 
 from .artifact_store import ArtifactStore
-from .assets import embed_asset
+from .assets import embed_asset, embed_inline_svg
 from .components import ComponentStatus, PlacementInfo, ReportComponent
 from .context import RenderContext
 from .errors import ComponentUnavailableError, LayoutError
@@ -74,10 +79,11 @@ from .report import (
     EmbeddedAsset,
     EntryKind,
     GridEntry,
+    InlineLogo,
     ReportDocument,
     RowEntry,
 )
-from .theme import DEFAULT_THEME, Theme
+from .theme import DEFAULT_THEME, Theme, ThemeToken
 
 
 def _load_theme(layout_path: Path, declared: str) -> Theme:
@@ -121,6 +127,91 @@ def _load_theme(layout_path: Path, declared: str) -> Theme:
         ) from e
 
 
+def _resolve_header_color(
+    theme: Theme, declared: ThemeToken | None
+) -> ThemeToken | None:
+    """The declared header color token, validated against the theme.
+
+    Omitted stays omitted: ``None`` rides to the document and the
+    renderer derives ``primary`` — a core token every theme must
+    carry, so the default always resolves.  The established
+    pattern for optional styling fields: subtitle, author, and
+    version all carry their omission honestly, and presentation
+    owns the default.  Declared, the token must be one the theme
+    declares: the declared-then-strict rule, taught with the
+    theme's own vocabulary, so a typo names what the theme
+    actually carries.
+    """
+    if declared is None:
+        return None
+    if declared not in theme.colors:
+        available = ", ".join(sorted(theme.colors))
+        raise LayoutError(
+            f"the layout declares header_color {declared!r}, but the "
+            f"report's theme declares no such token ({available}) — "
+            "declare the token in the theme, or name one it carries"
+        )
+    return declared
+
+
+def _logo_from_icon(library: IconLibrary, declared: str) -> InlineLogo:
+    """The layout's logo as a bundled icon, by name.
+
+    The declared-then-strict rule's icon branch: the name must be
+    one the build's library carries — an unknown name is the
+    layout's typo, taught with the roster the environment ships; a
+    shipped icon that fails its own validation teaches as the
+    broken-installation family, already wrapped by the library.
+    The sanitized markup rides the document; the page inlines it
+    as a real ``<svg>``, so ``currentColor`` inherits the header's
+    ink.
+    """
+    try:
+        icon = library.load(declared)
+    except ValueError as e:
+        raise LayoutError(str(e)) from e
+    return InlineLogo(source=declared, markup=icon.markup)
+
+
+def _prepare_logo(
+    layout_path: Path,
+    declared: str | None,
+    library: IconLibrary,
+    diagnostics: list[Diagnostic],
+) -> EmbeddedAsset | InlineLogo | None:
+    """The layout's logo: one key, two vocabularies.
+
+    A value carrying a path separator or a dot addresses a file
+    next to the layout — an SVG file inlines as sanitized markup
+    (so ``currentColor`` inherits the header's ink; raster formats
+    embed as a data URI, which cannot inherit and does not pretend
+    to).  Anything else addresses the build's icon library by name
+    — icon names are ``<plugin_id>-<name>`` stems, no separators
+    and no dots, so the branch is law, not guesswork: each typo
+    lands in its own vocabulary's teaching.  Omitted, the omission
+    diagnostic stands, teaching both vocabularies.
+    """
+    if declared is None:
+        diagnostics.append(
+            Diagnostic(
+                kind=DiagnosticKind.LOGO_OMITTED,
+                subject="logo",
+                message=(
+                    "no logo declared in the layout — the report "
+                    "renders without it; add a 'logo:' image path "
+                    "next to the layout file, or a bundled icon's "
+                    "name (e.g. 'core-coda'), to embed one"
+                ),
+            )
+        )
+        return None
+    if any(mark in declared for mark in ("/", "\\", ".")):
+        if declared.lower().endswith(".svg"):
+            return embed_inline_svg(layout_path, declared, "logo")
+        return embed_asset(layout_path, declared, "logo")
+    return _logo_from_icon(library, declared)
+
+
 def _prepare_asset(
     layout_path: Path,
     declared: str | None,
@@ -128,7 +219,9 @@ def _prepare_asset(
     omitted: DiagnosticKind,
     diagnostics: list[Diagnostic],
 ) -> EmbeddedAsset | None:
-    """Embed the declared asset, or record the omission diagnostic."""
+    """Embed the declared asset, or record the omission diagnostic.
+    Serves the favicon today; the logo has its own two-vocabulary
+    prep (:func:_prepare_logo)."""
     if declared is None:
         diagnostics.append(
             Diagnostic(
@@ -445,7 +538,8 @@ def build_report(
 
     Raises :class:`~workflow_coda.errors.LayoutError` for authoring
     problems (the layout file, the theme file it declares, declared
-    image assets), :class:`~workflow_coda.errors.PluginLoadError` /
+    image assets, the header color token, and the logo's icon-name
+    vocabulary), :class:`~workflow_coda.errors.PluginLoadError` /
     ``PluginConflictError`` for a broken plugin environment,
     :class:`~workflow_coda.errors.PluginAssetError` for a declared
     icon package that is not importable or whose icons break the
@@ -461,7 +555,7 @@ def build_report(
     layout = load_layout(layout_path)
     diagnostics: list[Diagnostic] = []
 
-    # Theme and assets: declared-then-strict.
+    # Theme and header color: declared-then-strict.
     if layout.theme is not None:
         theme = _load_theme(layout_path, layout.theme)
     else:
@@ -477,18 +571,14 @@ def build_report(
                 ),
             )
         )
-    logo = _prepare_asset(
-        layout_path, layout.logo, "logo", DiagnosticKind.LOGO_OMITTED, diagnostics
-    )
-    favicon = _prepare_asset(
-        layout_path,
-        layout.favicon,
-        "favicon",
-        DiagnosticKind.FAVICON_OMITTED,
-        diagnostics,
-    )
+    header_color = _resolve_header_color(theme, layout.header_color)
 
-    # Plugin gating and the walk's resolution tables.
+    # Plugin gating and the walk's resolution tables.  The icon
+    # library assembles here — before the assets, a knowing
+    # reorder: the logo's icon-name branch loads through it, with
+    # the consequence that a broken icon installation teaches
+    # before a declared logo's authoring error on that one
+    # interleaving.
     gated_plugins = registry.plugins_supporting(manifest.schema_version)
     gated: dict[str, tuple[ReportPlugin, ReportComponent]] = {
         component.id: (plugin, component)
@@ -500,15 +590,26 @@ def build_report(
         for plugin in registry.plugins
         for component in plugin.components
     }
-    # The icon library: the gated plugins' declarations, assembled
-    # hard-fail — a declared icon package that is not importable, or
-    # whose icons break the namespace laws, is a broken installation.
-    icon_sources = [
-        IconSource.for_plugin(plugin.metadata.id, plugin.metadata.icons_package)
-        for plugin in gated_plugins
-        if plugin.metadata.icons_package is not None
-    ]
-    context = RenderContext(store=store, theme=theme, icons=IconLibrary(icon_sources))
+    icon_library = IconLibrary(
+        [
+            IconSource.for_plugin(plugin.metadata.id, plugin.metadata.icons_package)
+            for plugin in gated_plugins
+            if plugin.metadata.icons_package is not None
+        ]
+    )
+
+    # Assets: declared-then-strict — the logo in two vocabularies,
+    # the favicon a file.
+    logo = _prepare_logo(layout_path, layout.logo, icon_library, diagnostics)
+    favicon = _prepare_asset(
+        layout_path,
+        layout.favicon,
+        "favicon",
+        DiagnosticKind.FAVICON_OMITTED,
+        diagnostics,
+    )
+
+    context = RenderContext(store=store, theme=theme, icons=icon_library)
     state = _WalkState(
         gated=gated,
         full=full,
@@ -539,4 +640,5 @@ def build_report(
         tabs=tuple(tabs),
         diagnostics=tuple(diagnostics),
         chrome=_resolve_chrome(state),
+        header_color=header_color,
     )

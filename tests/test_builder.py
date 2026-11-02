@@ -26,7 +26,9 @@ from workflow_coda.components import (
     RenderContext,
     RenderedComponent,
 )
+from workflow_coda.core.plugin import get_plugin
 from workflow_coda.errors import ComponentUnavailableError, LayoutError
+from workflow_coda.icons import IconLibrary, IconSource
 from workflow_coda.manifest import ReportManifest
 from workflow_coda.plugins import ReportPlugin
 from workflow_coda.registry import PluginRegistry
@@ -39,6 +41,7 @@ from workflow_coda.report import (
     EmbeddedAsset,
     EntryKind,
     GridEntry,
+    InlineLogo,
     ReportDocument,
     RowEntry,
 )
@@ -46,6 +49,12 @@ from workflow_coda.theme import DEFAULT_THEME
 
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 ICO_MAGIC = b"\x00\x00\x01\x00"
+LOGO_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
+    '<path fill="currentColor" d="M12 3l7 18-7-4-7 4z"/>'
+    "</svg>"
+)
+"""A minimal currentColor logo: the file branch's SVG member."""
 
 
 # ---------------------------------------------------------------------------
@@ -1075,6 +1084,42 @@ def test_theme_duplicate_keys_rejected(tmp_path: Path) -> None:
         build(tmp_path, layout_path, current_plugin())
 
 
+def test_omitted_header_color_means_primary(tmp_path: Path) -> None:
+    # A styling default, not an omission: no diagnostic, and the
+    # document carries None — the renderer derives primary.
+    layout_path = write_layout(tmp_path, tabs=[qc_tab("run A")])
+    document = build(tmp_path, layout_path, current_plugin())
+    assert document.header_color is None
+    assert not any(d.subject == "header_color" for d in document.diagnostics)
+
+
+def test_declared_header_color_carries_to_the_document(tmp_path: Path) -> None:
+    layout_path = write_layout(tmp_path, header_color="accent", tabs=[qc_tab("run A")])
+    document = build(tmp_path, layout_path, current_plugin())
+    assert document.header_color == "accent"
+
+
+def test_unknown_header_color_token_teaches_the_theme_vocabulary(
+    tmp_path: Path,
+) -> None:
+    layout_path = write_layout(tmp_path, header_color="shiny", tabs=[qc_tab("run A")])
+    with pytest.raises(
+        LayoutError,
+        match=re.escape("declares header_color 'shiny'")
+        + ".*"
+        + re.escape("declare the token in the theme"),
+    ):
+        build(tmp_path, layout_path, current_plugin())
+
+
+def test_header_color_literals_teach_the_token_law(tmp_path: Path) -> None:
+    # The literal trap, taught by the layout model before any theme
+    # is loaded: a color literal is not a token name.
+    layout_path = write_layout(tmp_path, header_color="#ff0000", tabs=[qc_tab("run A")])
+    with pytest.raises(LayoutError, match="never a color literal"):
+        build(tmp_path, layout_path, current_plugin())
+
+
 # ---------------------------------------------------------------------------
 # Declared assets, then strict
 # ---------------------------------------------------------------------------
@@ -1182,6 +1227,95 @@ def test_the_layout_version_carries_to_the_document(tmp_path: Path) -> None:
     layout_path = write_layout(tmp_path, version="1.2.0", tabs=[qc_tab("run A")])
     document = build(tmp_path, layout_path, current_plugin())
     assert document.version == "1.2.0"
+
+
+def _core_registry() -> PluginRegistry:
+    """The real core plugin's registry: the logo's icon-name branch
+    loads through the build's real icon library — the same plugin
+    the seam builds through."""
+    return PluginRegistry((get_plugin(),))
+
+
+def _logo_tab() -> dict[str, JsonValue]:
+    """A diagnostics-only tab: the logo tests place no components —
+    the tab grammar needs one node, and the diagnostics marker
+    needs nothing."""
+    return {"title": "QC", "components": [{"type": "diagnostics"}]}
+
+
+def test_icon_named_logo_inlines_the_shipped_markup(tmp_path: Path) -> None:
+    # The logo's second vocabulary: a bundled icon's name — no path
+    # separators, no dots — loads through the build's library, the
+    # same door the KPI's icon parameter reads.  The expected
+    # markup derives through the same door: like compared with
+    # like.
+    layout_path = write_layout(tmp_path, logo="core-arrow-up", tabs=[_logo_tab()])
+    document = build_report(layout_path, make_store(tmp_path), _core_registry())
+    assert isinstance(document.logo, InlineLogo)
+    assert document.logo.source == "core-arrow-up"
+    library = IconLibrary([IconSource.for_plugin("core", "workflow_coda.core")])
+    assert document.logo.markup == library.load("core-arrow-up").markup
+
+
+def test_unknown_icon_named_logo_teaches_the_roster(tmp_path: Path) -> None:
+    # The icon branch's own typo family: the roster the environment
+    # ships rides the teaching.
+    layout_path = write_layout(tmp_path, logo="core-arrow-uup", tabs=[_logo_tab()])
+    with pytest.raises(
+        LayoutError,
+        match=re.escape("unknown icon 'core-arrow-uup'")
+        + ".*"
+        + re.escape("installed plugins ship:")
+        + ".*"
+        + re.escape("core-arrow-up"),
+    ):
+        build_report(layout_path, make_store(tmp_path), _core_registry())
+
+
+def test_svg_file_logo_inlines_through_the_validator(tmp_path: Path) -> None:
+    # The file branch's SVG member: a data-URI <img> could never
+    # inherit the header's ink — an image is an isolated document —
+    # so an SVG file inlines as sanitized markup, the same
+    # deny-by-default boundary every shipped icon crosses, with
+    # the file's own currentColor riding through.
+    write_asset(tmp_path, "logo.svg", LOGO_SVG.encode("utf-8"))
+    layout_path = write_layout(tmp_path, logo="logo.svg", tabs=[_logo_tab()])
+    document = build(tmp_path, layout_path, current_plugin())
+    assert isinstance(document.logo, InlineLogo)
+    assert document.logo.source == "logo.svg"
+    assert document.logo.markup.startswith("<svg")
+    assert 'class="coda-icon"' in document.logo.markup
+    assert 'aria-hidden="true"' in document.logo.markup
+    assert 'fill="currentColor"' in document.logo.markup
+
+
+def test_an_svg_file_logo_that_fails_validation_teaches(tmp_path: Path) -> None:
+    # The validator is the boundary for user SVGs too: a logo
+    # carrying an element outside the allowlist fails the build,
+    # the offender named — never ships silently into a report.
+    write_asset(
+        tmp_path,
+        "logo.svg",
+        (
+            b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
+            b"<text>logo</text></svg>"
+        ),
+    )
+    layout_path = write_layout(tmp_path, logo="logo.svg", tabs=[_logo_tab()])
+    with pytest.raises(LayoutError, match=re.escape("element <text> is not allowed")):
+        build(tmp_path, layout_path, current_plugin())
+
+
+def test_dotted_logo_names_stay_file_addresses(tmp_path: Path) -> None:
+    # The shape law's honest routing: a dot means a file, even when
+    # the name looks icon-ish — an icon typo'd with an extension
+    # teaches the file branch's own lesson, not a misleading roster.
+    layout_path = write_layout(tmp_path, logo="core-arrow-up.svg", tabs=[_logo_tab()])
+    with pytest.raises(
+        LayoutError,
+        match=re.escape("cannot read the declared logo 'core-arrow-up.svg'"),
+    ):
+        build(tmp_path, layout_path, current_plugin())
 
 
 # ---------------------------------------------------------------------------
