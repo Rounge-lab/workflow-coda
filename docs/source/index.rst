@@ -22,19 +22,19 @@ New here?  Start with the :doc:`tutorials </user/tutorials/index>`:
 
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :caption: Tutorials
 
    user/tutorials/index
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :caption: How-to guides
 
    user/how-to/index
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :caption: Explanation
 
    user/explanation/index
