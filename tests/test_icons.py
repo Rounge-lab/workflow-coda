@@ -73,7 +73,7 @@ def test_load_returns_embed_ready_markup() -> None:
     assert markup.startswith("<svg ")
     assert markup.endswith("</svg>")
     assert 'viewBox="0 0 24 24"' in markup  # the file's own box rides through
-    assert 'stroke="currentColor"' in markup  # color inheritance rides through
+    assert 'fill="currentColor"' in markup  # color inheritance rides through
     assert 'width="1em"' in markup  # the loader's dimensions
     assert 'height="1em"' in markup
     assert 'aria-hidden="true"' in markup  # decorative by contract
