@@ -40,7 +40,7 @@ namespaced kind (the ``org.example.`` prefix keeps third-party types
 from colliding), and ``format`` tells consumers how to read the
 file. This example uses ``json``, which is one of the built-in claims.
 ``status: complete`` says the pipeline successfully finished producing this
-file.  The ``workflow-coda`` validates the manifest's shape when the report
+file.  ``workflow-coda`` validates the manifest's shape when the report
 builds; artifact files are read only when a component actually asks for one.
 
 .. note::
@@ -92,14 +92,14 @@ working directory.  Open it in your browser, and you should see:
 * a footer crediting the pipeline by name and version.
 
 There is no tab bar since a single tab is not yet navigation.  Adding
-more tabs will add the tab bar to report the header. We'll do this in
+more tabs will add the tab bar to report's the header. We'll do this in
 the second tutorial.
 
 Ask the report what it left out
 -------------------------------
 
 A ``workflow-coda`` report does not hide its omissions. Instead, it collects
-for diagnostics.  To see the diagnostics in your report, add the diagnostics
+them for diagnostics.  To see the diagnostics in your report, add the diagnostics
 marker to the ``Headlines`` tab, after the placement:
 
 .. code-block:: yaml
