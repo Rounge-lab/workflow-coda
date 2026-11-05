@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "waterfall-reports"
+version = "0.1.0"
+description = "A waterfall chart report plugin for workflow-coda"
+requires-python = ">=3.14"
+dependencies = ["plotly"]
+
+[project.entry-points."workflow_coda.plugins"]
+waterfall = "waterfall_reports.plugin:get_plugin"
+
+[tool.setuptools.packages.find]
+where = ["."]
