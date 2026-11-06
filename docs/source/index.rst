@@ -34,7 +34,7 @@ New here?  Start with the :doc:`tutorials </user/tutorials/index>`:
    user/how-to/index
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Explanation
 
    user/explanation/index
