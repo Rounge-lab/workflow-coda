@@ -4,3 +4,4 @@ dist/
 .coverage
 __pycache__/
 tmp/
+docs/examples/build/
