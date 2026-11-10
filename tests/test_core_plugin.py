@@ -25,7 +25,7 @@ def test_core_plugin_identity() -> None:
     # The icon declaration: core ships the framework's icon set
     # through the same optional field third-party plugins use.
     assert plugin.metadata.icons_package == "workflow_coda.core"
-    assert len(plugin.components) == 4
+    assert len(plugin.components) == 5
     kpi = plugin.components[0]
     assert kpi.id == "core.kpi"
     assert kpi.title == "Key metric"

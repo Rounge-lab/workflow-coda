@@ -21,6 +21,7 @@ from .assets import read_core_asset
 from .chart import render_chart
 from .kpi import render_kpi
 from .markdown import render_markdown
+from .notice import render_notice
 from .table import render_table
 
 _KPI_CSS: Final[str] = read_core_asset("kpi.css")
@@ -126,6 +127,32 @@ _MARKDOWN: Final[ReportComponent] = ReportComponent(
 """The core plugin's markdown component"""
 
 
+_NOTICE_CSS: Final[str] = (
+    read_core_asset("markdown.css") + "\n\n" + read_core_asset("notice.css")
+)
+"""core.notice's page chrome: the prose vocabulary's styles
+concatenated with the notice's own — the disclosure affordance and
+the body's rhythm.  The prose rules stay single-sourced in
+markdown.css (core.markdown self-hosts the same file); a page that
+renders both components carries the prose rules under two honest
+banners, and a notice-only page still styles its prose.  No
+script: the collapse is native <details>."""
+
+
+_NOTICE: Final[ReportComponent] = ReportComponent(
+    id="core.notice",
+    title="Notice",
+    description=(
+        "Author prose with a stance — note, success, warning, or "
+        "failure — optionally collapsed."
+    ),
+    render=render_notice,
+    chrome=ComponentChrome.TILE,
+    css=_NOTICE_CSS,
+)
+"""The core plugin's notice component"""
+
+
 def get_plugin() -> ReportPlugin:
     """The core plugin: workflow-coda's own components."""
     return ReportPlugin(
@@ -135,10 +162,10 @@ def get_plugin() -> ReportPlugin:
             version=metadata.version("workflow-coda"),
             description=(
                 "Generally useful report components shipped with "
-                "workflow-coda: headline metrics, tables, charts, and prose."
+                "workflow-coda: headline metrics, tables, charts, prose, and notices."
             ),
             supported_schema_versions=frozenset({"0.2.0"}),
             icons_package="workflow_coda.core",
         ),
-        components=(_KPI, _TABLE, _CHART, _MARKDOWN),
+        components=(_KPI, _TABLE, _CHART, _MARKDOWN, _NOTICE),
     )
