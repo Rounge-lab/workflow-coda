@@ -17,14 +17,16 @@ Identity
 * **Plugin id:** ``core``
 * **Name:** ``Core report components``
 * **Description:** generally useful report components shipped with
-  workflow-coda: headline metrics, tables, charts, and prose.
+  workflow-coda: headline metrics, tables, charts, prose, and
+  notices.
 * **Version:** the framework's own version, read from the installed
   package metadata, so ``pyproject.toml`` stays the single source of
   truth.
 * **Loading:** the registry loads the plugin through its
   ``get_plugin()`` entry point.
-* **Components:** ``core.kpi``, ``core.table``, ``core.chart``, and
-  ``core.markdown`` today; the roster grows with the framework.
+* **Components:** ``core.kpi``, ``core.table``, ``core.chart``,
+  ``core.markdown``, and ``core.notice`` today; the roster grows
+  with the framework.
 * **Icons:** ``core`` ships the built-in icon set — ``core-``
   prefixed SVGs under its own ``assets/icons/``, declared through
   the plugin's ``icons_package`` field and served through the
@@ -100,6 +102,10 @@ healthy chart placements carries none of it.
 ``core.markdown`` self-hosts a stylesheet and declares no script,
 like the KPI — prose is static content — its rules scoped under
 the ``coda-prose`` wrapper.
+``core.notice`` self-hosts the prose stylesheet concatenated with
+its own disclosure rules and declares no script either — the
+collapse is native ``<details>``/``<summary>`` — scoped under the
+``coda-notice`` classes.
 
 The component pages
 -------------------
@@ -118,3 +124,4 @@ described once, in `Placement gates`_ above.
    table
    chart
    markdown
+   notice
