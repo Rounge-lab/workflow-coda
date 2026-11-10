@@ -20,6 +20,7 @@ from ..plugins import ReportPlugin
 from .assets import read_core_asset
 from .chart import render_chart
 from .kpi import render_kpi
+from .markdown import render_markdown
 from .table import render_table
 
 _KPI_CSS: Final[str] = read_core_asset("kpi.css")
@@ -107,6 +108,24 @@ Plotly figure — the second reader of the tabular format, after
 core.table."""
 
 
+_MARKDOWN_CSS: Final[str] = read_core_asset("markdown.css")
+"""core.markdown's page chrome: the prose card's typographic scale,
+scoped under ``.coda-prose`` — theme tokens only, and no script:
+prose is static content."""
+
+
+_MARKDOWN: Final[ReportComponent] = ReportComponent(
+    id="core.markdown",
+    title="Prose",
+    description="Author-written prose in a strict markdown subset, "
+    "with values substituted from a JSON artifact.",
+    render=render_markdown,
+    chrome=ComponentChrome.CARD,
+    css=_MARKDOWN_CSS,
+)
+"""The core plugin's markdown component"""
+
+
 def get_plugin() -> ReportPlugin:
     """The core plugin: workflow-coda's own components."""
     return ReportPlugin(
@@ -116,10 +135,10 @@ def get_plugin() -> ReportPlugin:
             version=metadata.version("workflow-coda"),
             description=(
                 "Generally useful report components shipped with "
-                "workflow-coda: headline metrics, tables, and charts."
+                "workflow-coda: headline metrics, tables, charts, and prose."
             ),
             supported_schema_versions=frozenset({"0.2.0"}),
             icons_package="workflow_coda.core",
         ),
-        components=(_KPI, _TABLE, _CHART),
+        components=(_KPI, _TABLE, _CHART, _MARKDOWN),
     )
