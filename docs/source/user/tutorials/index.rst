@@ -2,10 +2,9 @@
 Tutorials
 =========
 
-The tutorials are learning-oriented: complete, small, and guaranteed
-to work.  Each one is a worked example you follow from start to
-finish on your own machine, and each ends with a working artifact —
-a report, a plugin — that you built yourself.
+Start here if you are new to ``workflow-coda``.  Two short tutorials: first a
+minimal report from two small files, then your own plugin adding a figure to it.
+Each ends with something that works.
 
 .. toctree::
    :maxdepth: 1

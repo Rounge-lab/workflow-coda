@@ -1,11 +1,10 @@
+==============
 How-to guides
 ==============
 
-The guides are task-oriented: you are at work, and each guide walks
-one task end to end — authoring a full report, or developing a
-plugin beyond a single figure.  They expand on the tutorials and
-link into the :doc:`reference </user/reference/index>` for every
-detail of shape and grammar.
+Everything past the tutorials, organized by the job at hand: one guide for
+authoring reports, one for developing plugins.  For a key's exact shape, the
+:doc:`reference <../reference/index>` has it.
 
 .. toctree::
    :maxdepth: 1

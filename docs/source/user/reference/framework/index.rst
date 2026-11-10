@@ -2,10 +2,12 @@
 Framework reference
 ===================
 
-The framework's own interfaces: the Python API — generated from the
-code through autodoc, so it describes the shipped software as it is —
-the command line interface, and the YAML schemas: the manifest the
-pipeline writes, and the layout the report author composes.
+The framework's own interfaces: the Python API, the command line interface, and
+the YAML schemas: the manifest the pipeline writes, and the layout the report
+author composes.
+
+New to ``workflow-coda``?  The :doc:`tutorials <../../tutorials/index>`
+are the fastest way in.
 
 .. toctree::
    :maxdepth: 1
