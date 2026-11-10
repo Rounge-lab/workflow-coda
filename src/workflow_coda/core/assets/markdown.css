@@ -1,0 +1,87 @@
+/* core.markdown: the prose card's styling, scoped under .coda-prose.
+   Descent styling only — the wrapper is the one class the component
+   emits, the coda-brand > svg pattern again — and theme tokens
+   only: ink from --coda-text, hairlines from --coda-border.  Code
+   plates wear --coda-background, the page tone recessed one step
+   below the surface card.  No script: prose is static content. */
+
+.coda-prose > :first-child {
+  margin-top: 0;
+}
+
+.coda-prose > :last-child {
+  margin-bottom: 0;
+}
+
+/* Prose headings stay below the card's own title (1.1rem), the
+   demotion law made visual: explicit sizes, the heading font. */
+.coda-prose h3,
+.coda-prose h4,
+.coda-prose h5 {
+  font-family: var(--coda-font-heading);
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 1.4em 0 0.5em;
+}
+
+.coda-prose h3 {
+  font-size: 1.05rem;
+}
+
+.coda-prose h4 {
+  font-size: 0.95rem;
+}
+
+.coda-prose h5 {
+  font-size: 0.875rem;
+}
+
+.coda-prose p {
+  margin: 0 0 0.9em;
+}
+
+.coda-prose ul,
+.coda-prose ol {
+  margin: 0 0 0.9em;
+  padding-left: 1.6em;
+}
+
+.coda-prose li {
+  margin: 0.25em 0;
+}
+
+.coda-prose blockquote {
+  border-left: 3px solid var(--coda-border);
+  color: var(--coda-muted);
+  margin: 0 0 0.9em;
+  padding: 0.1em 0 0.1em 1em;
+}
+
+.coda-prose code {
+  background: var(--coda-background);
+  border: 1px solid var(--coda-border);
+  border-radius: 3px;
+  font-size: 0.9em;
+  padding: 0.1em 0.35em;
+}
+
+.coda-prose pre {
+  background: var(--coda-background);
+  border: 1px solid var(--coda-border);
+  border-radius: 4px;
+  margin: 0 0 0.9em;
+  overflow-x: auto;
+  padding: 0.75em 1em;
+}
+
+.coda-prose pre code {
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.coda-prose hr {
+  border: none;
+  border-top: 1px solid var(--coda-border);
+  margin: 1.2em 0;
+}

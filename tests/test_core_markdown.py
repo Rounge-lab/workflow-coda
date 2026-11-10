@@ -161,7 +161,7 @@ def test_scalars_substitute_as_text(tmp_path: Path, key: str, rendered: str) -> 
     # the values come from the artifact, plain text in place.
     outcome = _render(
         _store(tmp_path, STATS),
-        {"text": "**{{ " + key + " }}**"},
+        {"artifact": "org.example.stats", "text": "**{{ " + key + " }}**"},
     )
     assert outcome.status is ComponentStatus.OK
     assert outcome.html is not None
@@ -171,7 +171,10 @@ def test_scalars_substitute_as_text(tmp_path: Path, key: str, rendered: str) -> 
 def test_variables_substitute_without_inner_spaces(tmp_path: Path) -> None:
     # '{{depth}}' and '{{ depth }}' are the same variable: both
     # spellings will be written, so both resolve.
-    outcome = _render(_store(tmp_path, STATS), {"text": "Depth {{depth}} x"})
+    outcome = _render(
+        _store(tmp_path, STATS),
+        {"artifact": "org.example.stats", "text": "Depth {{depth}} x"},
+    )
     assert outcome.html is not None
     assert "Depth 12.5 x" in outcome.html
 
@@ -188,16 +191,31 @@ def test_variables_substitute_without_inner_spaces(tmp_path: Path) -> None:
 def test_values_are_text_never_markup(
     tmp_path: Path, value: str, forbidden: str, survives: str
 ) -> None:
-    # The values-as-text law: substitution happens before parsing,
-    # so an unescaped value could re-parse as markup — data would
-    # be injecting presentation.  The value's characters render
-    # (escaped); no markup interpretation survives.
+    # The values-as-text law: substitution happens after parsing,
+    # so a value's characters render (escaped); no markup
+    # interpretation survives — data cannot inject presentation.
     stats = '{"note": ' + json.dumps(value) + "}"
-    outcome = _render(_store(tmp_path, stats), {"text": "{{ note }}"})
+    outcome = _render(
+        _store(tmp_path, stats),
+        {"artifact": "org.example.stats", "text": "{{ note }}"},
+    )
     assert outcome.status is ComponentStatus.OK
     assert outcome.html is not None
     assert forbidden not in outcome.html
     assert survives in outcome.html
+
+
+def test_values_escape_once_in_code_contexts(tmp_path: Path) -> None:
+    # The walk owns escaping, per context: _resolve hands values
+    # over raw, so a value's & escapes exactly once — the same
+    # treatment author text gets, in code contexts too.
+    stats = '{"note": "a & b"}'
+    outcome = _render(
+        _store(tmp_path, stats),
+        {"artifact": "org.example.stats", "text": "See `{{ note }}`."},
+    )
+    assert outcome.html is not None
+    assert "<code>a &amp; b</code>" in outcome.html
 
 
 @pytest.mark.parametrize(
@@ -215,7 +233,10 @@ def test_non_scalar_variables_teach(
     # data is an authoring mistake — the artifact's shape does not
     # fit the sentence — and teaches, naming variable and kind.
     with pytest.raises(ValueError, match=f"{name!r} resolved to {kind}"):
-        _render(_store(tmp_path, stats), {"text": "{{ " + name + " }}"})
+        _render(
+            _store(tmp_path, stats),
+            {"artifact": "org.example.stats", "text": "{{ " + name + " }}"},
+        )
 
 
 def test_a_variable_the_artifact_does_not_carry_teaches(tmp_path: Path) -> None:
@@ -223,7 +244,10 @@ def test_a_variable_the_artifact_does_not_carry_teaches(tmp_path: Path) -> None:
     # contract, not missing data: the sentence promised a value the
     # artifact does not carry.
     with pytest.raises(ValueError, match="missing"):
-        _render(_store(tmp_path, STATS), {"text": "Ran {{ missing }} samples"})
+        _render(
+            _store(tmp_path, STATS),
+            {"artifact": "org.example.stats", "text": "Ran {{ missing }} samples"},
+        )
 
 
 def test_variables_without_an_artifact_teach(tmp_path: Path) -> None:
@@ -281,7 +305,7 @@ def test_headings_demote_below_the_card_title(
 def test_lists_render_nested_and_ordered(tmp_path: Path) -> None:
     outcome = _render(
         _store(tmp_path),
-        {"text": "- flat\n\n- outer\n  - inner\n\n1. first\n2. second"},
+        {"text": "- flat\n- outer\n  - inner\n\n1. first\n2. second"},
     )
     assert outcome.html is not None
     assert outcome.html.count("<ul>") == 2  # the nested list rides inside
@@ -289,6 +313,15 @@ def test_lists_render_nested_and_ordered(tmp_path: Path) -> None:
     assert "<li>inner</li>" in outcome.html
     assert "<ol>" in outcome.html
     assert "<li>first</li>" in outcome.html
+
+
+def test_loose_lists_render_paragraph_items(tmp_path: Path) -> None:
+    # CommonMark's loose list — blank lines between items — wraps
+    # each item in a paragraph; the walk honors the parser's own
+    # tight/loose distinction rather than fighting it.
+    outcome = _render(_store(tmp_path), {"text": "- loose\n\n- items"})
+    assert outcome.html is not None
+    assert "<li><p>loose</p></li>" in outcome.html
 
 
 def test_blockquotes_render(tmp_path: Path) -> None:
@@ -342,6 +375,7 @@ def test_ampersands_render_without_double_escaping(tmp_path: Path) -> None:
         ("![a figure](figure.png)", "images are not part"),
         ("| a | b |\n| - | - |\n| 1 | 2 |", "core.table"),
         ("Text with <b>bold</b> inside", "raw HTML"),
+        ("##### Five levels deep", "'####'"),
     ],
 )
 def test_out_of_vocabulary_constructs_teach(
@@ -374,6 +408,17 @@ def test_a_missing_artifact_is_a_notice_not_a_failure(tmp_path: Path) -> None:
     )
 
 
+def test_a_declared_artifact_backs_static_text_too(tmp_path: Path) -> None:
+    # Declared means data-backed: the artifact is required even when
+    # the text carries no variables, so a missing source is a
+    # notice — the card's claim of data backing stays honest.
+    outcome = _render(
+        _store(tmp_path),
+        {"artifact": "org.example.stats", "text": "All samples passed QC."},
+    )
+    assert outcome.status is ComponentStatus.UNAVAILABLE
+
+
 def test_the_designs_example_renders_end_to_end(tmp_path: Path) -> None:
     # The example that started the design, whole: heading, strong
     # substitution, inline code, and a list — one sentence of prose
@@ -381,13 +426,14 @@ def test_the_designs_example_renders_end_to_end(tmp_path: Path) -> None:
     outcome = _render(
         _store(tmp_path, STATS),
         {
+            "artifact": "org.example.stats",
             "text": (
                 "## What ran\n\n"
                 "We analyzed **{{ n_samples }}** samples during run "
                 "`{{ run_id }}`.\n\n"
                 "- host reads removed first\n"
                 "- low-complexity reads dropped"
-            )
+            ),
         },
     )
     assert outcome.status is ComponentStatus.OK
