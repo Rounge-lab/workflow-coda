@@ -362,6 +362,81 @@ def test_ampersands_render_without_double_escaping(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Definition lists: the reference-prose construct
+# ---------------------------------------------------------------------------
+
+
+def test_definition_lists_render_terms_and_descriptions(tmp_path: Path) -> None:
+    # The deflist grammar: a term line, a ': description' line under
+    # it — the column-guide shape.  Terms are inline content, so
+    # code spans mark identifiers; descriptions ride the same inline
+    # vocabulary as any prose.  Descriptions are tight, like list
+    # items: the parser hides their inner paragraphs, so a single
+    # description's text renders bare inside the dd.
+    outcome = _render(
+        _store(tmp_path),
+        {
+            "text": (
+                "`sample`\n"
+                ": Sample name parsed from the filenames.\n"
+                "\n"
+                "`mean_bitscore`\n"
+                ": Mean **bitscore** across annotated hits."
+            )
+        },
+    )
+    assert outcome.status is ComponentStatus.OK
+    assert outcome.html is not None
+    assert "<dl>" in outcome.html
+    assert "<dt><code>sample</code></dt>" in outcome.html
+    assert "<dd>Sample name parsed from the filenames.</dd>" in outcome.html
+    assert (
+        "<dd>Mean <strong>bitscore</strong> across annotated hits.</dd>" in outcome.html
+    )
+
+
+def test_a_term_may_carry_several_descriptions(tmp_path: Path) -> None:
+    # The grammar's sibling shape: one term, several ': description'
+    # lines — each renders as its own dd under the shared dt.
+    outcome = _render(
+        _store(tmp_path),
+        {"text": "FungiFunk\n\n: the tool\n\n: the pipeline stage"},
+    )
+    assert outcome.html is not None
+    assert outcome.html.count("<dt>") == 1
+    assert outcome.html.count("<dd>") == 2
+    assert "the tool" in outcome.html
+    assert "the pipeline stage" in outcome.html
+
+
+def test_deflist_descriptions_substitute_artifact_values(tmp_path: Path) -> None:
+    # Deflist content rides the same values seam as the rest of the
+    # prose: a description's {{ }} resolves from the artifact, text
+    # in place.
+    outcome = _render(
+        _store(tmp_path, STATS),
+        {
+            "artifact": "org.example.stats",
+            "text": "`depth`\n: The run measured {{ depth }} on average.",
+        },
+    )
+    assert outcome.html is not None
+    assert "<dt><code>depth</code></dt>" in outcome.html
+    assert "The run measured 12.5 on average." in outcome.html
+
+
+def test_out_of_vocabulary_inside_a_deflist_teaches(tmp_path: Path) -> None:
+    # The fence holds inside definition lists: a link in a
+    # description teaches with the move, never renders as literal
+    # syntax.
+    with pytest.raises(ValueError, match="links are not part"):
+        _render(
+            _store(tmp_path),
+            {"text": "`guide`\n: See [the docs](https://example.com)."},
+        )
+
+
+# ---------------------------------------------------------------------------
 # What teaches: the vocabulary the framework owns or refuses
 # ---------------------------------------------------------------------------
 
