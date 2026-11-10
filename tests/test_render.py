@@ -752,6 +752,32 @@ def test_tab_activation_dispatches_the_shown_event() -> None:
     assert '"coda:tab-shown"' not in single
 
 
+def test_tab_shown_event_resizes_plotly_figures() -> None:
+    # Verify that the framework’s own listener (report.js) resizes any
+    # Plotly figure inside the newly shown panel.  The test checks the
+    # exact strings that are inlined from the shipped script – a source
+    # pin that will break if the selector or resize call changes.
+    html = render_report(
+        make_document(
+            tabs=(
+                tab("QC", (ok_entry(),)),
+                tab("Figures", (figure_entry(),)),
+            )
+        )
+    )
+    # The listener is registered exactly once.
+    assert html.count("document.addEventListener('coda:tab-shown'") == 1
+    # The selector targets the Plotly graph container inside the figure.
+    assert (
+        "var figures = panel.querySelectorAll('.coda-figure .plotly-graph-div');"
+        in html
+    )
+    # Resize is deferred to the next animation frame.
+    assert "requestAnimationFrame(function () {" in html
+    # And the Plotly resize API is invoked.
+    assert "Plotly.Plots.resize(f);" in html
+
+
 def test_no_figures_and_one_tab_mean_no_scripts() -> None:
     html = render_report(make_document())
     assert "<script" not in html
