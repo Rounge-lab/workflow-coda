@@ -76,4 +76,29 @@
     ? window.location.hash.slice(1)
     : panels[0].id;
   activate(initial, false);
+
+  // Resize Plotly figures when a new tab becomes visible
+  // The framework wraps a Plotly figure in a .coda-figure element;
+  // the actual Plotly container has class "plotly-graph-div".
+  // We defer the resize via requestAnimationFrame to ensure the panel
+  // has been laid out, and retry a few times if Plotly hasn't loaded yet.
+  document.addEventListener('coda:tab-shown', function (e) {
+    var panel = e.target;
+    var figures = panel.querySelectorAll('.coda-figure .plotly-graph-div');
+    if (!figures.length) { return; }
+
+    function tryResize(attempt) {
+      if (window.Plotly && Plotly.Plots && Plotly.Plots.resize) {
+        figures.forEach(function (f) {
+          requestAnimationFrame(function () {
+            Plotly.Plots.resize(f);
+          });
+        });
+      } else if (attempt < 3) {
+        setTimeout(function () { tryResize(attempt + 1); }, 50);
+      }
+    }
+
+    tryResize(0);
+  });
 })();
