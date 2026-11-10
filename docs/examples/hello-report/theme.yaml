@@ -1,0 +1,17 @@
+name: midnight
+colors:
+  background: "#10141a"
+  surface: "#1a2029"
+  border: "#2c3542"
+  primary: "#6e91d2"
+  accent: "#acc6f5"
+  success: "#75a941"
+  warning: "#ece860"
+  danger: "#d2574c"
+  muted: "#8b95a1"
+  text-dark: "#10141a"
+  text-light: "#f5f7fa"
+series:
+  - "#6e91d2"
+  - "#f38d4d"
+  - "#75a941"

@@ -12,6 +12,9 @@ manifest, :doc:`api/layout_loader` loads the layout,
 :doc:`api/builder` composes the report document with the installed
 plugins, and :doc:`api/render` renders the page.
 
+The fastest way to meet the command is the :doc:`"hello world" report
+<../../tutorials/hello-report>`.
+
 Usage
 -----
 

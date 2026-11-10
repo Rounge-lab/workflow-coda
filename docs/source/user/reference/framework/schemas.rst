@@ -18,6 +18,9 @@ because an unrecognized document cannot be validated or consumed
 correctly.  The theme file has no version to gate: it is a data file
 of design tokens, validated by shape alone.
 
+The :doc:`tutorials <../../tutorials/index>` walk these files into a working
+report, one key at a time.
+
 The report manifest
 -------------------
 

@@ -1,0 +1,26 @@
+{
+  "schema_version": "0.2.0",
+  "producer": {
+    "name": "my-pipeline",
+    "version": "1.0.0"
+  },
+  "artifacts": [
+    {
+      "id": "sample_metrics",
+      "type": "org.example.sample_metrics",
+      "schema_version": "1.0",
+      "path": "depth.json",
+      "format": "json",
+      "status": "complete"
+    },
+    {
+      "id": "composition",
+      "type": "org.example.waterfall",
+      "schema_version": "1.0",
+      "path": "steps.json",
+      "format": "json",
+      "status": "complete",
+      "sha256": "fc6b267794f273772215cfd77905f83af199a927b3cafc61eacad4fd831e8fb8"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+schema_version: "0.2.0"
+title: Run summary
+theme: theme.yaml
+logo: core-arrow-up
+header_color: accent
+tabs:
+  - title: Headlines
+    components:
+      - id: core.kpi
+        title: Mean depth
+        parameters:
+          artifact: org.example.sample_metrics
+          key: depth
+      - type: diagnostics
