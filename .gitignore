@@ -6,3 +6,4 @@ __pycache__/
 tmp/
 docs/examples/build/
 .session
+.aider*
