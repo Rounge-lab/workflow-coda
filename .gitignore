@@ -6,4 +6,6 @@ __pycache__/
 tmp/
 docs/examples/build/
 .session
-.aider*
+.aider.chat.history.md
+.aider.input.history
+.aider.tags.cache
