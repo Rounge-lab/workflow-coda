@@ -122,10 +122,11 @@ the `build` precedent.
 ```
 created {manifest} (producer {name} {version}) — verified and appended artifact {id}
 created {manifest} (producer {name} {version}, run {run_id}) — verified and appended artifact {id}
+created {manifest} (producer {p} {v}) — recorded artifact {id} as failed.
 verified {file} — appended artifact {id} to {manifest}
 verified {file} — updated artifact {id} in {manifest}
 verified {n} artifacts — appended {a}, updated {u} in {manifest}          (spec mode)
-verified {n} artifacts — appended {a}, updated {u}, {f} recorded as failed in {manifest}   (spec + write)
+verified {n} artifact(s) — appended {a}, updated {u}[, {f} recorded as failed] in {manifest}.
 warning: artifact {id} failed verification — recorded as failed: {message}   (stderr, per failed artifact under write)
 ```
 
@@ -264,6 +265,13 @@ Unknown criteria keys teach with a closest-match suggestion —
   Failure = raise `VerificationError` with a teaching message.
   A verifier that *crashes* (anything else) is a plugin bug —
   loud, exit 1, the builder's plugin-bug boundary mirrored.
+- Trio placement in the implementation map: the framework trio (json/txt/bytes)
+  is implemented framework-side in verification.py — the empty-registry pin
+  forces this (PluginRegistry(()) must still carry the trio); core/verifiers.py
+  is the core plugin's registration of core.tabular, sharing table.py's parse
+  helpers by import and rewrapping ArtifactReadError as VerificationError. The
+  map's current "core/verifiers.py (the four verifiers)" would put framework
+  formats inside a plugin package.
 
 ### 8. Errors — the `VerifyError` family
 

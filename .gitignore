@@ -8,4 +8,4 @@ docs/examples/build/
 .session
 .aider.chat.history.md
 .aider.input.history
-.aider.tags.cache
+.aider.tags.cache*
