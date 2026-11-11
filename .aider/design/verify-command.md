@@ -34,9 +34,13 @@ path for every integrated pipeline.
 
 ## The command
 
+verify <FILE(S)> <MANIFEST> cannot express both modes on one argparse parser:
+in spec mode there is no FILE, so the single optional positional would swallow
+the manifest. The one-parser resolution is manifest-first:
+
 ```
 Usage: workflow-coda verify [OPTIONS] MANIFEST          (--spec mode)
-       workflow-coda verify [OPTIONS] FILE MANIFEST     (flags mode)
+       workflow-coda verify [OPTIONS] MANIFEST [FILE]   (flags mode)
 ```
 
 Exactly one mode per invocation: `--spec` together with a FILE
