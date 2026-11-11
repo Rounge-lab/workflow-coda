@@ -42,6 +42,7 @@ from typing import Final
 
 from markdown_it import MarkdownIt
 from markdown_it.token import Token
+from mdit_py_plugins.deflist import deflist_plugin
 
 from ..artifact_store import JsonValue
 from ..components import (
@@ -55,11 +56,13 @@ from ..errors import ArtifactUnavailableError
 from ..manifest.artifact import ArtifactFormat
 from .parameters import _optional_text, _required_text
 
-_MD: Final[MarkdownIt] = MarkdownIt("js-default", {"html": True})
+_MD: Final[MarkdownIt] = MarkdownIt("js-default", {"html": True}).use(deflist_plugin)
 """The prose engine: markdown-it-py with raw HTML tokenized (so the
-walk refuses it by token type, never by pattern-matching text) and
-the table rule on (so a table teaches instead of silently rendering
-as pipe-text)."""
+walk refuses it by token type, never by pattern-matching text), the
+table rule on (so a table teaches instead of silently rendering as
+pipe-text), and the deflist plugin on (so a term-and-description
+block renders as the definition list it is — reference prose about
+data, not a data table)."""
 
 _MARKDOWN_PARAMETERS: Final[frozenset[str]] = frozenset({"artifact", "text"})
 """core.markdown's accepted parameter vocabulary."""
@@ -125,6 +128,12 @@ _BLOCK_PASSTHROUGH: Final[frozenset[str]] = frozenset(
         "list_item_close",
         "blockquote_open",
         "blockquote_close",
+        "dl_open",
+        "dl_close",
+        "dt_open",
+        "dt_close",
+        "dd_open",
+        "dd_close",
     }
 )
 """The paired containers: the parser's own tag rides through."""

@@ -15,6 +15,7 @@ requires-python = ">=3.14"
 dependencies = [
     "jinja2>=3.1",
     "markdown-it-py>=4.2.0",
+    "mdit-py-plugins>=0.6.1",
     "plotly>=7.1",
     "pydantic>=2.13",
     "pyyaml>=6.0",

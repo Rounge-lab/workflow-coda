@@ -1,0 +1,51 @@
+/* core.notice: the disclosure affordance and the notice body's
+   rhythm.  The card look — surface, border, radius, the level's
+   left border — comes from the framework's shared card vocabulary
+   (.coda-card, .coda-card--<level>) in the page stylesheet; these
+   rules own only what is notice-specific: the summary as the
+   card's header row, the CSS-drawn chevron that follows the ink,
+   and the body's offset under it.  The collapse is native
+   <details>/<summary> — no script; a reader without scripting gets
+   the complete behavior. */
+
+.coda-notice__summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--coda-font-heading);
+  font-weight: 600;
+  padding: 0.25rem 0;
+  user-select: none;
+}
+
+/* Safari draws its own marker; suppress it wherever it lives. */
+.coda-notice__summary::-webkit-details-marker {
+  display: none;
+}
+
+/* The chevron: drawn in CSS so it follows the summary's ink —
+   currentColor — on any theme and at any level; it rotates to
+   point up while the notice is open. */
+.coda-notice__summary::after {
+  content: "";
+  margin-left: auto;
+  width: 0.4em;
+  height: 0.4em;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.15s ease;
+}
+
+.coda-notice[open] > .coda-notice__summary::after {
+  transform: rotate(-135deg);
+}
+
+/* The body sits under the summary; the prose vocabulary
+   (.coda-prose, concatenated into this component's chrome) owns
+   the rhythm inside. */
+.coda-notice__body {
+  margin-top: 0.5rem;
+}

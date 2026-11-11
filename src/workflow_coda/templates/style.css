@@ -198,8 +198,22 @@ body {
   margin-bottom: 0;
 }
 
-.coda-card--notice {
+/* The notice family: the card's stance, worn as the left border.
+   The framework's own degradation cards sit here — an unavailable
+   outcome is a notice, a plugin bug a failure — and core.notice's
+   levels join them: note, success, warning (the notice rule's
+   warning twin), failure. */
+.coda-card--note {
+  border-left: 4px solid var(--coda-muted);
+}
+
+.coda-card--notice,
+.coda-card--warning {
   border-left: 4px solid var(--coda-warning);
+}
+
+.coda-card--success {
+  border-left: 4px solid var(--coda-success);
 }
 
 .coda-card--failure {
@@ -221,6 +235,13 @@ body {
    margin-zeroing for row and grid children must win. */
 .coda-tile {
   margin: 1rem 0; /* stack rhythm, same as cards; ratio parents zero it */
+}
+
+/* A TILE component may paint a framework card — core.notice's
+   disclosure does — and the card's own stack margin yields to the
+   tile wrapper, which owns the rhythm. */
+.coda-tile > .coda-card {
+  margin: 0;
 }
 
 /* The framework's icon vocabulary: load_icon emits this class, so
@@ -263,8 +284,7 @@ body {
 
 .coda-group > h3 {
   font-family: var(--coda-font-heading);
-  font-size: 0.95rem;
-  color: var(--coda-muted);
+  font-size: 1.1rem;
   margin: 0 0 0.75rem;
 }
 
@@ -312,7 +332,7 @@ body {
 
 .coda-diagnostics h3 {
   font-family: var(--coda-font-heading);
-  font-size: 1rem;
+  font-size: 1.1rem;
   color: var(--coda-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;

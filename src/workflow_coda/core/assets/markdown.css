@@ -50,6 +50,36 @@
   margin: 0.25em 0;
 }
 
+/* Definition lists — reference prose about data: a term, its
+   description indented under it.  A tight description (the common
+   form) renders its text bare — the parser hides the paragraph,
+   exactly like a tight list item's; the dd p rules serve loose
+   descriptions, whose paragraphs render visibly. */
+.coda-prose dl {
+  margin: 0 0 0.9em;
+}
+
+.coda-prose dt {
+  font-weight: 600;
+  margin-top: 0.6em;
+}
+
+.coda-prose dt:first-child {
+  margin-top: 0;
+}
+
+.coda-prose dd {
+  margin: 0.15em 0 0 1.5em;
+}
+
+.coda-prose dd p {
+  margin: 0 0 0.35em;
+}
+
+.coda-prose dd p:last-child {
+  margin-bottom: 0;
+}
+
 .coda-prose blockquote {
   border-left: 3px solid var(--coda-border);
   color: var(--coda-muted);

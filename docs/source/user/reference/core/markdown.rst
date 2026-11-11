@@ -147,6 +147,11 @@ What is prose renders:
   renders as literal characters, escaped.
 * **lists** — ordered and unordered, nested; tight and loose
   lists render per CommonMark's own distinction.
+* **definition lists** — a term line, a ``: description`` line
+  under it — the reference-prose construct (a column guide, a
+  glossary).  Terms are inline content: code spans mark
+  identifiers.  Descriptions ride the same inline vocabulary, and
+  a term may carry several descriptions.
 * **blockquotes** — quotation set off by a hairline, for
   citations.
 * **thematic breaks** — ``---`` between paragraphs.
