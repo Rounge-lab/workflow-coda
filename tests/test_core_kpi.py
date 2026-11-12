@@ -23,6 +23,7 @@ from workflow_coda.components import (
 from workflow_coda.context import RenderContext
 from workflow_coda.core.kpi import render_kpi
 from workflow_coda.icons import IconLibrary, IconSource
+from workflow_coda.manifest import MANIFEST_SCHEMA_VERSION
 from workflow_coda.theme import DEFAULT_THEME
 
 _STATS_TYPE = "org.example.stats"
@@ -68,7 +69,7 @@ def _write_bundle(
     artifact_path = tmp_path / f"stats.{fmt}"
     artifact_path.write_text(text, encoding="utf-8")
     manifest = {
-        "schema_version": "0.2.0",
+        "schema_version": MANIFEST_SCHEMA_VERSION,
         "producer": {"name": "kpi-fixture", "version": "1.0"},
         "artifacts": [
             {

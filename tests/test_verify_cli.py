@@ -16,7 +16,11 @@ from typing import Final
 import pytest
 
 from workflow_coda.cli import main
-from workflow_coda.manifest import ArtifactStatus, load_manifest
+from workflow_coda.manifest import (
+    MANIFEST_SCHEMA_VERSION,
+    ArtifactStatus,
+    load_manifest,
+)
 
 _PRODUCER_FLAGS: Final[tuple[str, ...]] = (
     "--producer-name",
@@ -137,7 +141,7 @@ def test_flags_mode_creates_a_verified_manifest(
         f"— verified and appended artifact stats\n"
     )
     loaded = load_manifest(manifest)
-    assert loaded.schema_version == "0.3.0"
+    assert loaded.schema_version == MANIFEST_SCHEMA_VERSION
     assert loaded.producer.name == "fungifunk-pipeline"
     assert loaded.producer.version == "1.3"
     artifact = loaded.artifacts[0]

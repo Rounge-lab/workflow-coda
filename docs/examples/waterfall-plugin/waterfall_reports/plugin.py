@@ -123,7 +123,7 @@ def get_plugin() -> ReportPlugin:
             name="Waterfall reports",
             version="0.1.0",
             description="A waterfall chart component, built in the tutorial.",
-            supported_schema_versions=frozenset({"0.2.0"}),
+            supported_schema_versions=frozenset({"0.3.0"}),
         ),
         components=(
             ReportComponent(

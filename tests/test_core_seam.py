@@ -21,6 +21,7 @@ import json
 from pathlib import Path
 
 from workflow_coda.cli import main
+from workflow_coda.manifest import MANIFEST_SCHEMA_VERSION
 from workflow_coda.theme import DEFAULT_THEME
 
 _STATS_TYPE = "org.example.stats"
@@ -42,7 +43,7 @@ def _write_bundle(tmp_path: Path) -> Path:
         newline="\n",
     )
     manifest = {
-        "schema_version": "0.2.0",
+        "schema_version": MANIFEST_SCHEMA_VERSION,
         "producer": {"name": "seam-fixture", "version": "1.0"},
         "artifacts": [
             {

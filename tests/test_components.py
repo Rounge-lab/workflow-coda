@@ -15,6 +15,7 @@ from workflow_coda.components import (
     reject_unknown_parameters,
 )
 from workflow_coda.layout import ComponentPlacement
+from workflow_coda.manifest import MANIFEST_SCHEMA_VERSION
 
 # ---------------------------------------------------------------------------
 # ok outcomes
@@ -374,7 +375,7 @@ def test_metadata_defaults_round_trip() -> None:
     assert metadata.name == "Example plugin"
     assert metadata.version == "1.0.0"
     assert metadata.description == "Components for the test suite."
-    assert metadata.supported_schema_versions == frozenset({"0.2.0"})
+    assert metadata.supported_schema_versions == frozenset({MANIFEST_SCHEMA_VERSION})
 
 
 @pytest.mark.parametrize(

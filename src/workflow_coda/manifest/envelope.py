@@ -6,8 +6,10 @@ lists the artifact declarations.
 The envelope's schema version is gated strictly: a manifest written for an unknown
 version fails validation because an unrecognized envelope cannot be validated or
 consumed correctly.  The supported version is enumerated by ``ManifestSchemaVersion``
-— today, exactly ``0.2.0``, which widened the artifact ``format`` value space to
-include namespaced plugin formats; the pre-widening ``0.1.0`` envelope is not read.
+— today, exactly ``0.3.0``, which added the optional artifact ``verification``
+record (the verifier's account of what was checked, opaque transport to the
+framework); the pre-record ``0.2.0`` envelope is not read — regenerate such
+manifests with ``workflow-coda verify``.
 """
 
 from collections import Counter
@@ -19,17 +21,21 @@ from .artifact import ArtifactDeclaration
 from .types import NonEmptyStr
 
 # Manifest envelope contract versions accepted by the report framework
-type ManifestSchemaVersion = Literal["0.2.0"]
+type ManifestSchemaVersion = Literal["0.3.0"]
 
-MANIFEST_SCHEMA_VERSION: Final[str] = "0.2.0"
+MANIFEST_SCHEMA_VERSION: Final[ManifestSchemaVersion] = "0.3.0"
 """The manifest envelope contract version this framework reads and
 writes — the axis's single source of truth.  The loader's version
 pre-check, the core plugin's declared support, the manifest
 factories, and the verify writer all read this constant;
 ``ManifestSchemaVersion`` beside it is the type-checker's gate, and
-the two are pinned in agreement (``tests/test_version_constants.py``).
-Bumping the envelope is a clean break: flip this constant and the
-Literal together, then green the sweep the flip reddens."""
+the constant is *typed as* that Literal, so mypy itself refuses a
+half-flip; ``tests/test_version_constants.py`` pins the pair at
+runtime.  Bumping the envelope is a clean break: flip this constant
+and the Literal together, then shift the data-file residue — the
+example bundles' manifests and plugin declarations, the skills
+files' version bullet — the constant-riding tests redden any
+residue the grep misses."""
 
 
 class ProducerMetadata(BaseModel):

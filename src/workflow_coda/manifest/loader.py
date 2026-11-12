@@ -60,7 +60,8 @@ def load_manifest(path: Path | str) -> ReportManifest:
             raise ManifestError(
                 f"manifest {manifest_path}: the manifest's schema_version must be "
                 f'"{MANIFEST_SCHEMA_VERSION}", but this file declares '
-                f"{declared_version!r}"
+                f"{declared_version!r} — regenerate this manifest with "
+                f"'workflow-coda verify'"
             )
     try:
         return ReportManifest.model_validate(payload)
