@@ -47,13 +47,14 @@ def test_shipped_icon_names() -> None:
     # (an empty set) fails loudly rather than quietly emptying
     # every icon request.
     assert _CORE_LIBRARY.names() == {
-        "core-arrow-up",
         "core-arrow-down",
+        "core-arrow-up",
         "core-ascending",
+        "core-check",
         "core-coda",
         "core-copy",
-        "core-check",
         "core-descending",
+        "core-dropdown",
         "core-filter",
         "core-info",
         "core-table",
