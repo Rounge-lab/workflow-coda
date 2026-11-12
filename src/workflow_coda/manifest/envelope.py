@@ -11,7 +11,7 @@ include namespaced plugin formats; the pre-widening ``0.1.0`` envelope is not re
 """
 
 from collections import Counter
-from typing import Literal
+from typing import Final, Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -20,6 +20,16 @@ from .types import NonEmptyStr
 
 # Manifest envelope contract versions accepted by the report framework
 type ManifestSchemaVersion = Literal["0.2.0"]
+
+MANIFEST_SCHEMA_VERSION: Final[str] = "0.2.0"
+"""The manifest envelope contract version this framework reads and
+writes — the axis's single source of truth.  The loader's version
+pre-check, the core plugin's declared support, the manifest
+factories, and the verify writer all read this constant;
+``ManifestSchemaVersion`` beside it is the type-checker's gate, and
+the two are pinned in agreement (``tests/test_version_constants.py``).
+Bumping the envelope is a clean break: flip this constant and the
+Literal together, then green the sweep the flip reddens."""
 
 
 class ProducerMetadata(BaseModel):

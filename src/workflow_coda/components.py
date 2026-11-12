@@ -52,6 +52,7 @@ from typing import Any, Final, Protocol, Self
 
 from .artifact_store import JsonValue
 from .context import RenderContext
+from .manifest import MANIFEST_SCHEMA_VERSION
 from .text import has_visible_text
 
 _PLUGIN_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -438,7 +439,8 @@ class PluginMetadata:
         if not self.supported_schema_versions:
             raise ValueError(
                 f"plugin {self.id!r}: supported_schema_versions must name "
-                f"at least one manifest schema version (currently '0.2.0')"
+                "at least one manifest schema version "
+                f"(currently {MANIFEST_SCHEMA_VERSION!r})"
             )
 
 

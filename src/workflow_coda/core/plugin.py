@@ -16,6 +16,7 @@ from importlib import metadata
 from typing import Final
 
 from ..components import ComponentChrome, PluginMetadata, ReportComponent
+from ..manifest import MANIFEST_SCHEMA_VERSION
 from ..plugins import ReportPlugin
 from .assets import read_core_asset
 from .chart import render_chart
@@ -165,7 +166,7 @@ def get_plugin() -> ReportPlugin:
                 "Generally useful report components shipped with "
                 "workflow-coda: headline metrics, tables, charts, prose, and notices."
             ),
-            supported_schema_versions=frozenset({"0.2.0"}),
+            supported_schema_versions=frozenset({MANIFEST_SCHEMA_VERSION}),
             icons_package="workflow_coda.core",
         ),
         components=(_KPI, _TABLE, _CHART, _MARKDOWN, _NOTICE),
