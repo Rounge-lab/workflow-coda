@@ -23,6 +23,7 @@ from .kpi import render_kpi
 from .markdown import render_markdown
 from .notice import render_notice
 from .table import render_table
+from .verifiers import TABULAR_VERIFIER
 
 _KPI_CSS: Final[str] = read_core_asset("kpi.css")
 """core.kpi's page chrome: the card vocabulary for the tile it paints.
@@ -168,4 +169,5 @@ def get_plugin() -> ReportPlugin:
             icons_package="workflow_coda.core",
         ),
         components=(_KPI, _TABLE, _CHART, _MARKDOWN, _NOTICE),
+        artifact_verifiers=(TABULAR_VERIFIER,),
     )

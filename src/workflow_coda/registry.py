@@ -28,16 +28,24 @@ with the manifest's schema version.  Failures raise the
 from collections import Counter
 from collections.abc import Iterable
 from importlib import metadata
-from typing import Self
+from typing import Final, Self
 
 from .components import ReportComponent
+from .core.verifiers import FRAMEWORK_VERIFIERS
 from .errors import (
     ComponentUnavailableError,
     PluginConflictError,
     PluginLoadError,
 )
-from .manifest import ManifestSchemaVersion
-from .plugins import ENTRY_POINT_GROUP, ReportPlugin
+from .manifest import ArtifactFormat, ManifestSchemaVersion
+from .plugins import ENTRY_POINT_GROUP, ArtifactVerifier, ReportPlugin
+
+_RESERVED_FORMATS: Final[frozenset[str]] = frozenset(
+    fmt.value for fmt in ArtifactFormat
+)
+"""The agnostic trio — the framework verifies its own formats, and a
+plugin claiming one is taught the reservation at assembly, the same
+moment cross-plugin collisions are."""
 
 
 class PluginRegistry:
@@ -54,6 +62,33 @@ class PluginRegistry:
                 f"multiple loaded plugins claim the same id: {details}"
             )
         self._by_id: dict[str, ReportComponent] = {}
+        # The artifact-verifier index: the framework's trio first,
+        # then the plugins' claims in discovery order.  The trio is
+        # reserved, and one format has one verifier — the component-id
+        # law in a second namespace, taught at the same assembly.
+        claims = [
+            (plugin.metadata.id, verifier)
+            for plugin in self._plugins
+            for verifier in plugin.artifact_verifiers
+        ]
+        for plugin_id, verifier in claims:
+            if verifier.format in _RESERVED_FORMATS:
+                raise PluginConflictError(
+                    f"plugin {plugin_id!r} claims a verifier for format "
+                    f"{verifier.format!r}, but that format is reserved: "
+                    "the framework verifies json, txt, and bytes itself "
+                    "— verify a namespaced format instead"
+                )
+        format_counts = Counter(verifier.format for _, verifier in claims)
+        duplicated = sorted(fmt for fmt, count in format_counts.items() if count > 1)
+        if duplicated:
+            details = ", ".join(f"{fmt!r} x{format_counts[fmt]}" for fmt in duplicated)
+            raise PluginConflictError(
+                f"multiple loaded plugins claim the same format: {details}"
+            )
+        self._verifiers: tuple[ArtifactVerifier, ...] = FRAMEWORK_VERIFIERS + tuple(
+            verifier for _, verifier in claims
+        )
         for plugin in self._plugins:
             for component in plugin.components:
                 if component.id in self._by_id:
@@ -147,4 +182,27 @@ class PluginRegistry:
             plugin
             for plugin in self._plugins
             if schema_version in plugin.metadata.supported_schema_versions
+        )
+
+    @property
+    def verifiers(self) -> tuple[ArtifactVerifier, ...]:
+        """Every loaded artifact verifier: the framework's trio first,
+        then the plugins' claims in discovery order."""
+        return self._verifiers
+
+    def verifiers_supporting(self, schema_version: str) -> tuple[ArtifactVerifier, ...]:
+        """The verifiers usable when writing *schema_version*: the
+        trio — the framework's own, ungated by any version — plus the
+        claims of the plugins that understand the version, the same
+        gate :meth:`plugins_supporting` applies to components.
+
+        The verify command passes the manifest version it writes;
+        typed ``str`` because the writer names the version, the
+        loader does not gate it here.
+        """
+        return FRAMEWORK_VERIFIERS + tuple(
+            verifier
+            for plugin in self.plugins
+            if schema_version in plugin.metadata.supported_schema_versions
+            for verifier in plugin.artifact_verifiers
         )

@@ -163,9 +163,9 @@ def test_a_verifier_requires_a_callable() -> None:
     # The ReportComponent precedent: the declaration validates its
     # own shape at construction — the recipe, not the meal.
     with pytest.raises(ValueError, match="callable"):
-        ArtifactVerifier(  # type: ignore[arg-type]
+        ArtifactVerifier(
             format="bio.newick",
-            verify="not a callable",
+            verify="not a callable",  # type: ignore[arg-type]
         )
 
 
@@ -333,7 +333,7 @@ def test_tabular_columns_criterion_is_a_presence_check() -> None:
     # core.table's business, not the pipeline's promise.
     record = _tabular().verify(_samples(), {"columns": "sample_id,depth"})
     assert record["columns_checked"] == ["sample_id", "depth"]
-    with pytest.raises(VerificationError, match="does not carry 'missing'"):
+    with pytest.raises(VerificationError, match="the criteria names 'missing'"):
         _tabular().verify(_samples(), {"columns": "sample_id,missing"})
 
 
