@@ -45,11 +45,18 @@ builds; artifact files are read only when a component actually asks for one.
 
 .. note::
 
-   The manifest's ``schema_version`` (``"0.2.0"``) is the contract
+   The manifest's ``schema_version`` (``"0.3.0"``) is the contract
    between pipeline and report.  The artifact's own
    ``schema_version`` (``"1.0"``) is a different axis: the version
    of the artifact's *content*, defined by the pipeline author.
    The two are never compared.
+
+The manifest in this tutorial is small enough to write by hand, and
+writing it once is the fastest way to meet its shape.  When the
+pipeline runs for real, the same file is usually produced by
+``workflow-coda verify``: the command checks each artifact under
+its declared format and records the checksum of exactly the bytes
+it checked: :doc:`../how-to/producing-manifests`.
 
 Declaring the report's shape and components: the layout
 -------------------------------------------------------
@@ -60,7 +67,7 @@ identity and its content, tab by tab. Start with one component on one tab:
 .. code-block:: yaml
    :caption: layout.yaml - first version
 
-   schema_version: "0.2.0"
+   schema_version: "0.3.0"
    title: Run summary
    tabs:
      - title: Headlines
@@ -91,9 +98,9 @@ working directory.  Open it in your browser, and you should see:
 * one card: "Mean depth", showing ``42.7``,
 * a footer crediting the pipeline by name and version.
 
-There is no tab bar since a single tab is not yet navigation.  Adding
-more tabs will add the tab bar to report's the header. We'll do this in
-the second tutorial.
+There is no tab bar since a single tab is not yet navigation.  Adding more tabs
+will add the tab bar to the report's header. We'll do this in the second
+tutorial.
 
 Ask the report what it left out
 -------------------------------

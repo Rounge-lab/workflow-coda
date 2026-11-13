@@ -24,10 +24,12 @@ report, one key at a time.
 The report manifest
 -------------------
 
-The manifest is a small JSON file the pipeline writes next to the
-artifacts it produced, declaring who produced them and where each
-artifact file lives with its claimed shape and status.  Loading
-validates the envelope only: artifact files are never touched until
+The manifest is a small JSON file written next to the artifacts a
+pipeline produced, declaring who produced them and where each
+artifact file lives with its claimed shape and status — and, when
+the pipeline produced it through ``workflow-coda verify``, the
+account of what the verification checked.  Loading validates the
+envelope only: artifact files are never touched until
 a component reads one (:doc:`api/artifact_store`).  The manifest's
 schema version also gates plugins — a plugin runs only when the
 manifest's version is one it declares support for; the story lives
@@ -46,11 +48,13 @@ Envelope and producer
      - Meaning
    * - ``schema_version``
      - yes
-     - the literal ``"0.2.0"``
+     - the literal ``"0.3.0"``
      - The envelope contract version this file complies with; an unknown version
-       fails with the declared and expected versions named. Version 0.2.0
-       widened the artifact format`` value space to include namespaced plugin
-       formats.
+       fails with the declared and expected versions named. Version 0.3.0
+       added the optional artifact ``verification`` record (below); earlier
+       envelopes — ``0.2.0``, which widened the artifact ``format`` value
+       space to namespaced plugin names — are not read: regenerate such
+       manifests with ``workflow-coda verify``.
    * - ``producer``
      - yes
      - object
@@ -131,7 +135,7 @@ Artifact declarations
      - The artifact's format — a claim, not a service.  ``json`` is
        an interpreted claim with a store reader; ``txt`` and
        ``bytes`` are interpretation-free (UTF-8 text, raw bytes) for
-       consumers with their-guided own parsers.  A namespaced name is a
+       consumers with their own parsers.  A namespaced name is a
        plugin convention whose grammar lives in the owning plugin.
    * - ``status``
      - yes
@@ -142,17 +146,37 @@ Artifact declarations
      - 64 lowercase hex characters
      - Optional SHA-256 checksum of the artifact file; the store
        verifies it when present.
+   * - ``verification``
+     - no
+     - object
+     - The pipeline's own account of how this artifact was
+       verified: what was checked, under which reading, and on
+       failure why.  Written by ``workflow-coda verify``; opaque
+       transport to the framework, which round-trips it without
+       interpretation.  Absent on hand-written declarations.
 
 ``complete`` is the only status guaranteed to be loadable.
 ``partial``, ``failed``, and ``missing`` describe artifacts a
 partial or failed run declared but did not fully produce — expected
 missing data, never fatal report-build errors.
 
+The ``verification`` record is the verifier's account, and its
+grammar belongs to the format that verified the artifact: every
+record carries ``format`` and ``status`` — an ``ok`` record adds
+what was checked in the format's own vocabulary (``json``'s
+``keys_checked``; ``core.tabular``'s ``sep``, ``header``,
+``rows``, ``columns_checked``, ``min_rows``), and a ``failed``
+record carries ``message`` with the teaching that failed it.  The
+framework stores and round-trips the whole record without
+interpreting it — the same law as component ``parameters``.
+
 Loading rules
 .............
 
-A manifest whose declared schema version is not 0.2.0 fails with the declared
-and expected versions named, before envelope validation.
+A manifest whose declared schema version is not 0.3.0 fails with the declared
+and expected versions named, before envelope validation — a ``0.2.0``
+manifest is taught forward with the regeneration command
+(``workflow-coda verify``), not parsed.
 The loader reads the file as strict UTF-8 (a byte-order mark is
 rejected with instructions), parses it as JSON, and validates the
 envelope.  Every failure — unreadable, invalid JSON at a named line
@@ -165,7 +189,7 @@ An example manifest
 .. code-block:: json
 
    {
-     "schema_version": "0.2.0",
+     "schema_version": "0.3.0",
      "producer": {
        "name": "seq-pipeline",
        "version": "1.4.0",
@@ -179,7 +203,12 @@ An example manifest
          "path": "outputs/sample_metrics.json",
          "format": "json",
          "status": "complete",
-         "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+         "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+         "verification": {
+           "format": "json",
+           "status": "ok",
+           "keys_checked": ["depth"]
+         }
        }
      ]
    }
@@ -559,5 +588,6 @@ color against the dark ``background``, and no ``text`` token is
 declared — the derivation owns it.  Declare it from the layout with
 ``theme:`` and the path to this file.
 
-The files meet at one command: ``workflow-coda build MANIFEST
-LAYOUT`` (:doc:`cli`).
+The files meet at the command line: ``workflow-coda verify``
+writes the manifest (:doc:`cli`), and ``workflow-coda build
+MANIFEST LAYOUT`` turns both files into a report.
