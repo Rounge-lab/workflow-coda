@@ -131,7 +131,7 @@ def test_flags_mode_creates_a_verified_manifest(
         manifest,
         stats,
         *_identity("stats", "org.example.stats", "json"),
-        "--criterion",
+        "--criteria",
         "keys=depth,rate",
         *_PRODUCER_FLAGS,
     )
@@ -396,7 +396,7 @@ def test_verification_failure_writes_nothing(
         manifest,
         stats,
         *_identity("stats", "org.example.stats", "json"),
-        "--criterion",
+        "--criteria",
         "keys=missing",
         *_PRODUCER_FLAGS,
     )
@@ -419,7 +419,7 @@ def test_failure_under_write_is_recorded(
         manifest,
         stats,
         *_identity("stats", "org.example.stats", "json"),
-        "--criterion",
+        "--criteria",
         "keys=missing",
         "--on-failure",
         "write",
@@ -469,7 +469,7 @@ def test_spec_and_file_positional_are_exclusive(
     assert "not both" in capsys.readouterr().err
 
 
-def test_criterion_without_equals_teaches(
+def test_criteria_without_equals_teaches(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     manifest = tmp_path / "manifest.json"
@@ -478,7 +478,7 @@ def test_criterion_without_equals_teaches(
         manifest,
         stats,
         *_identity("stats", "org.example.stats", "json"),
-        "--criterion",
+        "--criteria",
         "noequals",
         *_PRODUCER_FLAGS,
     )
@@ -543,9 +543,9 @@ def test_flag_criteria_are_string_transport(
         manifest,
         samples,
         *_identity("samples", "org.example.samples", "core.tabular"),
-        "--criterion",
+        "--criteria",
         "columns=sample_id,depth",
-        "--criterion",
+        "--criteria",
         "min_rows=4",
         *_PRODUCER_FLAGS,
     )

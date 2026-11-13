@@ -556,16 +556,17 @@ def run_flags_verify(
     """
     if id is None or type is None or fmt is None or schema_version is None:
         raise VerifyError(
-            "flags mode verifies one artifact, and this invocation does "
-            "not declare its identity: pass --id, --type, --format, and "
-            "--schema-version — a spec file declares these per artifact, "
-            "but flags mode has no spec"
+            "flags mode requires the artifact's identity — pass --id, "
+            "--type, --format, and --schema-version; a spec file declares "
+            "these per artifact, but flags mode has no spec"
         )
     criteria = parse_criteria(criteria_pairs)
     try:
         fmt_value: ArtifactFormat | NamespacedArtifactFormat = ArtifactFormat(fmt)
     except ValueError:
         fmt_value = fmt
+    verifiers = _verifier_index()
+    _require_verifier(verifiers, _format_key(fmt_value))
     manifest, created = load_or_init_manifest(
         manifest_path,
         producer_name=producer_name,
@@ -573,7 +574,6 @@ def run_flags_verify(
         run_id=run_id,
     )
     check_producer_agreement(manifest, producer_name, producer_version, run_id)
-    verifiers = _verifier_index()
     run_clause = (
         f", run {manifest.producer.run_id}"
         if manifest.producer.run_id is not None
@@ -773,11 +773,7 @@ def run_spec_verify(
                 manifest=manifest_path,
                 message=str(e),
             )
-            manifest, placement = apply_artifact_declaration(manifest, declaration)
-            if placement == "appended":
-                appended += 1
-            else:
-                updated += 1
+            manifest, _ = apply_artifact_declaration(manifest, declaration)
             warnings.append(f"artifact {block.id} recorded as failed: {e}")
             continue
         declaration = build_verified_declaration(
@@ -810,20 +806,15 @@ def run_spec_verify(
     word = f"{successes} artifact" if successes == 1 else f"{successes} artifacts"
     core = f"verified {word} — appended {appended}, updated {updated}"
     recorded = len(warnings)
-    if created:
-        prefix = (
+    if recorded:
+        out = f"{core}, {recorded} recorded as failed in {manifest_path}\n"
+    elif created:
+        out = (
             f"created {manifest_path} (producer {manifest.producer.name} "
-            f"{manifest.producer.version})"
+            f"{manifest.producer.version}) — {core}\n"
         )
-        if recorded:
-            out = f"{prefix} — {core}, {recorded} recorded as failed\n"
-        else:
-            out = f"{prefix} — {core}\n"
     else:
-        if recorded:
-            out = f"{core}, {recorded} recorded as failed in {manifest_path}\n"
-        else:
-            out = f"{core} in {manifest_path}\n"
+        out = f"{core} in {manifest_path}\n"
     return VerifyOutcome(exit_code=0, out=out, warnings=tuple(warnings))
 
 
