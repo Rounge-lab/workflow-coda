@@ -22,7 +22,7 @@ from workflow_coda.components import ComponentStatus, PlacementInfo, RenderedCom
 from workflow_coda.context import RenderContext
 from workflow_coda.core.plugin import get_plugin as get_core_plugin
 from workflow_coda.errors import RenderError
-from workflow_coda.manifest import ReportManifest
+from workflow_coda.manifest import MANIFEST_SCHEMA_VERSION, ReportManifest
 from workflow_coda.registry import PluginRegistry
 from workflow_coda.render import render_report
 
@@ -154,7 +154,9 @@ def store_with_steps(tmp_path: Path, steps: str | None) -> ArtifactStore:
 def test_the_waterfall_plugin_assembles(waterfall_module: ModuleType) -> None:
     plugin = waterfall_module.get_plugin()
     assert plugin.metadata.id == "waterfall"
-    assert plugin.metadata.supported_schema_versions == frozenset({"0.2.0"})
+    assert plugin.metadata.supported_schema_versions == frozenset(
+        {MANIFEST_SCHEMA_VERSION}
+    )
     (component,) = plugin.components
     assert component.id == "waterfall.plot"
     assert component.render is waterfall_module.render_waterfall

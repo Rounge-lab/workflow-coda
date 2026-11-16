@@ -24,7 +24,7 @@ from workflow_coda.errors import (
     ArtifactUnavailableError,
     WorkflowCodaError,
 )
-from workflow_coda.manifest import load_manifest
+from workflow_coda.manifest import MANIFEST_SCHEMA_VERSION, load_manifest
 
 METRICS_TYPE = "org.example.sample_metrics"
 
@@ -60,7 +60,7 @@ def test_properties_expose_manifest_and_root(
 ) -> None:
     artifact_store = ArtifactStore.from_manifest_file(bundle.manifest_path)
     assert artifact_store.root == tmp_path.resolve()
-    assert artifact_store.manifest.schema_version == "0.2.0"
+    assert artifact_store.manifest.schema_version == MANIFEST_SCHEMA_VERSION
 
 
 # ---------------------------------------------------------------------------

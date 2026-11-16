@@ -8,6 +8,7 @@ without notice.
 
 from .artifact import ArtifactDeclaration, ArtifactFormat, ArtifactStatus
 from .envelope import (
+    MANIFEST_SCHEMA_VERSION,
     ManifestSchemaVersion,
     ProducerMetadata,
     ReportManifest,
@@ -17,6 +18,7 @@ from .types import (
     ArtifactId,
     ArtifactSchemaVersion,
     ArtifactType,
+    JsonValue,
     ManifestRelativePath,
     NamespacedArtifactFormat,
     NonEmptyStr,
@@ -30,6 +32,8 @@ __all__ = [
     "ArtifactSchemaVersion",
     "ArtifactStatus",
     "ArtifactType",
+    "JsonValue",
+    "MANIFEST_SCHEMA_VERSION",
     "ManifestRelativePath",
     "ManifestSchemaVersion",
     "NamespacedArtifactFormat",

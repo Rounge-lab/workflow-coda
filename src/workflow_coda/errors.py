@@ -131,3 +131,30 @@ class PluginAssetError(WorkflowCodaError):
     """A plugin's shipped asset is missing or unreadable — a broken
     installation, not an authoring failure.  Raised at import, where
     the plugin's chrome constants are read."""
+
+
+class VerifyError(WorkflowCodaError):
+    """Root of the verify family: failures while producing a manifest
+    from real files through ``workflow-coda verify``."""
+
+
+class SpecError(VerifyError):
+    """A verify spec file could not be read, parsed, or validated.
+
+    The spec is a hand-authored YAML file with the same traps as the
+    layout, and its failures teach the same way — file named, key and
+    line where the format provides them, problem, fix.  Correction
+    clock: the spec file.
+    """
+
+
+class VerificationError(VerifyError):
+    """An artifact failed verification under its declared format or
+    criteria.
+
+    Raised by verifiers with a teaching message naming the offending
+    value and the fix; the verify command either reports it (under
+    ``--on-failure fail``) or records it on the artifact's
+    verification record (under ``write``).  Correction clock: the
+    artifact or the criteria.
+    """

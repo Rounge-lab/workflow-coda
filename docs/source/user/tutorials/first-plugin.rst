@@ -166,6 +166,17 @@ three small changes.
       :language: json
       :caption: manifest.json — extended
 
+   When the pipeline runs for real, produce the manifest through the
+   ``verify`` command rather than hand-writing it::
+
+      $ workflow-coda verify manifest.json steps.json \
+          --id composition \
+          --type org.example.waterfall \
+          --format json \
+          --schema-version 1.0
+
+      verified steps.json — appended artifact composition to manifest.json
+
 3. The layout gains a second tab (everything above ``tabs:`` is
    unchanged from the first tutorial):
 

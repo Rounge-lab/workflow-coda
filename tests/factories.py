@@ -23,6 +23,8 @@ from workflow_coda.components import (
     ReportComponent,
 )
 from workflow_coda.context import RenderContext
+from workflow_coda.layout import LAYOUT_SCHEMA_VERSION
+from workflow_coda.manifest import MANIFEST_SCHEMA_VERSION
 from workflow_coda.plugins import ReportPlugin
 from workflow_coda.theme import DEFAULT_THEME
 
@@ -54,7 +56,7 @@ def make_producer_payload(**overrides: object) -> dict[str, object]:
 def make_manifest_payload(**overrides: object) -> dict[str, object]:
     """Return a fresh, valid report manifest payload."""
     payload: dict[str, object] = {
-        "schema_version": "0.2.0",
+        "schema_version": MANIFEST_SCHEMA_VERSION,
         "producer": make_producer_payload(),
         "artifacts": [make_artifact_payload()],
     }
@@ -218,7 +220,7 @@ def make_metadata(
     name: str = "Example plugin",
     version: str = "1.0.0",
     description: str = "Components for the test suite.",
-    supported_schema_versions: Iterable[str] = ("0.2.0",),
+    supported_schema_versions: Iterable[str] = (MANIFEST_SCHEMA_VERSION,),
 ) -> PluginMetadata:
     """A fresh, valid plugin metadata value."""
     return PluginMetadata(
@@ -273,14 +275,15 @@ def make_plugin(
 
 
 def make_layout_payload(**overrides: JsonValue) -> dict[str, JsonValue]:
-    """The suite's layout payload: schema 0.2.0, one tab, one placement.
+    """The suite's layout payload: the current layout schema, one tab,
+    one placement.
 
     Overrides merge onto the default payload wholesale — arbitrary
     keys included, so the typo-key tests build their typo'd payloads
     through the same factory.
     """
     payload: dict[str, JsonValue] = {
-        "schema_version": "0.2.0",
+        "schema_version": LAYOUT_SCHEMA_VERSION,
         "title": "Metagenomic analysis",
         "tabs": [
             {

@@ -31,14 +31,10 @@ from .manifest import (
     ArtifactDeclaration,
     ArtifactStatus,
     ArtifactType,
+    JsonValue,
     ReportManifest,
     load_manifest,
 )
-
-type JsonValue = (
-    None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]
-)
-"""A fully typed JSON value, as returned by :meth:`ResolvedArtifact.read_json`."""
 
 
 @dataclass(frozen=True, slots=True)

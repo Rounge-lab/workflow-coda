@@ -40,6 +40,7 @@ from workflow_coda.core.assets import read_core_asset
 from workflow_coda.core.table import render_table
 from workflow_coda.errors import ArtifactReadError
 from workflow_coda.icons import IconLibrary, IconSource
+from workflow_coda.manifest import MANIFEST_SCHEMA_VERSION
 from workflow_coda.theme import DEFAULT_THEME
 
 _TABLE_TYPE = "org.example.metrics"
@@ -85,7 +86,7 @@ def _write_bundle(
     artifact_path = tmp_path / "metrics.tsv"
     artifact_path.write_text(content, encoding="utf-8", newline=newline)
     manifest = {
-        "schema_version": "0.2.0",
+        "schema_version": MANIFEST_SCHEMA_VERSION,
         "producer": {"name": "table-fixture", "version": "1.0"},
         "artifacts": [
             {

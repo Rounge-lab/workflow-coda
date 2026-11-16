@@ -220,7 +220,7 @@ Schema gating
 
 ``supported_schema_versions`` is your plugin's compatibility gate:
 a non-empty frozenset of manifest versions it understands —
-currently ``{"0.2.0"}``.  At build time the framework checks it
+currently ``{"0.3.0"}``.  At build time the framework checks it
 against the manifest's own ``schema_version``: a plugin outside
 the gate is excluded from the report and the diagnostics ledger
 records why, naming both versions.  Keep the set deliberate —

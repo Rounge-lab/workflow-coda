@@ -1,9 +1,11 @@
-"""Reusable constrained string types shared by manifest models.
+"""Reusable constrained types shared by manifest models.
 
 These PEP 695 type aliases are part of the public API: plugin authors are
 expected to reuse them when defining artifact schemas or when validating
-values outside pydantic models. All aliases are strict — pydantic will not
-coerce other types into these strings.
+values outside pydantic models. The string aliases are strict — pydantic
+will not coerce other types into these strings; :data:`JsonValue` is the
+structural union a JSON document parses into, the transport type behind
+component parameters, layout parameters, and verification records.
 """
 
 from typing import Annotated
@@ -57,3 +59,13 @@ type Sha256Hex = Annotated[
     str,
     StringConstraints(strict=True, pattern=r"^[0-9a-f]{64}$"),
 ]
+
+# A fully typed JSON value: the structural union json.loads returns and
+# json.dumps accepts.  The transport type behind component parameters,
+# layout parameters, and the artifact verification record, it lives in
+# this leaf module so the manifest package can use it without importing
+# the artifact store (that direction is a cycle); the store keeps the
+# name importable from its own module, its historical home.
+type JsonValue = (
+    None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]
+)

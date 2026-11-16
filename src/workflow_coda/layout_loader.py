@@ -38,7 +38,7 @@ from pydantic_core import ErrorDetails
 from yaml.constructor import ConstructorError
 
 from .errors import LayoutError
-from .layout import ReportLayout
+from .layout import LAYOUT_SCHEMA_VERSION, ReportLayout
 
 _MISSING = object()
 """Sentinel for a location that does not resolve into the parsed document."""
@@ -184,17 +184,19 @@ def load_layout(path: Path) -> ReportLayout:
             f"(title:, sections:, ...), but it contains {found}"
         )
     declared_version = parsed.get("schema_version")
-    if isinstance(declared_version, str) and declared_version != "0.2.0":
+    if isinstance(declared_version, str) and declared_version != LAYOUT_SCHEMA_VERSION:
         if declared_version == "0.1.0":
             raise LayoutError(
                 f"{path}: this layout declares schema_version 0.1.0, but "
-                "this workflow-coda reads layout schema 0.2.0 — migrate "
+                "this workflow-coda reads layout schema "
+                f"{LAYOUT_SCHEMA_VERSION} — migrate "
                 "the file: rename 'sections:' to 'tabs:', remove the "
                 "'toc:' key (tabs are the navigation), and set "
-                'schema_version: "0.2.0"'
+                f'schema_version: "{LAYOUT_SCHEMA_VERSION}"'
             )
         raise LayoutError(
-            f'{path}: the layout\'s schema_version must be "0.2.0", but '
+            f"{path}: the layout's schema_version must be "
+            f'"{LAYOUT_SCHEMA_VERSION}", but '
             f"this file declares {declared_version!r}"
         )
     try:

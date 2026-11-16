@@ -12,7 +12,11 @@ from factories import (
 from helpers import assert_frozen, invalid_fields
 from pydantic import ValidationError
 
-from workflow_coda.manifest import ProducerMetadata, ReportManifest
+from workflow_coda.manifest import (
+    MANIFEST_SCHEMA_VERSION,
+    ProducerMetadata,
+    ReportManifest,
+)
 
 # ---------------------------------------------------------------------------
 # ProducerMetadata
@@ -76,7 +80,7 @@ def test_producer_is_frozen() -> None:
 
 def test_valid_manifest_parses() -> None:
     manifest = ReportManifest.model_validate(make_manifest_payload())
-    assert manifest.schema_version == "0.2.0"
+    assert manifest.schema_version == MANIFEST_SCHEMA_VERSION
     assert manifest.producer.name == "Example workflow"
     assert isinstance(manifest.artifacts, tuple)
     assert len(manifest.artifacts) == 1
@@ -238,3 +242,36 @@ def test_nested_errors_carry_their_field_path() -> None:
     with pytest.raises(ValidationError) as exc_info:
         ReportManifest.model_validate(payload)
     assert exc_info.value.errors()[0]["loc"] == ("producer", "name")
+
+
+def test_verification_round_trips_as_opaque_transport() -> None:
+    """0.3.0's one addition: the optional verification record, opaque
+    transport — a declared record round-trips exactly as written, and
+    an absent record stays absent."""
+    baseline = ReportManifest.model_validate(make_manifest_payload())
+    assert baseline.artifacts[0].verification is None
+
+    record: dict[str, object] = {
+        "format": "json",
+        "status": "ok",
+        "keys_checked": ["depth", "rate"],
+    }
+    declared = make_manifest_payload(
+        artifacts=[make_artifact_payload(verification=record)]
+    )
+    manifest = ReportManifest.model_validate(declared)
+    assert manifest.artifacts[0].verification == record
+
+    again = ReportManifest.model_validate_json(manifest.model_dump_json())
+    assert again.artifacts[0].verification == record
+
+
+def test_verification_must_be_a_json_object() -> None:
+    """The record is transport, but transport has shape: a non-object
+    verification value fails envelope validation, named by field."""
+    declared = make_manifest_payload(
+        artifacts=[make_artifact_payload(verification="checked by hand")]
+    )
+    with pytest.raises(ValidationError) as excinfo:
+        ReportManifest.model_validate(declared)
+    assert "verification" in str(excinfo.value)

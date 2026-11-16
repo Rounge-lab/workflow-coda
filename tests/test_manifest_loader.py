@@ -9,7 +9,11 @@ from pydantic import ValidationError
 
 from workflow_coda.artifact_store import ArtifactStore
 from workflow_coda.errors import ManifestError
-from workflow_coda.manifest import ReportManifest, load_manifest
+from workflow_coda.manifest import (
+    MANIFEST_SCHEMA_VERSION,
+    ReportManifest,
+    load_manifest,
+)
 
 # ---------------------------------------------------------------------------
 # Happy path
@@ -25,7 +29,7 @@ def test_loads_valid_manifest(tmp_path: Path) -> None:
     )
     manifest = load_manifest(path)
     assert isinstance(manifest, ReportManifest)
-    assert manifest.schema_version == "0.2.0"
+    assert manifest.schema_version == MANIFEST_SCHEMA_VERSION
     assert manifest.producer.run_id == "2026-10-01T103012Z"
     assert len(manifest.artifacts) == 1
 
@@ -120,8 +124,21 @@ def test_unknown_schema_version_teaches(tmp_path: Path) -> None:
     with pytest.raises(ManifestError) as exc_info:
         load_manifest(path)
     message = str(exc_info.value)
-    assert 'must be "0.2.0"' in message
+    assert f'must be "{MANIFEST_SCHEMA_VERSION}"' in message
     assert "'0.1.0'" in message
+
+
+def test_old_manifest_version_teaches_regeneration(tmp_path: Path) -> None:
+    """The clean break: the 0.2.0 envelope is not read, and the
+    teaching names the way forward — regenerate with verify."""
+    declared = make_manifest_payload(schema_version="0.2.0")
+    path = write_manifest_file(tmp_path, declared)
+    with pytest.raises(ManifestError) as excinfo:
+        load_manifest(path)
+    message = str(excinfo.value)
+    assert f'must be "{MANIFEST_SCHEMA_VERSION}"' in message
+    assert "declares '0.2.0'" in message
+    assert "regenerate" in message
 
 
 # ---------------------------------------------------------------------------

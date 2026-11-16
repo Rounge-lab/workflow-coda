@@ -18,6 +18,7 @@ from .types import (
     ArtifactId,
     ArtifactSchemaVersion,
     ArtifactType,
+    JsonValue,
     ManifestRelativePath,
     NamespacedArtifactFormat,
     Sha256Hex,
@@ -92,6 +93,15 @@ class ArtifactDeclaration(BaseModel):
 
     sha256: Sha256Hex | None = None
     """Optional SHA-256 integrity checksum of the artifact file."""
+
+    verification: dict[str, JsonValue] | None = None
+    """The pipeline's own account of how this artifact was verified:
+    what was checked, under which reading, and on failure why.
+
+    Written by ``workflow-coda verify`` from the format verifier's
+    record; opaque transport to the framework, which stores and
+    round-trips it without interpretation (the parameters precedent).
+    Absent on hand-written declarations, which carry no account."""
 
     @field_validator("path")
     @classmethod

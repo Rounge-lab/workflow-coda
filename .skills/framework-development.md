@@ -320,7 +320,7 @@ written down will be re-learned the expensive way.
 
 ## Current state
 
-- Manifest envelope schema: `0.2.0` (exact gate; the loader's
+- Manifest envelope schema: `0.3.0` (exact gate; the loader's
   version pre-check teaches declared vs. expected). Layout schema:
   `0.2.0`. Artifact content `schema_version`: free-form — the
   content axis, deliberately unpinned.

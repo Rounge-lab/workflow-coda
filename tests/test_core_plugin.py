@@ -11,6 +11,7 @@ from workflow_coda.components import ComponentChrome
 from workflow_coda.core.kpi import render_kpi
 from workflow_coda.core.plugin import get_plugin
 from workflow_coda.core.table import render_table
+from workflow_coda.manifest import MANIFEST_SCHEMA_VERSION
 
 
 def test_core_plugin_identity() -> None:
@@ -21,7 +22,9 @@ def test_core_plugin_identity() -> None:
     assert plugin.metadata.id == "core"
     assert plugin.metadata.name == "Core report components"
     assert plugin.metadata.version == metadata.version("workflow-coda")
-    assert plugin.metadata.supported_schema_versions == frozenset({"0.2.0"})
+    assert plugin.metadata.supported_schema_versions == frozenset(
+        {MANIFEST_SCHEMA_VERSION}
+    )
     # The icon declaration: core ships the framework's icon set
     # through the same optional field third-party plugins use.
     assert plugin.metadata.icons_package == "workflow_coda.core"

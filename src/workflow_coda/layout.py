@@ -81,6 +81,15 @@ through row, grid, card, and diagnostics nodes).  The loader teaches
 the migration for 0.1.0 files.
 """
 
+LAYOUT_SCHEMA_VERSION: Final[str] = "0.2.0"
+"""The layout contract version this framework reads — the axis's single
+source of truth.  The loader's version gate and the layout factories
+read this constant; ``LayoutSchemaVersion`` beside it is the
+type-checker's gate, and the two are pinned in agreement
+(``tests/test_version_constants.py``).  A bump is a clean break: flip
+this constant and the Literal together, then green the sweep the flip
+reddens."""
+
 
 def _require_visible_text(value: str) -> str:
     """Reject whitespace-only text: always an authoring mistake."""

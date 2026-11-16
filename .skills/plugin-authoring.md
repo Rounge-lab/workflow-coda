@@ -40,7 +40,7 @@ def get_plugin() -> ReportPlugin:
             name="Bioinformatics components",
             version=metadata.version("my-bio-plugin"),
             description="Tree and sequence renderings for QC reports.",
-            supported_schema_versions=frozenset({"0.2.0"}),
+            supported_schema_versions=frozenset({"0.3.0"}),
         ),
         components=(NEWICK,),
     )

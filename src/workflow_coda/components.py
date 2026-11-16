@@ -52,6 +52,7 @@ from typing import Any, Final, Protocol, Self
 
 from .artifact_store import JsonValue
 from .context import RenderContext
+from .manifest import MANIFEST_SCHEMA_VERSION
 from .text import has_visible_text
 
 _PLUGIN_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -394,7 +395,7 @@ class PluginMetadata:
     ``supported_schema_versions`` is the version gate: the report builder
     refuses to run a plugin whose set does not include the manifest's
     ``schema_version``, and the diagnostics section names both versions.
-    The current manifest schema version is ``"0.2.0"``.
+    The current manifest schema version is ``"0.3.0"``.
     """
 
     id: str
@@ -412,7 +413,7 @@ class PluginMetadata:
 
     supported_schema_versions: frozenset[str]
     """Manifest schema versions this plugin understands, e.g.
-    ``frozenset({"0.2.0"})``.  Must be non-empty."""
+    ``frozenset({"0.3.0"})``.  Must be non-empty."""
 
     icons_package: str | None = None
     """The plugin's icon package: the importable package whose
@@ -438,7 +439,8 @@ class PluginMetadata:
         if not self.supported_schema_versions:
             raise ValueError(
                 f"plugin {self.id!r}: supported_schema_versions must name "
-                f"at least one manifest schema version (currently '0.2.0')"
+                "at least one manifest schema version "
+                f"(currently {MANIFEST_SCHEMA_VERSION!r})"
             )
 
 
