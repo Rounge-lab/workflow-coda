@@ -42,8 +42,8 @@ from typing import Literal
 
 from pydantic import TypeAdapter, ValidationError
 
-from .errors import SpecError
-from .manifest import ArtifactId, ArtifactType, JsonValue
+from ..errors import SpecError
+from ..manifest import ArtifactId, ArtifactType, JsonValue
 
 _PLACEHOLDER = re.compile(r"\{([a-z][a-z0-9_-]*)\}")
 """One well-formed placeholder: ``{name}`` in the dimension name
