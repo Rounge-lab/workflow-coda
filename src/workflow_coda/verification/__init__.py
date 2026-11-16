@@ -32,7 +32,10 @@ The package is layered by what each part owns:
 
 :mod:`~workflow_coda.verification.expansion` holds the spec's
 ``for_each`` expansion language — template, slug, collision —
-absorbed ahead of the spec loader's wiring.
+and :mod:`~workflow_coda.verification.sources` its three value
+sources (``values``, ``samplesheet``, ``glob``); both are wired
+into the spec loader's expansion stage, between YAML parse and
+validation.
 
 This ``__init__`` re-exports the public surface the old module
 carried, so ``from workflow_coda.verification import run_verify``

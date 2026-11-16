@@ -14,6 +14,7 @@ are the fastest way in.
 
    api/errors
    api/manifest
+   api/verification
    api/artifact_store
    api/theme
    api/icons
