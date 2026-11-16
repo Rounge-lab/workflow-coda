@@ -230,7 +230,7 @@ the store reports it unavailable, and the report author's ``on_unavailable``
 policy decides how it shows in the report (a notice card, by default).
 
 Wiring it into the workflow
---------------------------
+---------------------------
 
 ``verify`` is designed to be the pipeline's last rule, when every output is in
 place. This way the run can produce a single manifest.  The manifest is atomic;
@@ -266,7 +266,7 @@ An example Snakemake rule:
            "workflow-coda verify {output} --spec spec.yaml"
 
 Handing over the manifest
-------------------------
+-------------------------
 
 The manifest records paths relative to itself. This way ``manifest.json`` and
 the artifacts it declares become portable as one tree.  From there the page can
