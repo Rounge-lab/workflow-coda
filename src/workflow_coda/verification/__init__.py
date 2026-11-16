@@ -32,19 +32,19 @@ from typing import Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from .errors import (
+from ..errors import (
     ComponentUnavailableError,
     ManifestError,
     SpecError,
     VerificationError,
     VerifyError,
 )
-from .layout_loader import (
+from ..layout_loader import (
     UniqueKeySafeLoader,
     _describe_violation,
     _DuplicateKeyError,
 )
-from .manifest import (
+from ..manifest import (
     MANIFEST_SCHEMA_VERSION,
     ArtifactDeclaration,
     ArtifactFormat,
@@ -59,8 +59,8 @@ from .manifest import (
     ReportManifest,
     load_manifest,
 )
-from .plugins import ArtifactVerifier
-from .registry import PluginRegistry
+from ..plugins import ArtifactVerifier
+from ..registry import PluginRegistry
 
 
 class SpecProducer(BaseModel):
