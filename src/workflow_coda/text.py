@@ -2,16 +2,23 @@
 
 A dependency-free leaf module: the rules here are used across the
 package — by the component contracts' in-memory gates, by the layout
-model's visible-text validator, by the theme's font rules, and by
-the verify sources' glob ordering — so they live in a module that
-imports nothing from the package and can be imported from anywhere
-without creating import cycles.
+model's visible-text validator, by the theme's font rules, by the
+verify sources' glob ordering, and by the layout's states dimension
+names — so they live in a module that imports nothing from the
+package and can be imported from anywhere without creating import
+cycles.
 """
 
 import re
 
 _DIGIT_RUN = re.compile(r"(\d+)")
 """One maximal digit run — the capture in the natural key."""
+
+DIMENSION_NAME_RE = re.compile(r"[a-z][a-z0-9_-]*")
+"""The dimension-name grammar: a states node's dimension is its
+children's placeholder name — lowercase snake_case starting with a
+letter (``batch``, ``sample_id``), the same grammar the spec's
+placeholder language captures."""
 
 
 def has_visible_text(text: str) -> bool:

@@ -21,6 +21,7 @@ import json
 from pathlib import Path
 
 from workflow_coda.cli import main
+from workflow_coda.layout import LAYOUT_SCHEMA_VERSION
 from workflow_coda.manifest import MANIFEST_SCHEMA_VERSION
 from workflow_coda.theme import DEFAULT_THEME
 
@@ -78,15 +79,16 @@ def _write_bundle(tmp_path: Path) -> Path:
 
 
 def _write_layout(tmp_path: Path) -> Path:
-    """A 0.2.0 tab layout placing core.kpi twice — once titled,
+    """A tab layout placing core.kpi twice — once titled,
     statused, and iconed; once untitled against the failed artifact —
     core.table twice — once titled with the columns policy and a
     caption, once default — core.chart once — the samples artifact as
     a hue-grouped bar figure beside its table — and the diagnostics
     panel in its own tab: the tab grammar, both chrome modes, and the
     figure channel, end to end."""
-    layout = """\
-schema_version: "0.2.0"
+    layout = (
+        f'schema_version: "{LAYOUT_SCHEMA_VERSION}"\n'
+        + """\
 title: Sample QC
 tabs:
   - title: Headlines
@@ -128,6 +130,7 @@ tabs:
     components:
       - type: diagnostics
 """
+    )
     path = tmp_path / "layout.yaml"
     path.write_text(layout, encoding="utf-8")
     return path

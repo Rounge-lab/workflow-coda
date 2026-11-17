@@ -223,9 +223,9 @@ from manifest versions — the two are never compared.
 
 The grammar's front door is shape dispatch: a node carrying ``id``
 is a *placement* — one component instance; a node carrying
-``type`` is a *composition* — ``row``, ``grid``, ``card``, or
-``diagnostics``.  A node carrying both is a teaching error, as is a
-node carrying neither.  Nodes nest: a tab's list, a row's, a grid's,
+``type`` is a *composition* — ``row``, ``grid``, ``card``,
+``diagnostics``, or ``states``.  A node carrying both is a teaching error, as is
+a node carrying neither.  Nodes nest: a tab's list, a row's, a grid's,
 and a card's children all speak the same grammar.
 
 Identity
@@ -241,8 +241,8 @@ Identity
      - Meaning
    * - ``schema_version``
      - yes
-     - the literal ``"0.2.0"``
-     - The layout contract version; a ``0.1.0`` file fails with the
+     - the literal ``"0.3.0"``
+     - The layout contract version; a ``0.1.0`` or ``0.2.0`` file fails with the
        migration spelled out (below).
    * - ``title``
      - yes
@@ -392,6 +392,19 @@ Composition nodes
        state — an empty ledger shows "no issues".  A report that
        places none shows no diagnostics at all; the builder still
        records everything.
+   * - ``states``
+     - ``dimension``; ``children`` (≥ 1); ``kind``, ``values``
+       optional
+     - One dimension's family, expanded once per axis value at build
+       time.  ``values`` declared is the axis, order as written;
+       absent means *derived* — collected from the manifest's
+       artifact types, in declaration order.  ``kind``:
+       ``categorical`` (the default — the values are peers) or
+       ``ordered`` (the axis is a sequence), declared and never
+       inferred.  Children are the family's template: free strings
+       may carry the ``{dimension}`` placeholder, substituted
+       verbatim; a placement's ``id`` refuses it — an id addresses a
+       component, never a state.
 
 Split ratios
 ............
@@ -415,9 +428,14 @@ YAML authoring rules
   ``title: no`` arrives as the boolean ``False``, the error explains
   that bare ``true``/``false``/``yes``/``no``/``on``/``off`` are
   booleans in YAML, and quotes the word for you.
-* A ``0.1.0`` layout fails with the migration spelled out: rename
-  ``sections:`` to ``tabs:``, remove the ``toc:`` key (tabs are the
-  navigation), and set ``schema_version: "0.2.0"``.
+* A ``0.1.0`` or ``0.2.0`` layout fails with the migration spelled
+  out.  For ``0.1.0``: rename ``sections:`` to ``tabs:`` and remove
+  the ``toc:`` key (tabs are the navigation).  For ``0.2.0``: the
+  file is otherwise current — ``0.3.0`` adds the ``states``
+  composition node and changes nothing else.  Then set
+  ``schema_version: "0.3.0"``.
+* A ``{`` in a string no ``states`` node can bind teaches at load —
+  an orphaned placeholder is an authoring mistake, not literal text.
 * Everything else is standard YAML, preserved exactly as written —
   the loader never silently reinterprets what the author wrote
   (:doc:`api/layout_loader`).
@@ -427,7 +445,7 @@ An example layout
 
 .. code-block:: yaml
 
-   schema_version: "0.2.0"
+   schema_version: "0.3.0"
    title: Run summary
    tabs:
      - title: Headlines

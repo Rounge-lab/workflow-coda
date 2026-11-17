@@ -1,5 +1,5 @@
-"""Tests for the layout loader: YAML text to a validated 0.2.0
-layout, with the 0.1.0 migration taught."""
+"""Tests for the layout loader: YAML text to a validated layout,
+with the old-version migrations taught."""
 
 import re
 from pathlib import Path
@@ -8,6 +8,7 @@ import pytest
 
 from workflow_coda.errors import LayoutError
 from workflow_coda.layout import (
+    LAYOUT_SCHEMA_VERSION,
     ComponentPlacement,
     DiagnosticsNode,
     MissingPolicy,
@@ -25,8 +26,8 @@ def write_layout(tmp_path: Path, text: str) -> Path:
     return path
 
 
-MINIMAL_YAML = """\
-schema_version: "0.2.0"
+MINIMAL_YAML = f"""\
+schema_version: "{LAYOUT_SCHEMA_VERSION}"
 title: Metagenomic analysis
 tabs:
   - title: Quality control
@@ -36,8 +37,8 @@ tabs:
           min_depth: 10
 """
 
-COMPOSITION_YAML = """\
-schema_version: "0.2.0"
+COMPOSITION_YAML = f"""\
+schema_version: "{LAYOUT_SCHEMA_VERSION}"
 title: Metagenomic analysis
 tabs:
   - title: Quality control
@@ -48,6 +49,13 @@ tabs:
           - id: example_bio.qc
           - type: diagnostics
 """
+
+
+def minimal_yaml_with(*top_level_keys: str) -> str:
+    """MINIMAL_YAML with extra top-level keys inserted after the
+    version line — anchored on structure, not on the version, so a
+    schema flip never reddens the tests built on the base fixture."""
+    return MINIMAL_YAML.replace("\n", "\n" + "\n".join(top_level_keys) + "\n", 1)
 
 
 # ---------------------------------------------------------------------------
@@ -76,8 +84,8 @@ def test_loads_minimal_layout_with_defaults(tmp_path: Path) -> None:
 def test_optional_fields_and_policy_round_trip_through_file(
     tmp_path: Path,
 ) -> None:
-    text = """\
-schema_version: "0.2.0"
+    text = f"""\
+schema_version: "{LAYOUT_SCHEMA_VERSION}"
 title: Metagenomic analysis
 subtitle: Optional one-liner
 theme: themes/ntnu.yaml
@@ -122,17 +130,13 @@ def test_composition_loads_through_a_file(tmp_path: Path) -> None:
 
 
 def test_on_unavailable_round_trips_through_a_file(tmp_path: Path) -> None:
-    text = MINIMAL_YAML.replace(
-        'schema_version: "0.2.0"', 'schema_version: "0.2.0"\non_unavailable: skip'
-    )
+    text = minimal_yaml_with("on_unavailable: skip")
     layout = load_layout(write_layout(tmp_path, text))
     assert layout.on_unavailable is UnavailablePolicy.SKIP
 
 
 def test_boolean_in_on_unavailable_explains_too(tmp_path: Path) -> None:
-    text = MINIMAL_YAML.replace(
-        'schema_version: "0.2.0"', 'schema_version: "0.2.0"\non_unavailable: no'
-    )
+    text = minimal_yaml_with("on_unavailable: no")
     with pytest.raises(LayoutError, match="YAML parsed this as the boolean False"):
         load_layout(write_layout(tmp_path, text))
 
@@ -189,7 +193,9 @@ def test_non_mapping_documents_rejected(
 def test_0_1_0_layout_is_taught_the_migration(tmp_path: Path) -> None:
     # The likeliest real file in the wild: last week's layout.  The
     # loader names the version and spells out every edit.
-    text = MINIMAL_YAML.replace('"0.2.0"', '"0.1.0"').replace("tabs:", "sections:")
+    text = MINIMAL_YAML.replace(f'"{LAYOUT_SCHEMA_VERSION}"', '"0.1.0"').replace(
+        "tabs:", "sections:"
+    )
     with pytest.raises(
         LayoutError,
         match=re.escape("declares schema_version 0.1.0")
@@ -199,11 +205,27 @@ def test_0_1_0_layout_is_taught_the_migration(tmp_path: Path) -> None:
         load_layout(write_layout(tmp_path, text))
 
 
-def test_unknown_schema_versions_are_refused(tmp_path: Path) -> None:
-    text = MINIMAL_YAML.replace('"0.2.0"', '"9.9.9"')
+def test_0_2_0_layout_is_taught_the_migration(tmp_path: Path) -> None:
+    # This flip's own addition to the migration family: a 0.2.0 file
+    # is otherwise current, so the teaching says exactly that — set
+    # the version and the file loads as-is.
+    text = MINIMAL_YAML.replace(f'"{LAYOUT_SCHEMA_VERSION}"', '"0.2.0"')
     with pytest.raises(
         LayoutError,
-        match=re.escape('must be "0.2.0"') + ".*" + re.escape("declares '9.9.9'"),
+        match=re.escape("declares schema_version 0.2.0")
+        + ".*"
+        + re.escape("loads as-is"),
+    ):
+        load_layout(write_layout(tmp_path, text))
+
+
+def test_unknown_schema_versions_are_refused(tmp_path: Path) -> None:
+    text = MINIMAL_YAML.replace(f'"{LAYOUT_SCHEMA_VERSION}"', '"9.9.9"')
+    with pytest.raises(
+        LayoutError,
+        match=re.escape(f'must be "{LAYOUT_SCHEMA_VERSION}"')
+        + ".*"
+        + re.escape("declares '9.9.9'"),
     ):
         load_layout(write_layout(tmp_path, text))
 
@@ -212,7 +234,9 @@ def test_boolean_schema_version_teaches_the_quoting_rule(tmp_path: Path) -> None
     # A bare yes in the version field is a YAML boolean; the version
     # check passes it through to the strict model, whose refusal the
     # loader explains with the trap.
-    text = MINIMAL_YAML.replace('schema_version: "0.2.0"', "schema_version: yes")
+    text = MINIMAL_YAML.replace(
+        f'schema_version: "{LAYOUT_SCHEMA_VERSION}"', "schema_version: yes"
+    )
     with pytest.raises(LayoutError, match="YAML parsed this as the boolean True"):
         load_layout(write_layout(tmp_path, text))
 
@@ -232,9 +256,7 @@ def test_boolean_in_title_teaches_the_quoting_rule(tmp_path: Path) -> None:
 
 
 def test_boolean_in_policy_field_explains_too(tmp_path: Path) -> None:
-    text = MINIMAL_YAML.replace(
-        'schema_version: "0.2.0"', 'schema_version: "0.2.0"\non_missing: no'
-    )
+    text = minimal_yaml_with("on_missing: no")
     # The union field produces the explanation per branch; the valid
     # values ride along in pydantic's parenthetical message.
     with pytest.raises(LayoutError, match="YAML parsed this as the boolean False"):
@@ -245,9 +267,7 @@ def test_boolean_in_header_color_explains_too(tmp_path: Path) -> None:
     # The trap machinery is field-agnostic: a bare yes in the new
     # token field is a boolean, and the loader explains the quoting
     # rule with the field's own name in the example.
-    text = MINIMAL_YAML.replace(
-        'schema_version: "0.2.0"', 'schema_version: "0.2.0"\nheader_color: yes'
-    )
+    text = minimal_yaml_with("header_color: yes")
     with pytest.raises(LayoutError, match="YAML parsed this as the boolean True"):
         load_layout(write_layout(tmp_path, text))
 
