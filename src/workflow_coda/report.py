@@ -38,7 +38,14 @@ Unresolved placements produce no node at all: the ``on_missing``
 policy has already turned them into a build failure or diagnostics.
 Collapse travels upward: a composition whose children all resolve
 away produces no node either, so empty rows, cards, and tabs drop
-out of the document — the diagnostics already explain why.
+out of the document — the diagnostics already explain why.  A
+states node expands at build time into a :class:`StatesEntry`: one
+:class:`StatePanel` per axis value, in axis order, each panel
+carrying the walked children of that value's substituted template
+— the document is the *expanded* tree, and no placeholder survives
+into it.  Collapse travels into states the same way: a value whose
+children all resolve away drops its panel, and a node whose every
+panel dropped produces no node either.
 """
 
 from dataclasses import dataclass
@@ -46,7 +53,7 @@ from enum import Enum
 from typing import Final
 
 from .components import ComponentChrome, RenderedComponent
-from .layout import CardLayoutKind
+from .layout import CardLayoutKind, StatesKind
 from .manifest import ReportManifest
 from .text import has_visible_text
 from .theme import Theme, ThemeToken
@@ -80,7 +87,10 @@ class DiagnosticKind(Enum):
     expected pipeline behavior.  ``DEFAULT_THEME``,
     ``LOGO_OMITTED``, and ``FAVICON_OMITTED`` are informational: the
     report is complete, and the message explains how to add what was
-    left out.
+    left out.  ``STATES_EMPTY`` is informational too: a states node
+    whose derived axis came up empty collapsed, and the message names
+    the two ways to give it values — a build-time fact about the
+    run, not a load-time authoring contradiction.
     """
 
     PLUGIN_EXCLUDED = "plugin_excluded"
@@ -91,6 +101,7 @@ class DiagnosticKind(Enum):
     LOGO_OMITTED = "logo_omitted"
     FAVICON_OMITTED = "favicon_omitted"
     COMPONENT_NOTE = "component_note"
+    STATES_EMPTY = "states_empty"
 
     @property
     def is_problem(self) -> bool:
@@ -274,7 +285,62 @@ class CardEntry:
             raise ValueError("a card entry takes at least one child")
 
 
-DocumentNode = ComponentEntry | DiagnosticsEntry | RowEntry | GridEntry | CardEntry
+@dataclass(frozen=True, slots=True)
+class StatePanel:
+    """One state's panel: the axis value and its expanded children.
+
+    Built per axis value by the states walk — the template's nodes
+    with the value substituted into every free string leaf, then
+    walked like any other composition — so the panel holds real
+    content, never a template.  A panel exists only when at least
+    one child survived the walk; a value whose children all
+    resolved away drops its panel, and the ledger already explains
+    why.
+    """
+
+    value: str
+    """The axis value the panel was expanded for — its label."""
+
+    children: tuple[DocumentNode, ...]
+    """The value's walked children, in template order."""
+
+    def __post_init__(self) -> None:
+        if not has_visible_text(self.value):
+            raise ValueError("a state panel's value must contain visible text")
+        if not self.children:
+            raise ValueError("a state panel takes at least one child")
+
+
+@dataclass(frozen=True, slots=True)
+class StatesEntry:
+    """A states node's expansion: one panel per axis value.
+
+    ``dimension`` names the axis the panels index; ``kind`` states
+    what the values are — carried from the layout node, because the
+    read-time half renders its selector by it.  The panels hold the
+    expanded, walked content in axis order: selection is
+    presentation over exactly this tree — it adds no content and
+    removes none, only choosing what is visible.
+    """
+
+    dimension: str
+    """The axis's placeholder name, e.g. ``batch``."""
+
+    kind: StatesKind
+    """What the axis values are: categorical peers or an ordered
+    sequence."""
+
+    panels: tuple[StatePanel, ...]
+    """The axis's panels, in axis order."""
+
+    def __post_init__(self) -> None:
+        if not self.panels:
+            raise ValueError("a states entry takes at least one panel")
+
+
+DocumentNode = (
+    ComponentEntry | DiagnosticsEntry | RowEntry | GridEntry | CardEntry | StatesEntry
+)
 """One node of the document's content tree, wherever nodes go."""
 
 

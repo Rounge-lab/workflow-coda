@@ -39,16 +39,16 @@ Validation is two-stage, following the find/require line.  The
 models check *shape*: ids look like component ids, tabs are
 non-empty, split ratios are positive numbers, and composition is
 consistent (a row's ratios match its child count, a stack takes no
-split).  Resolution questions — does the component exist, does the
-theme file exist — belong to the report builder, which has the live
+split).  Resolution questions — does the component exist, does
+the theme file exist — belong to the report builder, which has the live
 registry and the filesystem.
 
 Three fields follow one rule: declared, then strict.  ``logo`` and
 ``favicon`` must exist next to the layout file and be embeddable
 images, or the build fails; omitted, the report renders without them
 and the builder records a diagnostic explaining how to add one.
-``theme`` likewise: omitted means the built-in default theme (and a
-diagnostic); declared, the file must load.  Assets are embedded into
+``theme`` likewise: omitted means the built-in default theme (and
+a diagnostic); declared, the file must load.  Assets are embedded into
 the single-page report as data URIs at build time — the report file
 never references external files.
 """
@@ -76,7 +76,7 @@ LayoutSchemaVersion = Literal["0.3.0"]
 """The layout contract's own version.
 
 An axis entirely distinct from manifest schema versions: the manifest
-version gates plugins, the layout version versions the layout file
+version gate plugins, the layout version versions the layout file
 format itself.  The two are never compared.
 
 Version 0.3.0 added the ``states`` composition node — a dimension's
@@ -177,8 +177,8 @@ class UnavailablePolicy(Enum):
     component *resolution* (does the environment offer the
     component?); this governs the *outcome* (did the pipeline
     produce the component's data?).  Missing data is expected
-    pipeline behavior — a branch not taken, a partial run — so the
-    default is ``notice``, not ``fail``.
+    pipeline behavior — a branch not taken, a partial run — so
+    the default is ``notice``, not ``fail``.
 
     ``notice``
         The framework's notice card carries the outcome's message in
@@ -372,6 +372,13 @@ class DiagnosticsNode(BaseModel):
     type: Literal["diagnostics"]
 
 
+StatesKind = Literal["categorical", "ordered"]
+"""What a states node's axis values are — declared, never inferred:
+``categorical`` peers or an ``ordered`` sequence.  The report
+document carries it forward onto its states entry, so the read-time
+half can offer its selector by it without re-reading the layout."""
+
+
 class StatesNode(BaseModel):
     """``type: states`` — one dimension's family, expanded per value.
 
@@ -406,7 +413,7 @@ class StatesNode(BaseModel):
     """The family's dimension — the placeholder name its children's
     strings carry, e.g. ``batch``."""
 
-    kind: Literal["categorical", "ordered"] = "categorical"
+    kind: StatesKind = "categorical"
     """What the axis values are: ``categorical`` peers (the default)
     or ``ordered`` positions — declared, never inferred, because the
     framework refuses to guess whether ``["1", "2", "3"]`` are labels

@@ -175,7 +175,12 @@ def slugify(raw: str, *, dimension: str, path: Path) -> str:
 
 
 def substitute_raw(
-    value: JsonValue, *, dimension: str, raw: str, path: Path
+    value: JsonValue,
+    *,
+    dimension: str,
+    raw: str,
+    path: Path,
+    scope: Sequence[str] | None = None,
 ) -> JsonValue:
     """The raw substitution over one criteria value, any JSON
     shape.
@@ -183,19 +188,25 @@ def substitute_raw(
     Strings substitute through :func:`expand_template`; lists and
     mappings recurse in order, mapping keys included — one law for
     every string leaf, no field whitelist — and the other leaves
-    (numbers, booleans, null) ride untouched.
+    (numbers, booleans, null) ride untouched.  *scope* rides to
+    every leaf unchanged: the spec's calls keep the default scope
+    (the block's single dimension), and the report builder passes
+    the states dimensions in scope, so a nested node's placeholder
+    passes through until its own round substitutes it.
     """
     if isinstance(value, str):
-        return expand_template(value, dimension=dimension, raw=raw, path=path)
+        return expand_template(value, dimension=dimension, raw=raw, path=path, scope=scope)
     if isinstance(value, list):
         return [
-            substitute_raw(item, dimension=dimension, raw=raw, path=path)
+            substitute_raw(item, dimension=dimension, raw=raw, path=path, scope=scope)
             for item in value
         ]
     if isinstance(value, dict):
         return {
-            expand_template(key, dimension=dimension, raw=raw, path=path): (
-                substitute_raw(item, dimension=dimension, raw=raw, path=path)
+            expand_template(
+                key, dimension=dimension, raw=raw, path=path, scope=scope
+            ): substitute_raw(
+                item, dimension=dimension, raw=raw, path=path, scope=scope
             )
             for key, item in value.items()
         }
