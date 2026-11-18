@@ -705,4 +705,178 @@ def _walk_states(
                 # The expansion teachings already open with the
                 # layout's path — it rides down as the expansion
                 # path — so the wrap adds the authoring family, not
-                #
+                # a second path prefix.
+                raise LayoutError(str(e)) from e
+            walked = _walk(state, expanded, scope_prefix=scope)
+            if walked is not None:
+                children.append(walked)
+        if children:
+            panels.append(StatePanel(value=raw, children=tuple(children)))
+    if not panels:
+        return None
+    return StatesEntry(
+        dimension=node.dimension, kind=node.kind, panels=tuple(panels)
+    )
+
+
+def _walk(
+    state: _WalkState, node: LayoutNode, scope_prefix: tuple[str, ...] = ()
+) -> DocumentNode | None:
+    """Walk one layout node into its document node, or ``None`` when
+    the node collapses.
+
+    Placements resolve through the two policy gates; a diagnostics
+    node becomes its marker; compositions walk their children and
+    collapse when none survive.  *scope_prefix* carries the states
+    dimensions already bound by outer rounds — only a states node
+    consumes it, composing it into its own scope so nested
+    dimensions stack; every other node passes it through unchanged.
+    """
+    if isinstance(node, ComponentPlacement):
+        return _resolve_placement(state, node)
+    if isinstance(node, DiagnosticsNode):
+        return DiagnosticsEntry()
+    if isinstance(node, StatesNode):
+        return _walk_states(state, node, scope_prefix)
+    if isinstance(node, RowNode):
+        children = _walk_all(state, node.children, scope_prefix)
+        if not children:
+            return None
+        return RowEntry(split=node.split, children=children)
+    if isinstance(node, GridLayout):
+        children = _walk_all(state, node.children, scope_prefix)
+        if not children:
+            return None
+        return GridEntry(split=node.split, children=children)
+    assert isinstance(node, CardNode)  # the node union is exhausted
+    children = _walk_all(state, node.children, scope_prefix)
+    if not children:
+        return None
+    return CardEntry(
+        title=node.title, layout=node.layout, split=node.split, children=children
+    )
+
+
+def _walk_all(
+    state: _WalkState,
+    nodes: tuple[LayoutNode, ...],
+    scope_prefix: tuple[str, ...] = (),
+) -> tuple[DocumentNode, ...]:
+    """Walk a node list in order, dropping the nodes that collapse —
+    the composition law: a row whose every child resolved away
+    renders nothing, and the ledger already explains why."""
+    walked = (_walk(state, node, scope_prefix) for node in nodes)
+    return tuple(entry for entry in walked if entry is not None)
+
+
+def _component_map(
+    plugins: Iterable[ReportPlugin],
+) -> dict[str, tuple[ReportPlugin, ReportComponent]]:
+    """Index a plugin set's components by id, in declaration order.
+
+    The registry guarantees id uniqueness across plugins, so this is
+    an index build, not a re-check — the one shape both of the walk's
+    maps (gated and full) share."""
+    return {
+        component.id: (plugin, component)
+        for plugin in plugins
+        for component in plugin.components
+    }
+
+
+def build_report(
+    layout_path: Path,
+    store: ArtifactStore,
+    registry: PluginRegistry | None = None,
+) -> ReportDocument:
+    """Build one report document: a layout, a manifest's artifact
+    store, and the loaded plugins in, one registry-free document out.
+
+    *registry* injects a fixed plugin set — the tests' door — and
+    defaults to the installed environment.  Authoring failures raise
+    :class:`~workflow_coda.errors.LayoutError` (layout, theme, and
+    states-expansion problems), a policy-``fail`` placement raises
+    :class:`~workflow_coda.errors.ComponentUnavailableError`, and a
+    plugin's own bug never fails the build: it renders in place, the
+    ledger carrying the details.  See the module docstring for the
+    pipeline's steps.
+    """
+    layout = load_layout(layout_path)
+    if registry is None:
+        registry = PluginRegistry.load()
+    schema_version = store.manifest.schema_version
+    supporting = registry.plugins_supporting(schema_version)
+    gated = _component_map(supporting)
+    full = _component_map(registry.plugins)
+    library = IconLibrary(
+        IconSource.for_plugin(plugin.metadata.id, plugin.metadata.icons_package)
+        for plugin in supporting
+        if plugin.metadata.icons_package is not None
+    )
+    diagnostics: list[Diagnostic] = []
+    if layout.theme is None:
+        theme = DEFAULT_THEME
+        diagnostics.append(
+            Diagnostic(
+                kind=DiagnosticKind.DEFAULT_THEME,
+                subject="theme",
+                message=(
+                    "no theme declared in the layout — the report "
+                    "renders with the built-in default theme; add a "
+                    "'theme:' path next to the layout file to load one"
+                ),
+            )
+        )
+    else:
+        theme = _load_theme(layout_path, layout.theme)
+    header_color = _resolve_header_color(theme, layout.header_color)
+    logo = _prepare_logo(layout_path, layout.logo, library, diagnostics)
+    favicon = _prepare_asset(
+        layout_path,
+        layout.favicon,
+        "favicon",
+        DiagnosticKind.FAVICON_OMITTED,
+        diagnostics,
+    )
+    context = RenderContext(store=store, theme=theme, icons=library)
+    state = _WalkState(
+        gated=gated,
+        full=full,
+        context=context,
+        diagnostics=diagnostics,
+        ok_component_ids=[],
+        missing_policy=layout.on_missing,
+        unavailable_policy=layout.on_unavailable,
+        schema_version=schema_version,
+        layout_path=layout_path,
+    )
+    tabs: list[DocumentTab] = []
+    for tab in layout.tabs:
+        nodes = _walk_all(state, tab.components)
+        if nodes:
+            tabs.append(DocumentTab(title=tab.title, nodes=nodes))
+    chrome: list[ChromeContribution] = []
+    for component_id in state.ok_component_ids:
+        _, component = gated[component_id]
+        if component.css is not None or component.js is not None:
+            chrome.append(
+                ChromeContribution(
+                    component_id=component_id,
+                    css=component.css,
+                    js=component.js,
+                )
+            )
+    return ReportDocument(
+        title=layout.title,
+        subtitle=layout.subtitle,
+        author=layout.author,
+        version=layout.version,
+        theme=theme,
+        logo=logo,
+        favicon=favicon,
+        manifest=store.manifest,
+        tabs=tuple(tabs),
+        diagnostics=tuple(diagnostics),
+        chrome=tuple(chrome),
+        header_color=header_color,
+    )
