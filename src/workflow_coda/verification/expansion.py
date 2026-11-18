@@ -25,14 +25,21 @@ its laws are the framework's own, restated small:
 
 The module is pure: it knows templates and values, not sources.
 The three value sources — ``values``, ``samplesheet``, ``glob`` —
-and the wiring into
-:func:`workflow_coda.verification.load_verify_spec` land in the
-next units.  Every teaching here raises
+are wired into
+:func:`workflow_coda.verification.load_verify_spec`.  Every
+teaching here raises
 :class:`~workflow_coda.errors.SpecError` with the spec's path for
 context, the family's shape, and the identity grammars are checked
 through the manifest's own constrained types — one source of
 truth, never a re-derived pattern that could drift from the real
 one.
+
+The language has a second consumer: the report side's ``states``
+composition node expands its children's free strings once per
+axis value through these same laws.  One grammar, one teaching
+family, two call shapes — the spec passes its block's single
+dimension, and the report builder passes the stack of states
+dimensions in scope.
 """
 
 import re
@@ -44,10 +51,14 @@ from pydantic import TypeAdapter, ValidationError
 
 from ..errors import SpecError
 from ..manifest import ArtifactId, ArtifactType, JsonValue
+from ..text import DIMENSION_NAME_RE
 
-_PLACEHOLDER = re.compile(r"\{([a-z][a-z0-9_-]*)\}")
+_PLACEHOLDER = re.compile(r"\{(" + DIMENSION_NAME_RE.pattern + r")\}")
 """One well-formed placeholder: ``{name}`` in the dimension name
-grammar — lowercase, the id grammar's own character class."""
+grammar — lowercase, the id grammar's own character class.
+Derived from :data:`workflow_coda.text.DIMENSION_NAME_RE`, so the
+placeholder language and the report side's ``states`` dimensions
+are one grammar in one home and can never drift apart."""
 
 _ID_CHECK: TypeAdapter[ArtifactId] = TypeAdapter(ArtifactId)
 _TYPE_CHECK: TypeAdapter[ArtifactType] = TypeAdapter(ArtifactType)
@@ -55,15 +66,31 @@ _TYPE_CHECK: TypeAdapter[ArtifactType] = TypeAdapter(ArtifactType)
 truth: the manifest's constrained types themselves."""
 
 
-def expand_template(text: str, *, dimension: str, raw: str, path: Path) -> str:
+def expand_template(
+    text: str,
+    *,
+    dimension: str,
+    raw: str,
+    path: Path,
+    scope: Sequence[str] | None = None,
+) -> str:
     """Substitute *raw* — the disk's truth — for every
     ``{dimension}`` in *text*.
+
+    *scope* is the dimensions bound at this point of the walk; the
+    default ``(dimension,)`` is the spec block's single-dimension
+    world, so every existing call keeps its behavior.  The report
+    builder passes the stack of states dimensions in scope: a
+    placeholder naming another bound dimension passes through
+    untouched — its owning node's round substitutes it — and a
+    placeholder naming nothing in scope teaches.
 
     A ``{`` that does not open exactly the block's own dimension
     is taught here: a malformed placeholder, or one naming another
     token.  A ``}`` alone rides as a literal: only ``{`` opens the
     language.
     """
+    bound = tuple(scope) if scope is not None else (dimension,)
     out: list[str] = []
     i = 0
     while (j := text.find("{", i)) != -1:
@@ -76,6 +103,13 @@ def expand_template(text: str, *, dimension: str, raw: str, path: Path) -> str:
             )
         name = match.group(1)
         if name != dimension:
+            if name in bound:
+                # another bound dimension's placeholder passes
+                # through — its owning node's round substitutes it
+                out.append(text[i:j])
+                out.append(match.group(0))
+                i = match.end()
+                continue
             raise SpecError(
                 f"{path}: the template {text!r} names the placeholder "
                 f"{{{name}}}, but the block's dimension is {dimension!r} "

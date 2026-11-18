@@ -1,14 +1,8 @@
-# workflow-coda's repo rhythm.  Identity, editor, and cosmetics live
-# in the global file; this carries only what this repo needs.
-
 read:
   - .skills/framework-development.md
-  - .aider/design/verify-command.md   # the active feature's design record
+  - .aider/design/states.md   # the active feature's design record
 
 test-cmd: "pixi run test"
 lint-cmd: "pixi run lint"
-
-# Greening sessions: the design is locked, the pins are read-only —
-# plain edit mode, real application.  Review and commits stay human.
-architect: false
-dry-run: false
+auto-lint: true
+auto-test: true
