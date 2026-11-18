@@ -714,9 +714,7 @@ def _walk_states(
             panels.append(StatePanel(value=raw, children=tuple(children)))
     if not panels:
         return None
-    return StatesEntry(
-        dimension=node.dimension, kind=node.kind, panels=tuple(panels)
-    )
+    return StatesEntry(dimension=node.dimension, kind=node.kind, panels=tuple(panels))
 
 
 def _walk(

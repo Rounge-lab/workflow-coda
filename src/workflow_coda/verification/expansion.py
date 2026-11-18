@@ -195,7 +195,9 @@ def substitute_raw(
     passes through until its own round substitutes it.
     """
     if isinstance(value, str):
-        return expand_template(value, dimension=dimension, raw=raw, path=path, scope=scope)
+        return expand_template(
+            value, dimension=dimension, raw=raw, path=path, scope=scope
+        )
     if isinstance(value, list):
         return [
             substitute_raw(item, dimension=dimension, raw=raw, path=path, scope=scope)

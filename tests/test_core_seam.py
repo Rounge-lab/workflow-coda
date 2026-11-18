@@ -225,7 +225,7 @@ def test_core_components_render_through_the_cli(tmp_path: Path) -> None:
     # The placed diagnostics panel: the build's informational notes,
     # rendered in the tab the layout chose for them.
     assert '<section class="coda-diagnostics"' in page
-    assert "no theme file declared in the layout" in page
+    assert "no theme declared in the layout" in page
     # The channel census, end to end, from the settled model: the
     # framework stylesheet and one merged component block inline as
     # two <style> elements (core.chart declares no chrome), and four
