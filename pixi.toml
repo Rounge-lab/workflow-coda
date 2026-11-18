@@ -20,8 +20,8 @@ docs = { features = ["docs"], solve-group = "docs" }
 
 [tasks]
 build = "python -m build"
-mypy = "mypy ."
-pytest = "pytest --cov=workflow_coda --cov-report=term-missing"
+mypy = "python -m mypy ."
+pytest = "python -m pytest --cov=workflow_coda --cov-report=term-missing"
 ruff-check = "ruff check ."
 ruff-check-fix = "ruff check . --fix"
 ruff-format = "ruff format ."
