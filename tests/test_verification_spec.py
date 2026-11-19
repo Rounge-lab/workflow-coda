@@ -24,9 +24,10 @@ producer:
 artifacts:
   - file: output/{sample}.json
     id: sample-{sample}
-    type: org.example.sample-{sample}
+    type: org.example.sample
     format: json
     schema_version: "1.0.0"
+    sanitize: true
     for_each:
       dimension: sample
       values: [S2, S10, S1]
@@ -52,9 +53,10 @@ producer:
 artifacts:
   - file: output/{sample}.json
     id: stats-{sample}
-    type: org.example.stats-{sample}
+    type: org.example.stats
     format: json
     schema_version: "1.0.0"
+    sanitize: true
     criteria:
       expected:
         sample: "{sample}"
@@ -88,9 +90,10 @@ producer:
   version: "1.0"
 artifacts:
   - id: sample-{sample}
-    type: org.example.sample-{sample}
+    type: org.example.sample
     format: core.tabular
     schema_version: "1.0.0"
+    sanitize: true
     for_each:
       dimension: sample
       glob: "tables/{sample}.tsv"
@@ -135,9 +138,10 @@ producer:
 artifacts:
   - file: output/{sample}.json
     id: stats-{sample}
-    type: org.example.stats-{sample}
+    type: org.example.stats
     format: json
     schema_version: "1.0.0"
+    sanitize: true
     for_each: sample
 """,
     )
@@ -156,9 +160,10 @@ producer:
 artifacts:
   - file: output/{sample}.json
     id: stats-{sample}
-    type: org.example.stats-{sample}
+    type: org.example.stats
     format: json
     schema_version: "1.0.0"
+    sanitize: true
     for_each:
       dimension: sample
       values: [S1]
@@ -180,9 +185,10 @@ producer:
 artifacts:
   - file: output/{sample}.json
     id: stats-{sample}
-    type: org.example.stats-{sample}
+    type: org.example.stats
     format: json
     schema_version: "1.0.0"
+    sanitize: true
     for_each:
       values: [S1]
 """,
@@ -202,9 +208,10 @@ producer:
 artifacts:
   - file: output/{sample}.json
     id: stats-{sample}
-    type: org.example.stats-{sample}
+    type: org.example.stats
     format: json
     schema_version: "1.0.0"
+    sanitize: true
     for_each:
       dimension: sample
 """,
@@ -221,9 +228,10 @@ producer:
 artifacts:
   - file: output/{sample}.json
     id: stats-{sample}
-    type: org.example.stats-{sample}
+    type: org.example.stats
     format: json
     schema_version: "1.0.0"
+    sanitize: true
     for_each:
       dimension: sample
       values: [S1]
@@ -244,9 +252,10 @@ producer:
 artifacts:
   - file: output/{sample}.json
     id: stats-{sample}
-    type: org.example.stats-{sample}
+    type: org.example.stats
     format: json
     schema_version: "1.0.0"
+    sanitize: true
     for_each:
       dimension: sample
       glob: "tables/{sample}.tsv"
@@ -266,9 +275,10 @@ producer:
   version: "1.0"
 artifacts:
   - id: stats-{sample}
-    type: org.example.stats-{sample}
+    type: org.example.stats
     format: json
     schema_version: "1.0.0"
+    sanitize: true
     for_each:
       dimension: sample
       values: [S1]
@@ -289,7 +299,7 @@ producer:
 artifacts:
   - file: output/{sample}.json
     id: stats-{sample}
-    type: org.example.stats-{sample}
+    type: org.example.stats
     format: json
     schema_version: "1.0.0"
     sanitize: "yes"
@@ -313,9 +323,10 @@ producer:
 artifacts:
   - file: output/{sample}.json
     id: stats-{sample}
-    type: org.example.stats-{sample}
+    type: org.example.stats
     format: json
     schema_version: "1.0.0"
+    sanitize: true
     criteria: [bad]
     for_each:
       dimension: sample
@@ -337,9 +348,10 @@ producer:
 artifacts:
   - file: output/{sample}.json
     id: sample
-    type: org.example.sample-{sample}
+    type: org.example.sample
     format: json
     schema_version: "1.0.0"
+    sanitize: true
     for_each:
       dimension: sample
       values: [S1, S2]
@@ -367,7 +379,7 @@ producer:
 artifacts:
   - file: output/{sample}.json
     id: sample-{sample}
-    type: org.example.sample-{sample}
+    type: org.example.sample
     format: json
     schema_version: "1.0.0"
     sanitize: true
@@ -381,8 +393,8 @@ artifacts:
 
     loaded = load_verify_spec(spec)
     artifact = loaded.artifacts[0]
-    assert artifact.id == "sample-sample-a"
-    assert artifact.type == "org.example.sample-sample-a"
+    assert artifact.id == "sample-a"
+    assert artifact.type == "org.example.sample"
     assert artifact.file == "output/Sample A.json"
     assert artifact.criteria == {"raw_value": "Sample A"}
 
@@ -397,7 +409,7 @@ producer:
 artifacts:
   - file: output/{sample}.json
     id: sample-{sample}
-    type: org.example.sample-{sample}
+    type: org.example.sample
     format: json
     schema_version: "1.0.0"
     for_each:
@@ -415,9 +427,7 @@ def test_load_verify_spec_samplesheet_source_expands_values(
 ) -> None:
     sheet = tmp_path / "samples.tsv"
     sheet.write_text(
-        "sample_id\tdepth\n"
-        "S2\t9\n"
-        "S1\t10\n",
+        "sample_id\tdepth\nS2\t9\nS1\t10\n",
         encoding="utf-8",
     )
 
@@ -430,9 +440,10 @@ producer:
 artifacts:
   - file: output/{sample_id}.json
     id: stats-{sample_id}
-    type: org.example.stats-{sample_id}
+    type: org.example.stats
     format: json
     schema_version: "1.0.0"
+    sanitize: true
     for_each:
       dimension: sample_id
       samplesheet:
