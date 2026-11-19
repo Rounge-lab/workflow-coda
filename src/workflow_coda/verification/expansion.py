@@ -216,43 +216,47 @@ def substitute_raw(
 
 
 def identity_value(
-    raw: str,
+    text: str,
     *,
+    raw: str,
     kind: Literal["id", "type"],
     sanitize: bool,
     dimension: str,
     path: Path,
 ) -> str:
-    """The value an ``id:`` or ``type:`` template takes for one
-    raw.
+    """The concrete value of one ``id:`` or ``type:`` template.
 
-    With ``sanitize: false`` the raw itself must fit the field's
-    grammar; a misfit teaches per value with ``sanitize: true``
-    named as the fix, the computed slug shown so the offer is
-    concrete.  With ``sanitize: true`` the slug substitutes — and
-    by construction it always fits the id grammar; the one thing it
-    cannot supply a type is the namespace dot, so a dotless type
-    after substitution teaches with the leaf-only pattern shown.
+    The template string first expands with either the raw value or
+    its slug, depending on ``sanitize``.  The resulting concrete
+    string is then checked against the field's grammar.
+
+    With ``sanitize: false`` the raw value substitutes into the
+    template, so a grammar-failing result teaches per value with
+    ``sanitize: true`` named as the fix and the fully expanded
+    slugged candidate shown.  With ``sanitize: true`` the slug
+    substitutes into the template, and the expanded result must
+    still fit the field grammar — notably, a type template must
+    still provide its namespace around the placeholder.
     """
-    candidate = slugify(raw, dimension=dimension, path=path) if sanitize else raw
+    token = slugify(raw, dimension=dimension, path=path) if sanitize else raw
+    candidate = expand_template(text, dimension=dimension, raw=token, path=path)
     check = _ID_CHECK if kind == "id" else _TYPE_CHECK
     try:
         check.validate_python(candidate)
     except ValidationError:
         if sanitize:
             raise SpecError(
-                f"{path}: the slug {candidate!r} of the value {raw!r} "
-                f"for dimension {dimension!r} does not fit the type "
-                "grammar — a type is namespaced, at least two "
-                "dot-separated segments (e.g. org.example.samples); "
-                f"template only the type's leaf, e.g. 'org.example.qc-{{{dimension}}}'"
+                f"{path}: the expanded {kind} {candidate!r} from value {raw!r} "
+                f"for dimension {dimension!r} does not fit the artifact "
+                f"{kind} grammar — fix the template or the value in its source"
             ) from None
         slug = slugify(raw, dimension=dimension, path=path)
+        slugged = expand_template(text, dimension=dimension, raw=slug, path=path)
         raise SpecError(
-            f"{path}: the value {raw!r} for dimension {dimension!r} "
-            f"does not fit the artifact {kind} grammar — ids and types "
-            "are addresses, never display names; pass 'sanitize: true' "
-            f"to use its slug ({slug!r}), or fix the value in its source"
+            f"{path}: the expanded {kind} {candidate!r} from value {raw!r} "
+            f"for dimension {dimension!r} does not fit the artifact {kind} "
+            f"grammar — pass 'sanitize: true' to use {slugged!r}, or fix the "
+            "value in its source"
         ) from None
     return candidate
 

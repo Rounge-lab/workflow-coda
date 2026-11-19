@@ -191,11 +191,11 @@ def _concrete_block(
 
     ``for_each`` and ``sanitize`` drop out — they are the loop's
     grammar, not the artifact's identity.  ``id:`` and ``type:``
-    pass through the identity grammar; ``criteria`` through the
-    raw substitution; every other string leaf through the
-    template — one law for every string, no field whitelist.
-    Non-string leaves ride verbatim and the models teach them
-    field by field.
+    expand through their declared templates and then pass through
+    the identity grammar; ``criteria`` through the raw
+    substitution; every other string leaf through the template —
+    one law for every string, no field whitelist.  Non-string
+    leaves ride verbatim and the models teach them field by field.
     """
     concrete: dict[str, JsonValue] = {}
     for key, value in block.items():
@@ -217,7 +217,12 @@ def _concrete_block(
                     f"template, got {value!r}"
                 )
             concrete["id"] = identity_value(
-                raw, kind="id", sanitize=sanitize, dimension=dimension, path=path
+                value,
+                raw=raw,
+                kind="id",
+                sanitize=sanitize,
+                dimension=dimension,
+                path=path,
             )
         elif key == "type":
             if not isinstance(value, str):
@@ -226,7 +231,12 @@ def _concrete_block(
                     f"template, got {value!r}"
                 )
             concrete["type"] = identity_value(
-                raw, kind="type", sanitize=sanitize, dimension=dimension, path=path
+                value,
+                raw=raw,
+                kind="type",
+                sanitize=sanitize,
+                dimension=dimension,
+                path=path,
             )
         elif isinstance(value, str):
             concrete[key] = expand_template(
