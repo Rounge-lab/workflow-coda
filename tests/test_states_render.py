@@ -1,7 +1,6 @@
 """States rendering: complete panels, stable identities, and tree scans.
 
-Read-time selection is deferred. Every state ships visibly in the
-un-enhanced page, with no states controls or scripts.
+URL selection enhances complete content. Widgets remain deferred.
 """
 
 import importlib.resources
@@ -132,7 +131,8 @@ def test_panels_render_in_axis_order_with_all_children_present() -> None:
     assert page.index("<p>B second</p>") < page.index("<h3>A</h3>")
     assert page.index("<h3>A</h3>") < page.index("<p>A content</p>")
     assert all("hidden" not in panel and "aria-hidden" not in panel for panel in panels)
-    assert "<script" not in page
+    # Was zero scripts; now one merged codec/policy/controller block.
+    assert page.count("<script>") == 1
     assert "<select" not in page
     assert "<input" not in page
     assert "<button" not in page
@@ -270,9 +270,9 @@ def test_figures_inside_nested_states_inline_plotly_once() -> None:
     ).read_text(encoding="utf-8")
     page = render_report(_nested_figure_document())
     assert page.count(plotly_js) == 1
-    # Two stub figures carry no bootstrap scripts. Only Plotly.js is
-    # inlined: one tab and static states add no navigation scripts.
-    assert page.count("<script>") == 1
+    # Was one Plotly script; now Plotly plus merged navigation.
+    # Stub figures still carry no bootstrap scripts.
+    assert page.count("<script>") == 2
     assert len(_elements(page).with_class("coda-figure")) == 2
 
 
@@ -311,26 +311,57 @@ def test_states_empty_diagnostic_renders_as_an_escaped_note_in_each_marker() -> 
     assert page.count("Empty axis &lt;batch&gt;: declare values.") == 2
 
 
-def test_states_style_is_static_and_print_keeps_panels_visible() -> None:
+def test_states_style_is_progressive_and_print_keeps_panels_visible() -> None:
     page = render_report(_document(_states(_panel("A"), _panel("B"))))
     assert ".coda-states {" in page
     assert ".coda-state {" in page
     assert ".coda-state > h3 {" in page
-    # Was an exact indentation pin; now check the declaration within
-    # the print block, allowing whitespace changes in emitted CSS.
-    # This matches the shipped block's flat, non-nested style rules.
-    print_block = re.search(
-        r"@media print\s*\{(?P<rules>(?:[^{}]|\{[^{}]*\})*)\}",
+    print_blocks = re.findall(
+        r"@media print\s*\{((?:[^{}]|\{[^{}]*\})*)\}",
         page,
     )
-    assert print_block is not None
-    assert (
+    assert any(
         re.search(
             r"\.coda-state\s*\{\s*display:\s*block\s*!important\s*;\s*\}",
-            print_block.group("rules"),
+            block,
         )
-        is not None
+        for block in print_blocks
     )
-    assert ".coda-js .coda-state" not in page
+    # Was no selection hiding; now enhancement-only hiding with a
+    # stronger print restoration rule.
+    assert ".coda-js .coda-state.coda-state--hidden {\n  display: none;" in page
+    assert any(
+        re.search(
+            r"\.coda-js \.coda-state\.coda-state--hidden\s*\{\s*"
+            r"display:\s*block\s*!important\s*;\s*\}",
+            block,
+        )
+        for block in print_blocks
+    )
     assert len(_elements(page).with_class("coda-state")) == 2
-    assert "<script" not in page
+    assert page.count("<script>") == 1
+
+
+def test_navigation_helpers_inline_once_in_dependency_order() -> None:
+    page = render_report(
+        _document(
+            _states(_panel("A")),
+            _states(_panel("B")),
+            extra_tabs=(DocumentTab(title="Other", nodes=(_entry(),)),),
+        )
+    )
+    assert page.count("<script>") == 1
+    assert page.count("window.codaSelectionURL = Object.freeze") == 1
+    assert page.count("window.codaSelectionPolicy = Object.freeze") == 1
+    assert page.index("window.codaSelectionURL = Object.freeze") < page.index(
+        "window.codaSelectionPolicy = Object.freeze"
+    )
+    assert page.index("window.codaSelectionPolicy = Object.freeze") < page.index(
+        "var codec = window.codaSelectionURL"
+    )
+    assert 'window.addEventListener("hashchange", apply)' in page
+    assert '"coda:state-shown"' in page
+    assert "notice.textContent" not in page
+    assert "missing[index].textContent" in page
+    assert ".removeChild(" not in page
+    assert ".innerHTML" not in page

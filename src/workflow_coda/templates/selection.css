@@ -1,0 +1,39 @@
+/* Selection enhancement: all content remains present without scripting. */
+.coda-selection-feedback,
+.coda-state-missing {
+  display: none;
+}
+
+.coda-js .coda-selection-feedback.coda-selection-feedback--visible,
+.coda-js .coda-state-missing.coda-state-missing--visible {
+  display: block;
+  border-left: 4px solid var(--coda-warning);
+  background: var(--coda-surface);
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+}
+
+.coda-js .coda-state.coda-state--hidden {
+  display: none;
+}
+
+/* Tab chrome is an enhancement too, not a no-JS affordance. */
+.coda-tabs {
+  display: none;
+}
+
+.coda-js .coda-tabs {
+  display: flex;
+}
+
+@media print {
+  .coda-js .coda-tabs,
+  .coda-js .coda-selection-feedback,
+  .coda-js .coda-state-missing {
+    display: none !important;
+  }
+
+  .coda-js .coda-state.coda-state--hidden {
+    display: block !important;
+  }
+}
