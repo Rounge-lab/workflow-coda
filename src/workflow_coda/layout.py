@@ -22,11 +22,11 @@ optionally titled box with its own arrangement, ``diagnostics``
 places the report's diagnostics panel, and ``states`` expands its
 children once per value of a dimension's axis — declared in the file
 or derived from the manifest at build time.
-Nodes nest — a tab's list, a
-row's, a grid's, and a card's children all speak the same grammar —
-so layouts compose the way frames do in a design tool.  Tabs are the
-report's navigation: the rendered tab bar is generated from them, and
-a single-tab report shows no bar.
+Nodes nest — a tab's list and the children of rows, grids, cards,
+and states all speak the same grammar — so layouts compose the way
+frames do in a design tool.  Tabs are the report's navigation: the
+rendered tab bar is generated from them, and a single-tab report
+shows no bar.
 
 The layout is the "third flavor" of the validation rules: it is
 deserialized from a file like the manifest (strict pydantic models,
@@ -203,8 +203,8 @@ class ComponentPlacement(BaseModel):
     A placement is an *instance*, not a reference: the same component
     id may appear any number of times, in the same or different
     nodes, each with its own title and parameters.  A placement may
-    sit anywhere a node goes — a tab's list, a row's, a grid's, or a
-    card's children.  The builder renders each placement
+    sit anywhere a node goes — a tab's list or the children of a row,
+    grid, card, or states node.  The builder renders each placement
     independently.
     """
 
@@ -221,19 +221,27 @@ class ComponentPlacement(BaseModel):
     each carry their own heading.  Absent means inherit."""
 
     parameters: dict[str, JsonValue] = {}
-    """Transport: values pass to the component's render call exactly as
-    written.  The framework interprets none of them; each plugin reads
-    and validates the keys it cares about.  Values must be
-    JSON-compatible — YAML's richer types (dates, sets, binary) are
-    rejected with an error naming the field."""
+    """Component-owned transport.
+
+    Outside states, values pass to the component's render call as
+    written. Inside states, the builder first substitutes placeholders
+    in parameter keys and string leaves, recursively, using raw axis
+    values verbatim. Valid artifact variables in string-valued
+    ``core.markdown.text`` remain opaque to that expansion.
+
+    The framework does not interpret the component's parameter
+    vocabulary; each plugin reads and validates its own keys. Values
+    must be JSON-compatible — YAML's richer types (dates, sets, binary)
+    are rejected with an error naming the field."""
 
     on_missing: MissingPolicy | None = None
     """Per-placement override of the layout-level ``on_missing``; not
     given means inherit."""
 
     on_unavailable: UnavailablePolicy | None = None
-    """The policy when this component's render returns unavailable
-    (its data is missing); given means inherit the layout default."""
+    """Per-placement override when this component's render returns
+    unavailable (its data is missing); not given means inherit the
+    layout-level ``on_unavailable`` default."""
 
 
 def _require_positive_ratios(value: object) -> object:
