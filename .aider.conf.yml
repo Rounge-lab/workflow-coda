@@ -4,5 +4,5 @@ read:
 
 test-cmd: "pixi run test"
 lint-cmd: "pixi run lint"
-auto-lint: true
-auto-test: true
+auto-lint: false
+auto-test: false

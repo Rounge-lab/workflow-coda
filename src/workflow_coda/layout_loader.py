@@ -129,7 +129,7 @@ def _value_at(parsed: object, location: tuple[int | str, ...]) -> object:
     for key in location:
         try:
             value = value[key]  # type: ignore[index]
-        except (TypeError, KeyError, IndexError):
+        except TypeError, KeyError, IndexError:
             return _MISSING
     return value
 
