@@ -170,7 +170,9 @@ def test_nested_choices_follow_outer_context_without_replacing_explicit_value() 
         ],
     ],
 )
-def test_conflicting_shared_axes_disable_selection(nodes: list[dict[str, object]]) -> None:
+def test_conflicting_shared_axes_disable_selection(
+    nodes: list[dict[str, object]],
+) -> None:
     result = _evaluate(nodes)
     assert result["disabled"]["batch"] is True
     assert result["selections"]["batch"] is None

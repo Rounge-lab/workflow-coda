@@ -330,11 +330,14 @@ def test_states_style_is_progressive_and_print_keeps_panels_visible() -> None:
     # Was no selection hiding; now enhancement-only hiding with a
     # stronger print restoration rule. Whitespace matching tolerates
     # both LF and CRLF assets without weakening the declaration pin.
-    assert re.search(
-        r"\.coda-js \.coda-state\.coda-state--hidden\s*\{\s*"
-        r"display:\s*none\s*;\s*\}",
-        page,
-    ) is not None
+    assert (
+        re.search(
+            r"\.coda-js \.coda-state\.coda-state--hidden\s*\{\s*"
+            r"display:\s*none\s*;\s*\}",
+            page,
+        )
+        is not None
+    )
     assert any(
         re.search(
             r"\.coda-js \.coda-state\.coda-state--hidden\s*\{\s*"
