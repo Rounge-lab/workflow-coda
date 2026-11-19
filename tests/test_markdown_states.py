@@ -43,9 +43,7 @@ _COMPOSITION_FIX = (
 
 def _write_layout(tmp_path: Path, node: dict[str, JsonValue]) -> Path:
     """Write one node in one tab through the serialized layout factory."""
-    payload = make_layout_payload(
-        tabs=[{"title": "Prose", "components": [node]}]
-    )
+    payload = make_layout_payload(tabs=[{"title": "Prose", "components": [node]}])
     path = tmp_path / "report_layout.yaml"
     path.write_text(yaml.safe_dump(payload), encoding="utf-8")
     return path
@@ -76,16 +74,12 @@ def _core_registry() -> PluginRegistry:
     return PluginRegistry((get_plugin(),))
 
 
-def _store(
-    tmp_path: Path, records: list[tuple[str, int | float]]
-) -> ArtifactStore:
+def _store(tmp_path: Path, records: list[tuple[str, int | float]]) -> ArtifactStore:
     """Declare and write real JSON artifacts in the supplied order."""
     artifacts: list[dict[str, object]] = []
     for index, (artifact_type, depth) in enumerate(records):
         filename = f"stats-{index}.json"
-        (tmp_path / filename).write_text(
-            json.dumps({"depth": depth}), encoding="utf-8"
-        )
+        (tmp_path / filename).write_text(json.dumps({"depth": depth}), encoding="utf-8")
         artifacts.append(
             make_artifact_payload(
                 id=f"stats-{index}",
@@ -94,9 +88,7 @@ def _store(
                 format="json",
             )
         )
-    manifest = ReportManifest.model_validate(
-        make_manifest_payload(artifacts=artifacts)
-    )
+    manifest = ReportManifest.model_validate(make_manifest_payload(artifacts=artifacts))
     return ArtifactStore(manifest, tmp_path)
 
 
@@ -252,11 +244,13 @@ def test_static_markdown_variables_render_outside_states(tmp_path: Path) -> None
 
 
 def test_mixed_states_and_markdown_variables_render(tmp_path: Path) -> None:
+    # Was A/B, now a/b: these raws interpolate verbatim into artifact
+    # types, whose grammar requires lowercase. No normalization is added.
     document = _build(
         tmp_path,
         _states(
             "batch",
-            ["A", "B"],
+            ["a", "b"],
             {
                 "id": "core.markdown",
                 "parameters": {
@@ -266,13 +260,13 @@ def test_mixed_states_and_markdown_variables_render(tmp_path: Path) -> None:
             },
         ),
         [
-            ("org.example.stats-A", 12.5),
-            ("org.example.stats-B", 20.5),
+            ("org.example.stats-a", 12.5),
+            ("org.example.stats-b", 20.5),
         ],
     )
     (states,) = document.tabs[0].nodes
     assert isinstance(states, StatesEntry)
-    assert [panel.value for panel in states.panels] == ["A", "B"]
+    assert [panel.value for panel in states.panels] == ["a", "b"]
     for panel, depth in zip(states.panels, (12.5, 20.5), strict=True):
         (entry,) = panel.children
         assert isinstance(entry, ComponentEntry)
@@ -286,48 +280,47 @@ def test_mixed_states_and_markdown_variables_render(tmp_path: Path) -> None:
 def test_nested_states_preserve_markdown_variables_in_both_rounds(
     tmp_path: Path,
 ) -> None:
+    # Was A/B and S1/S2, now a/b and s1/s2: both axes interpolate
+    # verbatim into artifact types and must satisfy their lowercase grammar.
     document = _build(
         tmp_path,
         _states(
             "batch",
-            ["A", "B"],
+            ["a", "b"],
             _states(
                 "sample",
-                ["S1", "S2"],
+                ["s1", "s2"],
                 {
                     "id": "core.markdown",
                     "parameters": {
                         "artifact": "org.example.stats-{batch}-{sample}",
-                        "text": (
-                            "Batch {batch}, sample {sample}: **{{ depth }}**"
-                        ),
+                        "text": ("Batch {batch}, sample {sample}: **{{ depth }}**"),
                     },
                 },
             ),
         ),
         [
-            ("org.example.stats-A-S1", 1),
-            ("org.example.stats-A-S2", 2),
-            ("org.example.stats-B-S1", 3),
-            ("org.example.stats-B-S2", 4),
+            ("org.example.stats-a-s1", 1),
+            ("org.example.stats-a-s2", 2),
+            ("org.example.stats-b-s1", 3),
+            ("org.example.stats-b-s2", 4),
         ],
     )
     (outer,) = document.tabs[0].nodes
     assert isinstance(outer, StatesEntry)
-    assert [panel.value for panel in outer.panels] == ["A", "B"]
+    assert [panel.value for panel in outer.panels] == ["a", "b"]
     depth = 0
     for batch in outer.panels:
         (inner,) = batch.children
         assert isinstance(inner, StatesEntry)
-        assert [panel.value for panel in inner.panels] == ["S1", "S2"]
+        assert [panel.value for panel in inner.panels] == ["s1", "s2"]
         for sample in inner.panels:
             depth += 1
             (entry,) = sample.children
             assert isinstance(entry, ComponentEntry)
             html = _rendered_html(entry)
             assert (
-                f"Batch {batch.value}, sample {sample.value}: "
-                f"<strong>{depth}</strong>"
+                f"Batch {batch.value}, sample {sample.value}: <strong>{depth}</strong>"
             ) in html
             assert "{batch}" not in html
             assert "{sample}" not in html
