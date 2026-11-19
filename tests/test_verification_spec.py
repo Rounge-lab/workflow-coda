@@ -22,17 +22,14 @@ producer:
   name: pipeline
   version: "1.0"
 artifacts:
-  - file: output/{sample}.json
-    id: sample
-    type: "{sample}"
-    format: json
-    schema_version: "1.0.0"
-    for_each:
+  - for_each:
       dimension: sample
-      values:
-        - org.example.s2
-        - org.example.s10
-        - org.example.s1
+      values: [s2, s10, s1]
+    file: output/org.example.{sample}.json
+    id: "example-{sample}"
+    type: "org.example.samples-{sample}"
+    format: json
+    schema_version: "1.0"
 """,
     )
 
@@ -91,13 +88,13 @@ producer:
   name: pipeline
   version: "1.0"
 artifacts:
-  - id: sample
-    type: "{sample}"
+  - id: "sample-{sample_id}"
+    type: "org.example.sample-{sample_id}"
     format: core.tabular
-    schema_version: "1.0.0"
+    schema_version: "1.0"
     for_each:
-      dimension: sample
-      glob: "tables/{sample}.tsv"
+      dimension: sample_id
+      glob: "tables/org.example.{sample_id}.tsv"
 """,
     )
 
@@ -390,8 +387,13 @@ artifacts:
 """,
     )
 
-    with pytest.raises(SpecError, match="does not fit the type grammar"):
-        load_verify_spec(spec)
+    loaded = load_verify_spec(spec)
+
+    artifact = loaded.artifacts[0]
+    assert artifact.file == "output/Sample A.json"
+    assert artifact.id == "sample-sample-a"
+    assert artifact.type == "org.example.sample-sample-a"
+    assert artifact.criteria == {"raw_value": "Sample A"}
 
 
 def test_load_verify_spec_unsanitized_bad_identity_teaches_fix(tmp_path: Path) -> None:
@@ -434,7 +436,7 @@ producer:
   version: "1.0"
 artifacts:
   - file: output/{sample_id}.json
-    id: stats
+    id: stats-{sample_id}
     type: "{sample_id}"
     format: json
     schema_version: "1.0.0"
