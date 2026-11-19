@@ -41,7 +41,6 @@ from workflow_coda.report import (
     DocumentNode,
     DocumentTab,
     EntryKind,
-    GridEntry,
     ReportDocument,
     RowEntry,
     StatePanel,
@@ -222,9 +221,7 @@ def test_states_values_compare_hash_and_remain_frozen_and_slotted() -> None:
 
 
 def test_states_can_nest_as_document_nodes() -> None:
-    inner = StatesEntry(
-        dimension="sample", kind="ordered", panels=(_panel("s1"),)
-    )
+    inner = StatesEntry(dimension="sample", kind="ordered", panels=(_panel("s1"),))
     outer = StatesEntry(
         dimension="batch",
         kind="categorical",
@@ -260,8 +257,7 @@ def test_declared_axis_order_and_kind_override_manifest_derivation(
     assert entry.kind == "ordered"
     assert [panel.value for panel in entry.panels] == ["B", "A"]
     assert all(
-        _only_component(panel).kind is EntryKind.RENDERED
-        for panel in entry.panels
+        _only_component(panel).kind is EntryKind.RENDERED for panel in entry.panels
     )
 
 
@@ -394,9 +390,7 @@ def test_nested_values_take_outer_substitution_before_inner_expansion(
                             dimension="sample",
                             kind="ordered",
                             values=["{batch}-s2", "{batch}-s1"],
-                            children=[
-                                _placement(title="QC {batch} / {sample}")
-                            ],
+                            children=[_placement(title="QC {batch} / {sample}")],
                         )
                     ],
                 }
@@ -470,9 +464,7 @@ def test_expansion_errors_name_layout_and_chain_spec_error(
 def _selective_states(mode: str = "unavailable") -> dict[str, JsonValue]:
     return _states(
         values=["drop", "keep"],
-        children=[
-            _placement(parameters={"label": "{batch}", "mode": mode})
-        ],
+        children=[_placement(parameters={"label": "{batch}", "mode": mode})],
     )
 
 
@@ -498,9 +490,7 @@ def test_unavailable_skip_drops_only_the_empty_panel(tmp_path: Path) -> None:
 
 
 def test_unavailable_notice_keeps_both_panels(tmp_path: Path) -> None:
-    document = _build(
-        tmp_path, _selective_states(), render=_selective_render
-    )
+    document = _build(tmp_path, _selective_states(), render=_selective_render)
     entry = _only_states(document)
     assert [panel.value for panel in entry.panels] == ["drop", "keep"]
     statuses = []
@@ -512,9 +502,7 @@ def test_unavailable_notice_keeps_both_panels(tmp_path: Path) -> None:
 
 
 def test_unavailable_fail_still_refuses_states_build(tmp_path: Path) -> None:
-    with pytest.raises(
-        ComponentUnavailableError, match="data absent for drop"
-    ):
+    with pytest.raises(ComponentUnavailableError, match="data absent for drop"):
         _build(
             tmp_path,
             _selective_states(),
@@ -535,10 +523,13 @@ def test_all_unavailable_panels_collapse_states_and_parent_grid(
         on_unavailable="skip",
     )
     assert document.tabs == ()
-    assert sum(
-        note.kind is DiagnosticKind.COMPONENT_UNAVAILABLE
-        for note in document.diagnostics
-    ) == 1
+    assert (
+        sum(
+            note.kind is DiagnosticKind.COMPONENT_UNAVAILABLE
+            for note in document.diagnostics
+        )
+        == 1
+    )
     assert not any(
         note.kind is DiagnosticKind.STATES_EMPTY for note in document.diagnostics
     )
@@ -593,8 +584,7 @@ def test_plugin_bugs_and_deliberate_skips_do_not_collapse_panels(
     if status is None:
         assert degraded.error == "ValueError: broken state"
         assert any(
-            note.kind is DiagnosticKind.PLUGIN_BUG
-            for note in document.diagnostics
+            note.kind is DiagnosticKind.PLUGIN_BUG for note in document.diagnostics
         )
     else:
         assert degraded.outcome is not None
