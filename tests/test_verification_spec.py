@@ -424,7 +424,7 @@ def test_load_verify_spec_samplesheet_source_expands_values(
 ) -> None:
     sheet = tmp_path / "samples.tsv"
     sheet.write_text(
-        "sample_id\tdepth\norg.example.s2\t9\norg.example.s1\t10\n",
+        "sample_id\tdepth\ns2\t9\ns1\t10\n",
         encoding="utf-8",
     )
 
@@ -435,11 +435,11 @@ producer:
   name: pipeline
   version: "1.0"
 artifacts:
-  - file: output/{sample_id}.json
-    id: stats-{sample_id}
-    type: "{sample_id}"
+  - file: output/sample-{sample_id}.json
+    id: "stats-{sample_id}"
+    type: "org.example.sample-{sample_id}"
     format: json
-    schema_version: "1.0.0"
+    schema_version: "1.0"
     for_each:
       dimension: sample_id
       samplesheet:
@@ -451,8 +451,8 @@ artifacts:
     loaded = load_verify_spec(spec)
 
     assert [artifact.file for artifact in loaded.artifacts] == [
-        "output/org.example.s2.json",
-        "output/org.example.s1.json",
+        "output/sample-s2.json",
+        "output/sample-s1.json",
     ]
 
 

@@ -48,10 +48,7 @@ def test_values_from_samplesheet_reads_first_appearance_order(
 ) -> None:
     sheet = tmp_path / "samples.tsv"
     sheet.write_text(
-        "sample_id\tdepth\n"
-        "S2\t9\n"
-        "S10\t10\n"
-        "S1\t11\n",
+        "sample_id\tdepth\nS2\t9\nS10\t10\nS1\t11\n",
         encoding="utf-8",
     )
 
@@ -78,7 +75,7 @@ def test_values_from_samplesheet_rejects_unknown_keys(tmp_path: Path) -> None:
 def test_values_from_samplesheet_requires_mapping(tmp_path: Path) -> None:
     with pytest.raises(SpecError, match="must be a mapping"):
         values_from_samplesheet(
-            ["samples.tsv"],  # type: ignore[arg-type]
+            ["samples.tsv"],
             dimension="sample_id",
             spec_dir=tmp_path,
             path=tmp_path / "spec.yaml",
@@ -168,10 +165,7 @@ def test_values_from_samplesheet_collects_blank_cells_and_duplicates(
 ) -> None:
     sheet = tmp_path / "samples.tsv"
     sheet.write_text(
-        "sample_id\tdepth\n"
-        "S1\t9\n"
-        "\t10\n"
-        "S1\t11\n",
+        "sample_id\tdepth\nS1\t9\n\t10\nS1\t11\n",
         encoding="utf-8",
     )
 
@@ -193,9 +187,7 @@ def test_values_from_samplesheet_accepts_index_column_convention(
 ) -> None:
     sheet = tmp_path / "samples.tsv"
     sheet.write_text(
-        "\tsample_id\tdepth\n"
-        "row1\tS1\t9\n"
-        "row2\tS2\t10\n",
+        "\tsample_id\tdepth\nrow1\tS1\t9\nrow2\tS2\t10\n",
         encoding="utf-8",
     )
 
