@@ -34,6 +34,7 @@ format = { depends-on = ["ruff-format"] }
 lint = { depends-on = ["ruff-check", "ruff-format-check"] }
 lint-fix = { depends-on = ["ruff-format", "ruff-check-fix"] }
 test = { depends-on = ["lint", "mypy", "pytest"] }
+test-fixtures = "python -m pytest tests/integration/test_build_integration.py"
 
 tutorial = "python docs/examples/build_tutorial_example.py"
 
