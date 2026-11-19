@@ -9,11 +9,11 @@ location inside it, the problem, and the fix.  Failure families:
   a document that is not a mapping.
 * **Duplicate keys**: plain YAML resolves duplicate mapping keys by
   silently keeping the *last* occurrence — a copy-paste accident would
-  swallow half the author's sections without an error.  The loader
+  swallow half the author's tabs without an error.  The loader
   rejects duplicates, naming the key and its line.
 * **Shape**: layout model violations, reformatted from pydantic's
   error list into one line per problem with a path into the file
-  (``sections[0].components[0].id``).
+  (``tabs[0].components[0].id``).
 * **YAML 1.1 boolean traps**: bare ``true``/``false``/``yes``/``no``/
   ``on``/``off`` are *booleans* in YAML, so ``title: no`` arrives as
   the value ``False``, not the word "no".  When a boolean lands in a
@@ -36,9 +36,8 @@ through as booleans.  The loader never silently reinterprets what the
 author wrote — it fails loudly with an explanation.
 """
 
-import re
 from pathlib import Path
-from typing import Any, Final
+from typing import Any
 
 import yaml
 from pydantic import ValidationError
@@ -56,13 +55,12 @@ from .layout import (
     ReportLayout,
     StatesNode,
 )
+from .markdown_variables import MARKDOWN_VARIABLE_RE
 
 _MISSING = object()
 """Sentinel for a location that does not resolve into the parsed document."""
 
-_MARKDOWN_VARIABLE: Final[re.Pattern[str]] = re.compile(
-    r"\{\{\s*([A-Za-z0-9_.\-]+)\s*\}\}"
-)
+_MARKDOWN_VARIABLE = MARKDOWN_VARIABLE_RE
 """core.markdown's variable syntax, recognized only to exclude it from
 the states orphan check.  The component owns resolution and validation;
 the loader never substitutes or changes the parameter text."""
@@ -204,9 +202,7 @@ def _reject_brace(
     exclude those from inspection without changing the original text
     or the value quoted in a teaching.
     """
-    inspected = (
-        _MARKDOWN_VARIABLE.sub("", value) if allow_markdown_variables else value
-    )
+    inspected = _MARKDOWN_VARIABLE.sub("", value) if allow_markdown_variables else value
     if "{" in inspected:
         raise LayoutError(f"{path}: {where} carries a placeholder ({value!r}) — {fix}")
 
@@ -353,7 +349,7 @@ def load_layout(path: Path) -> ReportLayout:
             found = f"a single {type(parsed).__name__} value"
         raise LayoutError(
             f"{path}: the layout file must be a mapping of settings "
-            f"(title:, sections:, ...), but it contains {found}"
+            f"(title:, tabs:, ...), but it contains {found}"
         )
     declared_version = parsed.get("schema_version")
     if isinstance(declared_version, str) and declared_version != LAYOUT_SCHEMA_VERSION:
