@@ -1,6 +1,7 @@
 /* Selection enhancement: all content remains present without scripting. */
 .coda-selection-feedback,
-.coda-state-missing {
+.coda-state-missing,
+.coda-selection-controls {
   display: none;
 }
 
@@ -11,6 +12,46 @@
   background: var(--coda-surface);
   padding: 0.75rem 1rem;
   margin: 1rem 0;
+}
+
+.coda-js .coda-selection-controls.coda-selection-controls--visible {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1rem 1.5rem;
+  margin: 1rem 0;
+}
+
+.coda-selection-control {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.coda-selection-control > label {
+  font-weight: 600;
+}
+
+.coda-selection-control > select {
+  font: inherit;
+  color: var(--coda-text);
+  background: var(--coda-surface);
+  border: 1px solid var(--coda-border);
+  border-radius: 4px;
+  padding: 0.35rem 0.5rem;
+  max-width: 100%;
+}
+
+.coda-selection-control > input {
+  width: 16rem;
+  max-width: 100%;
+  accent-color: var(--coda-accent);
+}
+
+.coda-selection-value {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .coda-js .coda-state.coda-state--hidden {
@@ -29,7 +70,8 @@
 @media print {
   .coda-js .coda-tabs,
   .coda-js .coda-selection-feedback,
-  .coda-js .coda-state-missing {
+  .coda-js .coda-state-missing,
+  .coda-js .coda-selection-controls {
     display: none !important;
   }
 
