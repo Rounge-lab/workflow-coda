@@ -1,0 +1,9 @@
+schema_version: "0.3.0"
+title: "Core table integration fixture"
+tabs:
+  - title: "Overview"
+    components:
+      - id: "core.table"
+        title: "Example table"
+        parameters:
+          artifact: "org.example.table"
