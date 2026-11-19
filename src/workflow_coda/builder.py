@@ -34,9 +34,11 @@ one report document.
    ``values``, or the axis derived from the manifest's artifact
    types — substituting the value into every free string leaf
    before the walk descends, so the document holds every state's
-   content and no placeholder survives it.  Compositions whose
-   children all resolve away collapse, and so do tabs left with no
-   nodes — the diagnostics already explain why.
+   content and no states placeholder survives it. Valid markdown
+   variables in string-valued ``core.markdown.text`` remain opaque
+   during expansion; the component resolves them from its artifact.
+   Compositions whose children all resolve away collapse, and so do
+   tabs left with no nodes — the diagnostics already explain why.
 6. Catch plugin bugs per component and collect them as ``failed``
    entries plus diagnostics; the build itself only fails on
    authoring and environment problems.
@@ -52,10 +54,11 @@ from pathlib import Path
 import yaml
 from pydantic import ValidationError
 
-from .artifact_store import ArtifactStore
+from .artifact_store import ArtifactStore, JsonValue
 from .assets import embed_asset, embed_inline_svg
 from .components import ComponentStatus, PlacementInfo, ReportComponent
 from .context import RenderContext
+from .core.markdown_variables import MARKDOWN_VARIABLE_RE
 from .errors import ComponentUnavailableError, LayoutError, SpecError
 from .icons import IconLibrary, IconSource
 from .layout import (
@@ -525,6 +528,80 @@ def _expand_all(
     )
 
 
+def _expand_markdown_text(
+    text: str,
+    *,
+    dimension: str,
+    raw: str,
+    bound: tuple[str, ...],
+    path: Path,
+) -> str:
+    """Expand states text between valid markdown artifact variables.
+
+    Valid markdown variables are opaque only within string-valued
+    ``core.markdown.text``. This helper preserves their exact spelling;
+    malformed braces and unbound states placeholders still reach the
+    strict expansion engine. The joined result is never re-expanded.
+    """
+    parts: list[str] = []
+    cursor = 0
+    for match in MARKDOWN_VARIABLE_RE.finditer(text):
+        parts.append(
+            expand_template(
+                text[cursor : match.start()],
+                dimension=dimension,
+                raw=raw,
+                path=path,
+                scope=bound,
+            )
+        )
+        parts.append(match.group(0))
+        cursor = match.end()
+    parts.append(
+        expand_template(
+            text[cursor:],
+            dimension=dimension,
+            raw=raw,
+            path=path,
+            scope=bound,
+        )
+    )
+    return "".join(parts)
+
+
+def _expand_parameters(
+    placement: ComponentPlacement,
+    *,
+    dimension: str,
+    raw: str,
+    bound: tuple[str, ...],
+    path: Path,
+) -> dict[str, JsonValue]:
+    """Expand parameter keys and values in their declared order.
+
+    Valid markdown variables are opaque only within string-valued
+    ``core.markdown.text``. Eligibility uses the original placement id
+    and parameter key, never the expanded key. Other values recurse
+    through the ordinary states engine, preserving its overwrite
+    behavior when expanded keys coincide.
+    """
+    parameters: dict[str, JsonValue] = {}
+    for key, value in placement.parameters.items():
+        expanded_key = expand_template(
+            key, dimension=dimension, raw=raw, path=path, scope=bound
+        )
+        if placement.id == "core.markdown" and key == "text" and isinstance(value, str):
+            expanded_value: JsonValue = _expand_markdown_text(
+                value, dimension=dimension, raw=raw, bound=bound, path=path
+            )
+        else:
+            expanded_value = substitute_raw(
+                value, dimension=dimension, raw=raw, path=path, scope=bound
+            )
+        parameters[expanded_key] = expanded_value
+    return parameters
+
+
 def _expand_placement(
     placement: ComponentPlacement,
     *,
@@ -536,7 +613,8 @@ def _expand_placement(
     """One substitution round over a placement: the free string
     leaves take the round's value; the addressing and policy fields
     ride untouched — ``id`` refuses placeholders at load, and the
-    policies are enums.
+    policies are enums. Valid markdown variables in string-valued
+    ``core.markdown.text`` remain opaque for component resolution.
     """
     title = (
         expand_template(
@@ -545,10 +623,9 @@ def _expand_placement(
         if placement.title is not None
         else None
     )
-    parameters = substitute_raw(
-        placement.parameters, dimension=dimension, raw=raw, path=path, scope=bound
+    parameters = _expand_parameters(
+        placement, dimension=dimension, raw=raw, bound=bound, path=path
     )
-    assert isinstance(parameters, dict)  # a mapping in is a mapping out
     return placement.model_copy(update={"title": title, "parameters": parameters})
 
 
@@ -601,10 +678,11 @@ def _expand_node(
     and nested states nodes' declared values included — while
     placeholders naming a dimension in *bound* pass through
     untouched, because their owning node's round substitutes them
-    when the walk reaches it.  Nesting resolves by round order, and
-    a shadowed dimension means the outer round wins: its round has
-    already replaced every occurrence before the inner node's
-    round runs.
+    when the walk reaches it. Valid markdown variables in
+    string-valued ``core.markdown.text`` are opaque to every round.
+    Nesting resolves by round order, and a shadowed dimension means
+    the outer round wins: its round has already replaced every
+    occurrence before the inner node's round runs.
 
     The structural fields ride untouched — placement ``id`` refuses
     placeholders at load, policies are enums, splits are numbers,
