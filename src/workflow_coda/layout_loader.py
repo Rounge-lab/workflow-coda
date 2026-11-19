@@ -3,7 +3,7 @@
 The loader is the report author's first point of contact with
 validation, so every failure is a teaching error: a
 :class:`~workflow_coda.errors.LayoutError` naming the file, the
-location inside it, the problem, and the fix.  Four failure families:
+location inside it, the problem, and the fix.  Failure families:
 
 * **Reading and parsing**: an unreadable file, invalid YAML syntax, or
   a document that is not a mapping.
@@ -20,9 +20,11 @@ location inside it, the problem, and the fix.  Four failure families:
   text or policy field, the loader explains the quoting rule instead of
   showing pydantic's opaque "Input should be a valid string".
 * **Orphan placeholders**: a ``{`` in a string no ``type: states``
-  node can bind.  The placeholder language substitutes only inside a
-  states subtree, so an orphaned brace is an authoring mistake taught
-  at load — never a literal passed through to the rendered page.
+  node can bind.  The states placeholder language substitutes only
+  inside a states subtree, so an orphaned brace is an authoring
+  mistake taught at load.  Valid ``{{ variable }}`` expressions in
+  ``core.markdown``'s ``text`` parameter belong to that component's
+  artifact-backed language, not to states.
 * **Schema version**: a layout written against an older layout
   schema (``0.1.0``, ``0.2.0``) fails with the migration spelled out —
   the file format is versioned, and old files are taught forward, not
@@ -34,8 +36,9 @@ through as booleans.  The loader never silently reinterprets what the
 author wrote — it fails loudly with an explanation.
 """
 
+import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 import yaml
 from pydantic import ValidationError
@@ -56,6 +59,13 @@ from .layout import (
 
 _MISSING = object()
 """Sentinel for a location that does not resolve into the parsed document."""
+
+_MARKDOWN_VARIABLE: Final[re.Pattern[str]] = re.compile(
+    r"\{\{\s*([A-Za-z0-9_.\-]+)\s*\}\}"
+)
+"""core.markdown's variable syntax, recognized only to exclude it from
+the states orphan check.  The component owns resolution and validation;
+the loader never substitutes or changes the parameter text."""
 
 
 class _DuplicateKeyError(yaml.YAMLError):
@@ -121,7 +131,7 @@ def _value_at(parsed: object, location: tuple[int | str, ...]) -> object:
     for key in location:
         try:
             value = value[key]  # type: ignore[index]
-        except TypeError, KeyError, IndexError:
+        except (TypeError, KeyError, IndexError):
             return _MISSING
     return value
 
@@ -178,16 +188,26 @@ identity and tab titles — where wrapping is impossible by shape."""
 
 
 def _reject_brace(
-    value: str, where: str, path: Path, *, fix: str = _COMPOSITION_FIX
+    value: str,
+    where: str,
+    path: Path,
+    *,
+    fix: str = _COMPOSITION_FIX,
+    allow_markdown_variables: bool = False,
 ) -> None:
     """The orphan teaching: a ``{`` no states node can bind.
 
     Composition strings carry the composable fix by default; strings
     above the walk pass ``fix`` explicitly, because "add a states
     node" is impossible advice for a string no states node can ever
-    reach.
+    reach.  core.markdown's text may contain its own valid variables:
+    exclude those from inspection without changing the original text
+    or the value quoted in a teaching.
     """
-    if "{" in value:
+    inspected = (
+        _MARKDOWN_VARIABLE.sub("", value) if allow_markdown_variables else value
+    )
+    if "{" in inspected:
         raise LayoutError(f"{path}: {where} carries a placeholder ({value!r}) — {fix}")
 
 
@@ -205,7 +225,8 @@ def _reject_id_brace(placement: ComponentPlacement, where: str, path: Path) -> N
 
 def _reject_brace_json(node: JsonValue, where: str, path: Path) -> None:
     """Every string in a parameters tree refuses ``{`` outside
-    states — keys and values alike, recursively."""
+    states — keys and values alike, recursively.  The placement walk
+    handles core.markdown's text separately to recognize its variables."""
     if isinstance(node, str):
         _reject_brace(node, where, path)
     elif isinstance(node, list):
@@ -218,11 +239,12 @@ def _reject_brace_json(node: JsonValue, where: str, path: Path) -> None:
 
 
 def _walk_orphan(node: LayoutNode, where: str, path: Path) -> None:
-    """Outside states: rendered strings and ids all refuse ``{``.
+    """Outside states: rendered strings and ids refuse orphan ``{``.
 
-    A states subtree switches to the scoped walk: there the free
-    strings are the template's own territory (the engine teaches
-    scope at build); only ids stay checked.
+    Valid variables in core.markdown's text belong to the component,
+    not states.  A states subtree switches to the scoped walk: there
+    the free strings are the template's own territory (the engine
+    teaches scope at build); only ids stay checked.
     """
     if isinstance(node, ComponentPlacement):
         _reject_id_brace(node, where, path)
@@ -230,7 +252,13 @@ def _walk_orphan(node: LayoutNode, where: str, path: Path) -> None:
             _reject_brace(node.title, f"{where}'s title", path)
         for key, value in node.parameters.items():
             _reject_brace(key, f"{where}'s parameter key {key!r}", path)
-            _reject_brace_json(value, f"{where}'s parameter {key!r}", path)
+            parameter_where = f"{where}'s parameter {key!r}"
+            if node.id == "core.markdown" and key == "text" and isinstance(value, str):
+                _reject_brace(
+                    value, parameter_where, path, allow_markdown_variables=True
+                )
+            else:
+                _reject_brace_json(value, parameter_where, path)
         return
     if isinstance(node, StatesNode):
         for index, child in enumerate(node.children):
@@ -262,12 +290,12 @@ def _walk_scoped(node: LayoutNode, where: str, path: Path) -> None:
 
 
 def _reject_orphan_placeholders(layout: ReportLayout, path: Path) -> None:
-    """Refuse a placeholder where no states node can bind it.
+    """Refuse a states placeholder where no states node can bind it.
 
-    Only ``{`` opens the placeholder language, and it substitutes
-    exclusively inside a ``type: states`` subtree — so a ``{`` in a
-    rendered string outside one would ride verbatim into the page,
-    the one place a template must never arrive raw.  Two scopes:
+    Only ``{`` opens the states placeholder language, and it substitutes
+    exclusively inside a ``type: states`` subtree.  core.markdown's
+    valid double-brace variables in its text parameter are a separate,
+    component-owned language and are left untouched.  Two scopes:
     strings above the walk (report identity, tab titles) can never
     be bound and teach with the literal-text fix; composition strings
     (placement titles and parameters, card titles) teach with the
