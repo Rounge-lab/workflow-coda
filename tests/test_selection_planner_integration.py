@@ -191,7 +191,9 @@ console.log(JSON.stringify({
     return json.loads(completed.stdout)
 
 
-def test_controller_plans_initial_context_without_writing_url_or_creating_widgets() -> None:
+def test_controller_plans_initial_context_without_writing_url_or_creating_widgets() -> (
+    None
+):
     output = _execute("")
     assert output["writes"] == []
     assert output["hash"] == ""
@@ -203,9 +205,7 @@ def test_controller_plans_initial_context_without_writing_url_or_creating_widget
         "1-results",
         "2-results",
     ]
-    assert call["records"][1]["ancestors"] == [
-        {"dimension": "batch", "value": "A"}
-    ]
+    assert call["records"][1]["ancestors"] == [{"dimension": "batch", "value": "A"}]
     assert [control["dimension"] for control in call["controls"]] == [
         "batch",
         "sample",
@@ -238,7 +238,7 @@ def test_hashchange_replans_nested_context_and_preserves_explicit_url() -> None:
 def test_tab_activation_replans_and_keeps_shared_selection_for_singleton_node() -> None:
     output = _execute(
         "#state.batch=B",
-        'tabs[1].listeners.click();',
+        "tabs[1].listeners.click();",
     )
     assert len(output["calls"]) == 2
     assert output["writes"] == ["#tab=2-results&state.batch=B"]
@@ -282,6 +282,7 @@ def test_renderer_inlines_planner_once_before_controller(has_states: bool) -> No
         title="Quality",
         outcome=RenderedComponent.from_html("<p>Content.</p>"),
     )
+    tabs: tuple[DocumentTab, ...]
     if has_states:
         tabs = (
             DocumentTab(
