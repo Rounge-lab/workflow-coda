@@ -365,22 +365,33 @@ def _expand_for_each(
         values = values_from_glob(
             source["glob"], dimension=dimension, spec_dir=path.parent, path=path
         )
-    else:
-        if "file" not in block:
+        expanded = _expand_block(block, dimension=dimension, values=values, path=path)
+        glob_template = source["glob"]
+        if not isinstance(glob_template, str):
             raise SpecError(
-                f"{path}: the for_each block requires a 'file' template — "
-                f'pass file: "output/{{{dimension}}}.json" (a glob '
-                "carries no file: it is its own path provider)"
+                f"{path}: the for_each block's 'glob' must be a pattern string, "
+                f"got {glob_template!r}"
             )
-        if source_key == "samplesheet":
-            values = values_from_samplesheet(
-                source["samplesheet"],
-                dimension=dimension,
-                spec_dir=path.parent,
-                path=path,
+        for raw, concrete in zip(values, expanded, strict=True):
+            concrete["file"] = expand_template(
+                glob_template, dimension=dimension, raw=raw, path=path
             )
-        else:
-            values = values_from_list(source["values"], dimension=dimension, path=path)
+        return expanded
+    if "file" not in block:
+        raise SpecError(
+            f"{path}: the for_each block requires a 'file' template — "
+            f'pass file: "output/{{{dimension}}}.json" (a glob '
+            "carries no file: it is its own path provider)"
+        )
+    if source_key == "samplesheet":
+        values = values_from_samplesheet(
+            source["samplesheet"],
+            dimension=dimension,
+            spec_dir=path.parent,
+            path=path,
+        )
+    else:
+        values = values_from_list(source["values"], dimension=dimension, path=path)
     return _expand_block(block, dimension=dimension, values=values, path=path)
 
 
