@@ -217,8 +217,8 @@ def _has_figures(document: ReportDocument) -> bool:
 def _navigation_js(document: ReportDocument) -> str | None:
     """One merged navigation block, only for multiple tabs or states.
 
-    The codec and pure policy load before the controller. Merging
-    keeps the established script census for states-free reports.
+    The codec, pure policy, and selector planner load before the
+    controller. Merging keeps the established script census.
     """
     has_states = any(
         isinstance(node, StatesEntry)
@@ -229,7 +229,12 @@ def _navigation_js(document: ReportDocument) -> str | None:
         return None
     return "\n\n".join(
         _chrome_file(name)
-        for name in ("selection_url.js", "selection_policy.js", "report.js")
+        for name in (
+            "selection_url.js",
+            "selection_policy.js",
+            "selection_widgets.js",
+            "report.js",
+        )
     )
 
 

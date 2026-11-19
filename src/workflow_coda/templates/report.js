@@ -1,18 +1,20 @@
 /* workflow-coda report chrome: coordinated tab and state selection.
  *
- * URL parsing and selection policy are inlined before this controller.
- * Every content panel is already present. Enhancement hides by class
- * or ARIA only; print styles restore all content.
+ * URL parsing, selection policy, and selector planning are inlined
+ * before this controller. Every content panel is already present.
+ * Enhancement hides by class or ARIA only; print restores all content.
  *
  * Initial load and hashchange read the URL without rewriting it.
- * Tab interactions preserve state directives. Widgets will join this
- * controller in a later step.
+ * Tab interactions preserve state directives. Selector plans are
+ * recomputed for the displayed tabs and selected outer context.
+ * DOM controls will consume these plans in a later step.
  */
 (function () {
   "use strict";
 
   var codec = window.codaSelectionURL;
   var policy = window.codaSelectionPolicy;
+  var planner = window.codaSelectionWidgets;
   var tabs = Array.prototype.slice.call(document.querySelectorAll(".coda-tab"));
   var panels = Array.prototype.slice.call(
     document.querySelectorAll(".coda-tabpanel")
@@ -26,7 +28,7 @@
   var feedback;
   var current;
 
-  if (!codec || !policy || !panels.length) {
+  if (!codec || !policy || !planner || !panels.length) {
     return;
   }
 
@@ -39,6 +41,7 @@
   wrappers.forEach(function (wrapper) {
     var children = childPanels(wrapper);
     var ancestors = [];
+    var tabId = null;
     var parent = wrapper.parentElement;
     var notice = document.createElement("p");
 
@@ -49,6 +52,9 @@
           value: parent.getAttribute("data-state-value")
         });
       }
+      if (parent.classList.contains("coda-tabpanel")) {
+        tabId = parent.id;
+      }
       parent = parent.parentElement;
     }
     records.push({
@@ -57,7 +63,8 @@
       values: children.map(function (panel) {
         return panel.getAttribute("data-state-value");
       }),
-      ancestors: ancestors
+      ancestors: ancestors,
+      tabId: tabId
     });
     localPanels.push(children);
     notice.className = "coda-state-missing";
@@ -168,7 +175,8 @@
     current = {
       directive: directive,
       result: result,
-      tab: selectedTab
+      tab: selectedTab,
+      controls: planner.plan(records, result, selectedTab)
     };
 
     document.documentElement.classList.add("coda-js");
