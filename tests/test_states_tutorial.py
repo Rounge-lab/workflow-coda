@@ -55,8 +55,7 @@ def test_states_tutorial_builds_two_complete_batches(tmp_path: Path) -> None:
     assert document.title == "Batch summary"
     assert len(store.manifest.artifacts) == 2
     assert all(
-        artifact.path.startswith("depth-")
-        for artifact in store.manifest.artifacts
+        artifact.path.startswith("depth-") for artifact in store.manifest.artifacts
     )
 
     (tab,) = document.tabs
@@ -86,7 +85,8 @@ def test_states_tutorial_builds_two_complete_batches(tmp_path: Path) -> None:
         assert entry.title in page
 
     assert not any(
-        note.kind in (
+        note.kind
+        in (
             DiagnosticKind.PLUGIN_BUG,
             DiagnosticKind.COMPONENT_MISSING,
             DiagnosticKind.COMPONENT_UNAVAILABLE,
@@ -126,11 +126,7 @@ def test_states_tutorial_builds_two_complete_batches(tmp_path: Path) -> None:
 
 def test_tutorial_includes_the_shipped_states_files() -> None:
     tutorial = (
-        EXAMPLE.parents[1]
-        / "source"
-        / "user"
-        / "tutorials"
-        / "hello-report.rst"
+        EXAMPLE.parents[1] / "source" / "user" / "tutorials" / "hello-report.rst"
     ).read_text(encoding="utf-8")
     for name in ("depth-a.json", "depth-b.json", "manifest.json", "layout.yaml"):
         assert f".. literalinclude:: ../../../examples/states-report/{name}" in tutorial

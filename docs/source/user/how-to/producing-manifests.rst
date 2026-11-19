@@ -120,6 +120,8 @@ command is executed: duplicate keys are rejected naming the key and its line,
 unknown keys are rejected, and a spec declaring no artifacts is considered an
 authoring mistake.
 
+.. _families-for-each:
+
 Families of artifacts: ``for_each``
 -----------------------------------
 

@@ -194,7 +194,10 @@ HTML file; it loads nothing from the internet and needs no servers.
 Optional: select between two batches
 ------------------------------------
 
-Now build a small second report with a batch dropdown. Keep your finished
+Real pipelines often produce the same files for each ``batch``, ``sample``,
+``patient``, or other. ``workflow-coda`` handles this through ``states``. Below
+we will build an example report generated from two batches. The report file will
+include a dropdown selector to choose which batch to show. Keep your finished
 report unchanged: make a new directory and run the following build from
 inside it.
 
@@ -238,9 +241,13 @@ Both batches are already embedded in the HTML: selection fetches nothing.
 Without JavaScript, and when printing, both batches appear stacked.
 More states mean more embedded content, even when only one is visible.
 
-You have built a selectable two-batch report. For adapting states to your
-own reports, continue with :doc:`../how-to/report-authoring`; the exact
-keys are documented in :doc:`../reference/framework/schemas`.
+When making reports for real pipelines, families of artifacts may be discovered
+through different mechanisms. The ``workflow-coda verify`` command can be used
+to dynamically generate the ``manifest.json`` based on the actual pipeline
+output. Take a look at the :ref:`Producing manifests how-to guide <families-for-each>`.
+For more details on how to build and customize your own reports, continue with
+:doc:`../how-to/report-authoring`; the exact keys available are documented in
+:doc:`../reference/framework/schemas`.
 
 Where next
 ----------
