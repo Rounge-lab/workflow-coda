@@ -5,6 +5,7 @@ un-enhanced page, with no states controls or scripts.
 """
 
 import importlib.resources
+import re
 import sys
 from html.parser import HTMLParser
 
@@ -86,9 +87,7 @@ class _Elements(HTMLParser):
         super().__init__()
         self.elements: list[tuple[str, dict[str, str | None]]] = []
 
-    def handle_starttag(
-        self, tag: str, attrs: list[tuple[str, str | None]]
-    ) -> None:
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         self.elements.append((tag, dict(attrs)))
 
     def with_class(self, name: str) -> list[dict[str, str | None]]:
@@ -118,7 +117,11 @@ def test_panels_render_in_axis_order_with_all_children_present() -> None:
     )
     parser = _elements(page)
     assert parser.with_class("coda-states") == [
-        {"class": "coda-states", "data-states-dimension": "batch", "data-kind": "ordered"}
+        {
+            "class": "coda-states",
+            "data-states-dimension": "batch",
+            "data-kind": "ordered",
+        }
     ]
     panels = parser.with_class("coda-state")
     assert [panel["data-state-value"] for panel in panels] == ["B", "A"]
@@ -136,7 +139,7 @@ def test_panels_render_in_axis_order_with_all_children_present() -> None:
 
 
 def test_state_labels_escape_in_headings_and_attributes_without_normalization() -> None:
-    raw = ' Run <script>alert("x")</script> & \'quoted\' '
+    raw = " Run <script>alert(\"x\")</script> & 'quoted' "
     page = render_report(_document(_states(_panel(raw))))
     assert f"<h3>{escape(raw)}</h3>" in page
     assert f'data-state-value="{escape(raw)}"' in page
@@ -172,11 +175,7 @@ def test_panel_ids_are_unique_depth_first_and_reset_for_each_render() -> None:
         "run-a",
         "Run A",
     ]
-    all_ids = [
-        attrs["id"]
-        for _, attrs in _elements(first).elements
-        if "id" in attrs
-    ]
+    all_ids = [attrs["id"] for _, attrs in _elements(first).elements if "id" in attrs]
     assert len(all_ids) == len(set(all_ids))
     unrelated = render_report(_document(_states(_panel("unrelated"))))
     assert _elements(unrelated).with_class("coda-state")[0]["id"] == "coda-state-1"
@@ -257,9 +256,7 @@ def _nested_figure_document() -> ReportDocument:
                     title=None,
                     layout="stack",
                     split=None,
-                    children=(
-                        _states(_panel("s1", figure), dimension="sample"),
-                    ),
+                    children=(_states(_panel("s1", figure), dimension="sample"),),
                 ),
             ),
             _panel("B", figure),
@@ -305,9 +302,12 @@ def test_states_empty_diagnostic_renders_as_an_escaped_note_in_each_marker() -> 
     assert len(_elements(page).with_class("coda-diagnostics")) == 2
     assert page.count("<h3>Notes</h3>") == 2
     assert "<h3>Problems</h3>" not in page
-    assert page.count(
-        '<span class="coda-badge coda-badge--states_empty">states_empty</span>'
-    ) == 2
+    assert (
+        page.count(
+            '<span class="coda-badge coda-badge--states_empty">states_empty</span>'
+        )
+        == 2
+    )
     assert page.count("Empty axis &lt;batch&gt;: declare values.") == 2
 
 
@@ -316,10 +316,18 @@ def test_states_style_is_static_and_print_keeps_panels_visible() -> None:
     assert ".coda-states {" in page
     assert ".coda-state {" in page
     assert ".coda-state > h3 {" in page
-    assert ".coda-state {\n    display: block !important;\n  }" in page
-    assert page.index("@media print") < page.index(
-        ".coda-state {\n    display: block !important;\n  }"
+    # Was an exact indentation pin; now check the declaration within
+    # the print block, allowing whitespace changes in emitted CSS.
+    # This matches the shipped block's flat, non-nested style rules.
+    print_block = re.search(
+        r"@media print\s*\{(?P<rules>(?:[^{}]|\{[^{}]*\})*)\}",
+        page,
     )
+    assert print_block is not None
+    assert re.search(
+        r"\.coda-state\s*\{\s*display:\s*block\s*!important\s*;\s*\}",
+        print_block.group("rules"),
+    ) is not None
     assert ".coda-js .coda-state" not in page
     assert len(_elements(page).with_class("coda-state")) == 2
     assert "<script" not in page
