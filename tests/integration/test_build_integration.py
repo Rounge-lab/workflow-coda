@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from workflow_coda.artifact_store import ArtifactStore
@@ -5,6 +6,14 @@ from workflow_coda.builder import build_report
 from workflow_coda.core.plugin import get_plugin
 from workflow_coda.registry import PluginRegistry
 from workflow_coda.render import render_report
+
+
+def _maybe_write_fixture_report(fixture: Path, html: str) -> None:
+    if os.environ.get("WORKFLOW_CODA_WRITE_FIXTURE_REPORTS") != "1":
+        return
+    output_dir = fixture / "rendered"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "report.html").write_text(html, encoding="utf-8")
 
 
 def test_core_table_fixture_builds_a_real_report(tmp_path: Path) -> None:
@@ -22,6 +31,7 @@ def test_core_table_fixture_builds_a_real_report(tmp_path: Path) -> None:
     )
     html = render_report(document)
     output_path.write_text(html, encoding="utf-8")
+    _maybe_write_fixture_report(fixture, html)
 
     assert output_path.exists()
     assert "Core table integration fixture" in html
