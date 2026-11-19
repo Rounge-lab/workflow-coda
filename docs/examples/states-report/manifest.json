@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.3.0",
+  "producer": {
+    "name": "my-pipeline",
+    "version": "1.0.0"
+  },
+  "artifacts": [
+    {
+      "id": "sample_metrics-a",
+      "type": "org.example.sample_metrics-a",
+      "schema_version": "1.0",
+      "path": "depth-a.json",
+      "format": "json",
+      "status": "complete"
+    },
+    {
+      "id": "sample_metrics-b",
+      "type": "org.example.sample_metrics-b",
+      "schema_version": "1.0",
+      "path": "depth-b.json",
+      "format": "json",
+      "status": "complete"
+    }
+  ]
+}

@@ -6,7 +6,8 @@ You will build a working report from two small files, then give it a
 look of its own.  Along the way you will meet every idea a
 ``workflow-coda`` report rests on: the manifest, the layout, honest
 diagnostics, and the theme. At the end you hold one self-contained
-HTML page you can send to anyone.
+HTML page you can send to anyone. An optional final step builds a
+two-batch report with a selector.
 
 Before you start
 ----------------
@@ -136,13 +137,20 @@ color in the layout:
 
 .. code-block:: yaml
 
-   schema_version: "0.2.0"
+   schema_version: "0.3.0"
    title: Run summary
    theme: theme.yaml
    logo: core-arrow-up
    header_color: accent
    tabs:
-     # ...unchanged from before
+     - title: Headlines
+       components:
+         - id: core.kpi
+           title: Mean depth
+           parameters:
+             artifact: org.example.sample_metrics
+             key: depth
+         - type: diagnostics
 
 And write the theme file next to the layout. The theme file defines a small
 vocabulary of color tokens, which are used by your report's components:
@@ -183,11 +191,62 @@ Four small files build this report: one artifact, one manifest, one
 theme, one layout.  The page they produce is a single self-contained
 HTML file; it loads nothing from the internet and needs no servers.
 
+Optional: select between two batches
+------------------------------------
+
+Now build a small second report with a batch dropdown. Keep your finished
+report unchanged: make a new directory and run the following build from
+inside it.
+
+Write these two artifact files:
+
+.. literalinclude:: ../../../examples/states-report/depth-a.json
+   :language: json
+   :caption: depth-a.json — batch a
+
+.. literalinclude:: ../../../examples/states-report/depth-b.json
+   :language: json
+   :caption: depth-b.json — batch b
+
+Declare both in the new directory's manifest:
+
+.. literalinclude:: ../../../examples/states-report/manifest.json
+   :language: json
+   :caption: manifest.json — two batches
+
+Write this layout alongside them:
+
+.. literalinclude:: ../../../examples/states-report/layout.yaml
+   :language: yaml
+   :caption: layout.yaml — one template, two states
+
+``type: states`` builds the child placement once for each value in
+``[a, b]``. At build time, ``{batch}`` becomes ``a`` or ``b`` in the
+title and artifact type. The component id stays ``core.kpi``.
+
+.. code-block:: console
+
+   $ workflow-coda build manifest.json layout.yaml
+
+Open the new ``report.html`` with JavaScript enabled. You should see
+"Batch summary", a dropdown labeled ``batch``, and batch ``a``'s mean
+depth, ``42.7``. Choose ``b``: the card now shows ``18.3``. Reload the
+page; the URL keeps your batch selection.
+
+This example uses the default theme and needs no additional files.
+Both batches are already embedded in the HTML: selection fetches nothing.
+Without JavaScript, and when printing, both batches appear stacked.
+More states mean more embedded content, even when only one is visible.
+
+You have built a selectable two-batch report. For adapting states to your
+own reports, continue with :doc:`../how-to/report-authoring`; the exact
+keys are documented in :doc:`../reference/framework/schemas`.
+
 Where next
 ----------
 
-* :doc:`first-plugin` grows this exact report with a component you
-  get to write yourself: a Plotly figure ``workflow-coda`` does not ship.
+* :doc:`first-plugin` grows the original single-batch report with a component
+  you get to write yourself: a Plotly figure ``workflow-coda`` does not ship.
 * Every layout and theme key, with its exact shape:
   :doc:`../reference/framework/schemas`.
 * The command and its exit codes: :doc:`../reference/framework/cli`.
