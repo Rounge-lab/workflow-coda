@@ -23,22 +23,25 @@ producer:
   version: "1.0"
 artifacts:
   - file: output/{sample}.json
-    id: sample-{sample}
-    type: org.example.sample-{sample}
+    id: sample
+    type: "{sample}"
     format: json
     schema_version: "1.0.0"
     for_each:
       dimension: sample
-      values: [s2, s10, s1]
+      values:
+        - org.example.s2
+        - org.example.s10
+        - org.example.s1
 """,
     )
 
     loaded = load_verify_spec(spec)
 
     assert [artifact.file for artifact in loaded.artifacts] == [
-        "output/s2.json",
-        "output/s10.json",
-        "output/s1.json",
+        "output/org.example.s2.json",
+        "output/org.example.s10.json",
+        "output/org.example.s1.json",
     ]
 
 
@@ -51,8 +54,8 @@ producer:
   version: "1.0"
 artifacts:
   - file: output/{sample}.json
-    id: stats-{sample}
-    type: org.example.stats-{sample}
+    id: stats
+    type: "{sample}"
     format: json
     schema_version: "1.0.0"
     criteria:
@@ -62,23 +65,24 @@ artifacts:
         - "{sample}"
     for_each:
       dimension: sample
-      values: [s1]
+      values:
+        - org.example.s1
 """,
     )
 
     loaded = load_verify_spec(spec)
 
     assert loaded.artifacts[0].criteria == {
-        "expected": {"sample": "s1"},
-        "labels": ["s1"],
+        "expected": {"sample": "org.example.s1"},
+        "labels": ["org.example.s1"],
     }
 
 
 def test_load_verify_spec_glob_source_provides_the_file_path(tmp_path: Path) -> None:
     tables = tmp_path / "tables"
     tables.mkdir()
-    (tables / "s1.tsv").write_text("ok\n", encoding="utf-8")
-    (tables / "s2.tsv").write_text("ok\n", encoding="utf-8")
+    (tables / "org.example.s1.tsv").write_text("ok\n", encoding="utf-8")
+    (tables / "org.example.s2.tsv").write_text("ok\n", encoding="utf-8")
 
     spec = write_spec(
         tmp_path,
@@ -87,8 +91,8 @@ producer:
   name: pipeline
   version: "1.0"
 artifacts:
-  - id: sample-{sample}
-    type: org.example.sample-{sample}
+  - id: sample
+    type: "{sample}"
     format: core.tabular
     schema_version: "1.0.0"
     for_each:
@@ -100,8 +104,8 @@ artifacts:
     loaded = load_verify_spec(spec)
 
     assert [artifact.file for artifact in loaded.artifacts] == [
-        "tables/s1.tsv",
-        "tables/s2.tsv",
+        "tables/org.example.s1.tsv",
+        "tables/org.example.s2.tsv",
     ]
 
 
@@ -134,8 +138,8 @@ producer:
   version: "1.0"
 artifacts:
   - file: output/{sample}.json
-    id: stats-{sample}
-    type: org.example.stats-{sample}
+    id: stats
+    type: "{sample}"
     format: json
     schema_version: "1.0.0"
     for_each: sample
@@ -155,13 +159,14 @@ producer:
   version: "1.0"
 artifacts:
   - file: output/{sample}.json
-    id: stats-{sample}
-    type: org.example.stats-{sample}
+    id: stats
+    type: "{sample}"
     format: json
     schema_version: "1.0.0"
     for_each:
       dimension: sample
-      values: [s1]
+      values:
+        - org.example.s1
       surprise: true
 """,
     )
@@ -179,12 +184,13 @@ producer:
   version: "1.0"
 artifacts:
   - file: output/{sample}.json
-    id: stats-{sample}
-    type: org.example.stats-{sample}
+    id: stats
+    type: "{sample}"
     format: json
     schema_version: "1.0.0"
     for_each:
-      values: [s1]
+      values:
+        - org.example.s1
 """,
     )
 
@@ -201,8 +207,8 @@ producer:
   version: "1.0"
 artifacts:
   - file: output/{sample}.json
-    id: stats-{sample}
-    type: org.example.stats-{sample}
+    id: stats
+    type: "{sample}"
     format: json
     schema_version: "1.0.0"
     for_each:
@@ -220,13 +226,14 @@ producer:
   version: "1.0"
 artifacts:
   - file: output/{sample}.json
-    id: stats-{sample}
-    type: org.example.stats-{sample}
+    id: stats
+    type: "{sample}"
     format: json
     schema_version: "1.0.0"
     for_each:
       dimension: sample
-      values: [s1]
+      values:
+        - org.example.s1
       glob: "tables/{sample}.tsv"
 """,
     )
@@ -243,8 +250,8 @@ producer:
   version: "1.0"
 artifacts:
   - file: output/{sample}.json
-    id: stats-{sample}
-    type: org.example.stats-{sample}
+    id: stats
+    type: "{sample}"
     format: json
     schema_version: "1.0.0"
     for_each:
@@ -265,13 +272,14 @@ producer:
   name: pipeline
   version: "1.0"
 artifacts:
-  - id: stats-{sample}
-    type: org.example.stats-{sample}
+  - id: stats
+    type: "{sample}"
     format: json
     schema_version: "1.0.0"
     for_each:
       dimension: sample
-      values: [s1]
+      values:
+        - org.example.s1
 """,
     )
 
@@ -288,14 +296,15 @@ producer:
   version: "1.0"
 artifacts:
   - file: output/{sample}.json
-    id: stats-{sample}
-    type: org.example.stats-{sample}
+    id: stats
+    type: "{sample}"
     format: json
     schema_version: "1.0.0"
     sanitize: "yes"
     for_each:
       dimension: sample
-      values: [s1]
+      values:
+        - org.example.s1
 """,
     )
 
@@ -312,14 +321,15 @@ producer:
   version: "1.0"
 artifacts:
   - file: output/{sample}.json
-    id: stats-{sample}
-    type: org.example.stats-{sample}
+    id: stats
+    type: "{sample}"
     format: json
     schema_version: "1.0.0"
     criteria: [bad]
     for_each:
       dimension: sample
-      values: [s1]
+      values:
+        - org.example.s1
 """,
     )
 
@@ -337,12 +347,13 @@ producer:
 artifacts:
   - file: output/{sample}.json
     id: sample
-    type: org.example.sample-{sample}
+    type: org.example.sample
     format: json
     schema_version: "1.0.0"
+    sanitize: true
     for_each:
       dimension: sample
-      values: [s1, s2]
+      values: [S1, S2]
 """,
     )
 
@@ -350,8 +361,8 @@ artifacts:
         load_verify_spec(spec)
 
     message = str(excinfo.value)
-    assert "s1" in message
-    assert "s2" in message
+    assert "S1" in message
+    assert "S2" in message
     assert "id" in message
 
 
@@ -411,7 +422,7 @@ def test_load_verify_spec_samplesheet_source_expands_values(
 ) -> None:
     sheet = tmp_path / "samples.tsv"
     sheet.write_text(
-        "sample_id\tdepth\ns2\t9\ns1\t10\n",
+        "sample_id\tdepth\norg.example.s2\t9\norg.example.s1\t10\n",
         encoding="utf-8",
     )
 
@@ -423,8 +434,8 @@ producer:
   version: "1.0"
 artifacts:
   - file: output/{sample_id}.json
-    id: stats-{sample_id}
-    type: org.example.stats-{sample_id}
+    id: stats
+    type: "{sample_id}"
     format: json
     schema_version: "1.0.0"
     for_each:
@@ -438,8 +449,8 @@ artifacts:
     loaded = load_verify_spec(spec)
 
     assert [artifact.file for artifact in loaded.artifacts] == [
-        "output/s2.json",
-        "output/s1.json",
+        "output/org.example.s2.json",
+        "output/org.example.s1.json",
     ]
 
 
