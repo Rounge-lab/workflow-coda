@@ -14,12 +14,16 @@ Two responsibilities meet here:
 **The tree walk** (:func:`_node_html` and friends) turns each tab's
 node tree into body html — the card vocabulary for placed components,
 the group box for cards, the ratio containers for rows and grids, the
-diagnostics panel at its markers.  The walk escapes every framework
-text it interpolates (titles, messages, errors) and leaves exactly one raw point inside
-each tab body: a rendered component's plugin html, trusted because plugins are installed
-code.  Tabs become the page's navigation: one panel per tab, a tab bar generated from
-them when there is more than
-one, and single-tab reports render no bar and no script.
+diagnostics panel at its markers, and every expanded states panel in
+axis order. The walk escapes every framework text it interpolates
+(titles, state labels, messages, errors) and leaves exactly one raw
+point inside each component: its rendered plugin html, trusted
+because plugins are installed code. Tabs become the page's navigation:
+one panel per tab, a tab bar generated from them when there is more
+than one, and single-tab, figure-free reports render no bar and no
+framework script. States are static, complete content; selection is
+deferred. Their panel ids use one counter local to each render call,
+shared across tabs and nested states, never derived from raw labels.
 
 **Generated layout CSS** (:func:`_splits_css`) turns the tree's split
 ratios into deduplicated rules — one class per distinct ratio tuple,
@@ -40,7 +44,7 @@ inlined, the favicon is a data URI and the logo either a data URI or
 inlined svg markup — an inline logo is real markup in the page, so
 ``currentColor`` inherits the header's ink — and Plotly.js is inlined
 from the installed ``plotly`` package exactly when the document
-contains figures.
+contains figures, including figures inside states.
 
 Failures are environment failures, never authoring failures.
 :class:`~workflow_coda.errors.RenderError` names the fix — install
@@ -53,6 +57,7 @@ import importlib.metadata
 import importlib.resources
 import re
 from collections.abc import Iterator
+from itertools import count
 from typing import Final
 
 from jinja2 import Environment, PackageLoader, StrictUndefined, TemplateNotFound
@@ -72,6 +77,7 @@ from .report import (
     GridEntry,
     ReportDocument,
     RowEntry,
+    StatesEntry,
 )
 from .theme import Theme, ThemeToken
 
@@ -182,11 +188,14 @@ def _plotly_js() -> str:
 
 
 def _walk_nodes(nodes: tuple[DocumentNode, ...]) -> Iterator[DocumentNode]:
-    """Every node in the tree, depth-first, for tree-wide scans."""
+    """Every node in the tree, depth-first, including all state panels."""
     for node in nodes:
         yield node
         if isinstance(node, (RowEntry, GridEntry, CardEntry)):
             yield from _walk_nodes(node.children)
+        elif isinstance(node, StatesEntry):
+            for panel in node.panels:
+                yield from _walk_nodes(panel.children)
 
 
 def _has_figures(document: ReportDocument) -> bool:
@@ -217,7 +226,7 @@ def _iter_ratios(nodes: tuple[DocumentNode, ...]) -> Iterator[tuple[float, ...]]
     An unsplit row (or a card's unsplit row or grid) declares equal
     widths — one ratio per child — so the default is a ratio tuple
     like any other and the generated CSS covers it without special
-    cases.
+    cases. Every state's children contribute their ratios.
     """
     for node in nodes:
         if isinstance(node, RowEntry):
@@ -234,6 +243,9 @@ def _iter_ratios(nodes: tuple[DocumentNode, ...]) -> Iterator[tuple[float, ...]]
                     else (1.0,) * len(node.children)
                 )
             yield from _iter_ratios(node.children)
+        elif isinstance(node, StatesEntry):
+            for panel in node.panels:
+                yield from _iter_ratios(panel.children)
 
 
 def _split_class(ratios: tuple[float, ...]) -> str:
@@ -308,7 +320,7 @@ def _component_js(document: ReportDocument) -> str:
     contributions = [c for c in document.chrome if c.js is not None]
     if not contributions:
         return ""
-    body = "\n\n".join(f"// {c.component_id}\n{c.js}" for c in contributions)
+    body = "\n\n".join(f"// {c.component_id} */\n{c.js}" for c in contributions)
     return f"<script>\n{body}\n</script>"
 
 
@@ -397,40 +409,91 @@ def _container_html(
     children: tuple[DocumentNode, ...],
     split: tuple[float, ...] | None,
     panel_html: str,
+    state_ids: Iterator[int],
 ) -> str:
     """A ratio container (row or grid): the generated split class
     carries the widths; the structural grid lives in the stylesheet."""
     ratios = split if split is not None else (1.0,) * len(children)
-    inner = "".join(_node_html(child, panel_html) for child in children)
+    inner = "".join(_node_html(child, panel_html, state_ids) for child in children)
     return f'<div class="{kind} {_split_class(ratios)}">{inner}</div>'
 
 
-def _node_html(node: DocumentNode, panel_html: str) -> str:
+def _states_html(
+    entry: StatesEntry, panel_html: str, state_ids: Iterator[int]
+) -> str:
+    """Every expanded panel in axis order, with escaped raw labels.
+
+    Panel identities use the render call's shared counter, allocated
+    before descending into children. Dimensions and raw values are
+    separate addressing markers: repeated dimensions can synchronize
+    later without sacrificing unique panel ids. No selection is applied.
+    """
+    dimension = escape(entry.dimension)
+    kind = escape(entry.kind)
+    parts = [
+        f'<div class="coda-states" data-states-dimension="{dimension}" '
+        f'data-kind="{kind}">'
+    ]
+    for panel in entry.panels:
+        panel_id = f"coda-state-{next(state_ids)}"
+        value = escape(panel.value)
+        parts.append(
+            f'<section class="coda-state" id="{panel_id}" '
+            f'data-state-dimension="{dimension}" data-state-value="{value}">'
+            f"<h3>{value}</h3>"
+        )
+        parts.extend(
+            _node_html(child, panel_html, state_ids) for child in panel.children
+        )
+        parts.append("</section>")
+    parts.append("</div>")
+    return "".join(parts)
+
+
+def _node_html(
+    node: DocumentNode, panel_html: str, state_ids: Iterator[int]
+) -> str:
     """One document node as html — the tree walk's dispatch."""
     if isinstance(node, ComponentEntry):
         return _component_entry_html(node)
     if isinstance(node, DiagnosticsEntry):
         return panel_html
+    if isinstance(node, StatesEntry):
+        return _states_html(node, panel_html, state_ids)
     if isinstance(node, RowEntry):
-        return _container_html("coda-row", node.children, node.split, panel_html)
+        return _container_html(
+            "coda-row", node.children, node.split, panel_html, state_ids
+        )
     if isinstance(node, GridEntry):
-        return _container_html("coda-grid", node.children, node.split, panel_html)
+        return _container_html(
+            "coda-grid", node.children, node.split, panel_html, state_ids
+        )
     assert isinstance(node, CardEntry)  # the node union is exhausted
     title = f"<h3>{escape(node.title)}</h3>" if node.title is not None else ""
     if node.layout == "stack":
-        inner = "".join(_node_html(child, panel_html) for child in node.children)
+        inner = "".join(
+            _node_html(child, panel_html, state_ids) for child in node.children
+        )
     elif node.layout == "row":
-        inner = _container_html("coda-row", node.children, node.split, panel_html)
+        inner = _container_html(
+            "coda-row", node.children, node.split, panel_html, state_ids
+        )
     else:
-        inner = _container_html("coda-grid", node.children, node.split, panel_html)
+        inner = _container_html(
+            "coda-grid", node.children, node.split, panel_html, state_ids
+        )
     return f'<div class="coda-group">{title}{inner}</div>'
 
 
-def _tab_body(tab: DocumentTab, panel_html: str) -> Markup:
+def _tab_body(
+    tab: DocumentTab, panel_html: str, state_ids: Iterator[int]
+) -> Markup:
     """One tab's node tree as assembled body html: framework chrome
     throughout, every framework text escaped by the walk, and exactly
-    one raw point inside (a rendered component's plugin html)."""
-    return Markup("".join(_node_html(node, panel_html) for node in tab.nodes))
+    one raw point inside each rendered component's plugin html."""
+    return Markup(
+        "".join(_node_html(node, panel_html, state_ids) for node in tab.nodes)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -476,7 +539,8 @@ def render_report(document: ReportDocument) -> str:
 
     Pure: the result is fully determined by the document and the
     framework's shipped chrome.  Callers own writing the string
-    wherever it goes.
+    wherever it goes. A fresh panel counter is local to this call;
+    rendering another report cannot change this report's panel ids.
 
     Raises :class:`~workflow_coda.errors.RenderError` only on
     environment failures; see the module docstring.
@@ -486,11 +550,12 @@ def render_report(document: ReportDocument) -> str:
         d for d in document.diagnostics if not d.kind.is_problem
     ]
     panel_html = _diagnostics_panel(problem_diagnostics, informational_diagnostics)
+    state_ids = count(1)
     tabs = [
         (
             tab,
             f"{index}-{_slugify(tab.title)}",
-            _tab_body(tab, panel_html),
+            _tab_body(tab, panel_html, state_ids),
         )
         for index, tab in enumerate(document.tabs, start=1)
     ]

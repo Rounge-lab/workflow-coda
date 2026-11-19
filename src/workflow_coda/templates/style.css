@@ -288,6 +288,29 @@ body {
   margin: 0 0 0.75rem;
 }
 
+/* States ship complete and stacked. These are static group boxes,
+   not selection controls; shared dimension/value markers are reserved
+   for later enhancement without changing the content tree. */
+.coda-states {
+  margin: 1rem 0;
+}
+
+.coda-state {
+  border: 1px solid var(--coda-border);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.coda-state + .coda-state {
+  margin-top: 1rem;
+}
+
+.coda-state > h3 {
+  font-family: var(--coda-font-heading);
+  font-size: 1.1rem;
+  margin: 0 0 0.75rem;
+}
+
 /* --- Interactive tab state ----------------------------------------------- */
 
 /* The report's inline script adds .coda-js to <html> first thing, so
@@ -303,8 +326,8 @@ body {
   display: none;
 }
 
-/* Printing a report shows every tab, stacked — save-to-PDF is a
-   first-class reader. */
+/* Printing a report shows every tab and state, stacked —
+   save-to-PDF is a first-class reader. */
 @media print {
   .coda-tabs {
     display: none;
@@ -315,6 +338,10 @@ body {
   }
 
   .coda-tabpanel > h2 {
+    display: block !important;
+  }
+
+  .coda-state {
     display: block !important;
   }
 }
@@ -380,10 +407,6 @@ body {
   margin: 0 0 0.5rem;
   padding: 0;
   list-style: none;
-}
-
-.coda-provenance li {
-  margin: 0.1rem 0;
 }
 
 .coda-attribution {
