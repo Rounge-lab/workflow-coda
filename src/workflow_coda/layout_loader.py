@@ -45,6 +45,7 @@ from pydantic_core import ErrorDetails
 from yaml.constructor import ConstructorError
 
 from .artifact_store import JsonValue
+from .core.markdown_variables import MARKDOWN_VARIABLE_RE
 from .errors import LayoutError
 from .layout import (
     LAYOUT_SCHEMA_VERSION,
@@ -55,7 +56,6 @@ from .layout import (
     ReportLayout,
     StatesNode,
 )
-from .markdown_variables import MARKDOWN_VARIABLE_RE
 
 _MISSING = object()
 """Sentinel for a location that does not resolve into the parsed document."""

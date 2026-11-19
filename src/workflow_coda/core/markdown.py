@@ -54,6 +54,7 @@ from ..components import (
 from ..context import RenderContext
 from ..errors import ArtifactUnavailableError
 from ..manifest.artifact import ArtifactFormat
+from .markdown_variables import MARKDOWN_VARIABLE_RE
 from .parameters import _optional_text, _required_text
 
 _MD: Final[MarkdownIt] = MarkdownIt("js-default", {"html": True}).use(deflist_plugin)
@@ -67,7 +68,7 @@ data, not a data table)."""
 _MARKDOWN_PARAMETERS: Final[frozenset[str]] = frozenset({"artifact", "text"})
 """core.markdown's accepted parameter vocabulary."""
 
-_VARIABLE: Final[re.Pattern[str]] = re.compile(r"\{\{\s*([A-Za-z0-9_.\-]+)\s*\}\}")
+_VARIABLE: Final[re.Pattern[str]] = MARKDOWN_VARIABLE_RE
 """A template variable: ``{{ name }}`` or ``{{name}}``, dotted paths
 included — resolving against the artifact's top-level object."""
 
