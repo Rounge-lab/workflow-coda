@@ -418,9 +418,7 @@ def _container_html(
     return f'<div class="{kind} {_split_class(ratios)}">{inner}</div>'
 
 
-def _states_html(
-    entry: StatesEntry, panel_html: str, state_ids: Iterator[int]
-) -> str:
+def _states_html(entry: StatesEntry, panel_html: str, state_ids: Iterator[int]) -> str:
     """Every expanded panel in axis order, with escaped raw labels.
 
     Panel identities use the render call's shared counter, allocated
@@ -450,9 +448,7 @@ def _states_html(
     return "".join(parts)
 
 
-def _node_html(
-    node: DocumentNode, panel_html: str, state_ids: Iterator[int]
-) -> str:
+def _node_html(node: DocumentNode, panel_html: str, state_ids: Iterator[int]) -> str:
     """One document node as html — the tree walk's dispatch."""
     if isinstance(node, ComponentEntry):
         return _component_entry_html(node)
@@ -485,9 +481,7 @@ def _node_html(
     return f'<div class="coda-group">{title}{inner}</div>'
 
 
-def _tab_body(
-    tab: DocumentTab, panel_html: str, state_ids: Iterator[int]
-) -> Markup:
+def _tab_body(tab: DocumentTab, panel_html: str, state_ids: Iterator[int]) -> Markup:
     """One tab's node tree as assembled body html: framework chrome
     throughout, every framework text escaped by the walk, and exactly
     one raw point inside each rendered component's plugin html."""

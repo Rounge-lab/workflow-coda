@@ -324,10 +324,13 @@ def test_states_style_is_static_and_print_keeps_panels_visible() -> None:
         page,
     )
     assert print_block is not None
-    assert re.search(
-        r"\.coda-state\s*\{\s*display:\s*block\s*!important\s*;\s*\}",
-        print_block.group("rules"),
-    ) is not None
+    assert (
+        re.search(
+            r"\.coda-state\s*\{\s*display:\s*block\s*!important\s*;\s*\}",
+            print_block.group("rules"),
+        )
+        is not None
+    )
     assert ".coda-js .coda-state" not in page
     assert len(_elements(page).with_class("coda-state")) == 2
     assert "<script" not in page
