@@ -33,14 +33,80 @@
   font-weight: 600;
 }
 
-.coda-selection-control > select {
+/* Selection dropdown */
+
+.coda-dropdown {
+  position: relative;
+  width: 16rem;
+  max-width: 100%;
+}
+
+.coda-dropdown-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
   font: inherit;
+  text-align: left;
   color: var(--coda-text);
   background: var(--coda-surface);
   border: 1px solid var(--coda-border);
   border-radius: 4px;
-  padding: 0.35rem 0.5rem;
-  max-width: 100%;
+  cursor: pointer;
+}
+
+.coda-dropdown-button > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.coda-dropdown-button > .coda-icon {
+  flex: none;
+}
+
+.coda-dropdown-button:focus-visible {
+  outline: 2px solid var(--coda-accent);
+  outline-offset: 2px;
+}
+
+.coda-dropdown-list {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  right: 0;
+  max-height: 14rem;
+  overflow-y: auto;
+  padding: 0.25rem 0;
+  background: var(--coda-surface);
+  border: 1px solid var(--coda-border);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.12);
+}
+
+.coda-dropdown-list[hidden] {
+  display: none;
+}
+
+.coda-dropdown-option {
+  margin: 0 0.25rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.coda-dropdown-option[aria-selected="true"] {
+  font-weight: 700;
+}
+
+.coda-dropdown-option.is-active {
+  color: var(--coda-text-light);
+  background: var(--coda-accent);
 }
 
 /* Ordered state slider */

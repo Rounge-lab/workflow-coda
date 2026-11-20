@@ -62,6 +62,7 @@ from markupsafe import Markup, escape
 
 from .components import FIGURE_DIV_CLASS, ComponentChrome, ComponentStatus
 from .errors import RenderError
+from .icons import IconLibrary, IconSource
 from .manifest import ArtifactStatus, ReportManifest
 from .report import (
     CardEntry,
@@ -212,6 +213,20 @@ def _has_figures(document: ReportDocument) -> bool:
             ):
                 return True
     return False
+
+
+def _dropdown_icon(document: ReportDocument) -> str | None:
+    """Load framework dropdown chrome independently of the plugin registry."""
+    has_categorical_states = any(
+        isinstance(node, StatesEntry) and node.kind == "categorical"
+        for tab in document.tabs
+        for node in _walk_nodes(tab.nodes)
+    )
+    if not has_categorical_states:
+        return None
+
+    library = IconLibrary((IconSource.for_plugin("core", "workflow_coda.core"),))
+    return library.load("core-dropdown").markup
 
 
 def _navigation_js(document: ReportDocument) -> str | None:
@@ -581,6 +596,7 @@ def render_report(document: ReportDocument) -> str:
         css_layout=_splits_css(document),
         component_css=_component_css(document),
         plotly_js=_plotly_js() if _has_figures(document) else None,
+        dropdown_icon=_dropdown_icon(document),
         report_js=_navigation_js(document),
         component_js=_component_js(document),
         provenance_lines=_provenance_lines(document.manifest),

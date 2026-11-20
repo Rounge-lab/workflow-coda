@@ -119,7 +119,9 @@ def test_states_tutorial_builds_two_complete_batches(tmp_path: Path) -> None:
     component_scripts = int(any(item.js is not None for item in document.chrome))
     assert page.count("<script>") == 1 + component_scripts
     assert page.count("window.codaSelectionWidgets = Object.freeze") == 1
-    assert 'document.createElement("select")' in page
+    assert 'button.setAttribute("role", "combobox")' in page
+    assert 'list.setAttribute("role", "listbox")' in page
+    assert '<template id="coda-dropdown-icon">' in page
     assert "<select" not in page
     assert "{batch}" not in page
 

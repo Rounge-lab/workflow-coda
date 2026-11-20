@@ -198,29 +198,172 @@
     );
   }
 
-  function categoricalControl(plan) {
-    var input = document.createElement("select");
-    var placeholder;
-    if (plan.selected === null) {
-      placeholder = document.createElement("option");
-      placeholder.value = "";
-      placeholder.textContent = unselectedText;
-      placeholder.disabled = true;
-      input.appendChild(placeholder);
+  function categoricalControl(plan, container, label) {
+    var dropdown = document.createElement("div");
+    var button = document.createElement("button");
+    var value = document.createElement("span");
+    var list = document.createElement("div");
+    var iconTemplate = document.getElementById("coda-dropdown-icon");
+    var options = [];
+    var selected = plan.values.indexOf(plan.selected);
+    var active = selected >= 0 ? selected : 0;
+    var search = "";
+    var searchTimer = null;
+    var id = "coda-selection-" + plan.dimension;
+    var labelId = id + "-label";
+    var valueId = id + "-value";
+    var listId = id + "-list";
+
+    dropdown.className = "coda-dropdown";
+    button.type = "button";
+    button.className = "coda-dropdown-button";
+    button.setAttribute("role", "combobox");
+    button.setAttribute("aria-labelledby", labelId + " " + valueId);
+    button.setAttribute("aria-haspopup", "listbox");
+    button.setAttribute("aria-expanded", "false");
+    button.setAttribute("aria-controls", listId);
+
+    label.id = labelId;
+    value.id = valueId;
+    value.textContent = selected < 0 ? unselectedText : plan.values[selected];
+    button.appendChild(value);
+
+    if (iconTemplate) {
+      button.appendChild(iconTemplate.content.cloneNode(true));
     }
-    plan.values.forEach(function (raw) {
-      var option = document.createElement("option");
-      option.value = raw;
+
+    list.className = "coda-dropdown-list";
+    list.id = listId;
+    list.setAttribute("role", "listbox");
+    list.setAttribute("aria-labelledby", labelId);
+    list.hidden = true;
+
+    function setActive(index) {
+      active = Math.max(0, Math.min(index, options.length - 1));
+      options.forEach(function (option, optionIndex) {
+        option.classList.toggle("is-active", optionIndex === active);
+      });
+      button.setAttribute("aria-activedescendant", options[active].id);
+      options[active].scrollIntoView({ block: "nearest" });
+    }
+
+    function open() {
+      list.hidden = false;
+      button.setAttribute("aria-expanded", "true");
+      setActive(selected >= 0 ? selected : 0);
+    }
+
+    function close() {
+      list.hidden = true;
+      button.setAttribute("aria-expanded", "false");
+      button.removeAttribute("aria-activedescendant");
+      options.forEach(function (option) {
+        option.classList.remove("is-active");
+      });
+      search = "";
+      clearTimeout(searchTimer);
+    }
+
+    function choose(index) {
+      // selectValue rebuilds the controls and restores focus by dimension.
+      close();
+      selectValue(plan.dimension, plan.values[index]);
+    }
+
+    plan.values.forEach(function (raw, index) {
+      var option = document.createElement("div");
+      option.className = "coda-dropdown-option";
+      option.id = id + "-option-" + index;
+      option.setAttribute("role", "option");
+      option.setAttribute("aria-selected", index === selected ? "true" : "false");
       option.textContent = raw;
-      input.appendChild(option);
+      option.addEventListener("pointermove", function () {
+        setActive(index);
+      });
+      option.addEventListener("pointerdown", function (event) {
+        if (event.pointerType === "mouse") {
+          event.preventDefault();
+        }
+      });
+      option.addEventListener("click", function () {
+        // Keep focus on the combobox before controls are rebuilt.
+        button.focus();
+        choose(index);
+      });
+      options.push(option);
+      list.appendChild(option);
     });
-    input.value = plan.selected === null ? "" : plan.selected;
-    input.addEventListener("change", function () {
-      if (plan.values.indexOf(input.value) >= 0) {
-        selectValue(plan.dimension, input.value);
+
+    button.addEventListener("click", function () {
+      if (list.hidden) {
+        open();
+      } else {
+        close();
       }
     });
-    return input;
+
+    button.addEventListener("keydown", function (event) {
+      var match;
+      if (event.key === "Escape" && !list.hidden) {
+        event.preventDefault();
+        close();
+        return;
+      }
+      if (event.key === "Tab") {
+        close();
+        return;
+      }
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        if (list.hidden) {
+          open();
+        } else {
+          setActive(active + (event.key === "ArrowDown" ? 1 : -1));
+        }
+        return;
+      }
+      if (!list.hidden && (event.key === "Home" || event.key === "End")) {
+        event.preventDefault();
+        setActive(event.key === "Home" ? 0 : options.length - 1);
+        return;
+      }
+      if (!list.hidden && (event.key === "Enter" || event.key === " ")) {
+        event.preventDefault();
+        choose(active);
+        return;
+      }
+      if (event.key.length === 1 && event.key !== " " &&
+          !event.ctrlKey && !event.metaKey && !event.altKey) {
+        event.preventDefault();
+        if (list.hidden) {
+          open();
+        }
+        search += event.key.toLocaleLowerCase();
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(function () {
+          search = "";
+        }, 700);
+        match = plan.values.findIndex(function (raw) {
+          return raw.toLocaleLowerCase().indexOf(search) === 0;
+        });
+        if (match >= 0) {
+          setActive(match);
+        }
+      }
+    });
+
+    // Closing on focus loss also handles clicks outside without registering
+    // a document listener for every rebuild of the controls.
+    dropdown.addEventListener("focusout", function (event) {
+      if (!dropdown.contains(event.relatedTarget)) {
+        close();
+      }
+    });
+
+    dropdown.appendChild(button);
+    dropdown.appendChild(list);
+    container.appendChild(dropdown);
+    return button;
   }
 
   function orderedControl(plan, container) {
@@ -323,8 +466,7 @@
       if (plan.kind === "ordered") {
         input = orderedControl(plan, container);
       } else {
-        input = categoricalControl(plan);
-        container.appendChild(input);
+        input = categoricalControl(plan, container, label);
       }
       input.id = id;
       input.setAttribute("data-selection-dimension", plan.dimension);

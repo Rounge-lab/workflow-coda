@@ -98,6 +98,9 @@
       </main>
       {{ provenance_footer(document, provenance_lines, attribution) }}
     </div>
+    {% if dropdown_icon %}
+    <template id="coda-dropdown-icon">{{ dropdown_icon | safe }}</template>
+    {% endif %}
     {% if report_js %}
     <script>{{ report_js | safe }}</script>
     {% endif %}
