@@ -247,7 +247,7 @@ to dynamically generate the ``manifest.json`` based on the actual pipeline
 output. Take a look at the :ref:`Producing manifests how-to guide <families-for-each>`.
 For more details on how to build and customize your own reports, continue with
 :doc:`../how-to/report-authoring`; the exact keys available are documented in
-:doc:`../reference/framework/schemas`.
+:doc:`../reference/schemas/index`.
 
 Where next
 ----------
@@ -255,5 +255,5 @@ Where next
 * :doc:`first-plugin` grows the original single-batch report with a component
   you get to write yourself: a Plotly figure ``workflow-coda`` does not ship.
 * Every layout and theme key, with its exact shape:
-  :doc:`../reference/framework/schemas`.
-* The command and its exit codes: :doc:`../reference/framework/cli`.
+  :doc:`../reference/schemas/index`.
+* The command and its exit codes: :doc:`../reference/cli`.

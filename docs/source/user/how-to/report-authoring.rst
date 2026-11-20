@@ -31,7 +31,7 @@ Success is silent and writes ``report.html`` in the working
 directory (``-o`` chooses another path). A failure prints one
 teaching message on stderr, naming the file, the problem, and the
 fix; the exit codes are documented in
-:doc:`../reference/framework/cli`.
+:doc:`../reference/cli`.
 
 Two path rules keep everything findable: artifact paths in the
 manifest resolve against the manifest's directory, and theme, logo,
@@ -40,7 +40,7 @@ directory. Keeping a report's files together in one directory makes
 both trivial — the tutorial's structure is the one to copy.
 
 The full grammar of both files — every key, its shape, its meaning —
-is the schemas page: :doc:`../reference/framework/schemas`. This
+is the schemas page: :doc:`../reference/schemas/index`. This
 guide tells you when to reach for a key; the schemas define it.
 
 Placing components
@@ -284,7 +284,7 @@ the default, or choose an available value with the control. Initial load
 and fragment changes do not silently repair the URL. Unknown tabs,
 malformed directives, and axis conflicts produce visible feedback;
 the exact degradation rules are in
-:doc:`../reference/framework/schemas`.
+:doc:`../reference/schemas/index`.
 
 Handling missing state content
 -------------------------------
@@ -439,7 +439,7 @@ meet:
 
 An exit code of ``2`` is different: the command itself was wrong —
 a missing argument, an unknown flag, a nonexistent path
-(:doc:`../reference/framework/cli`).
+(:doc:`../reference/cli`).
 
 When the page renders, but...
 -----------------------------
@@ -474,5 +474,5 @@ Where next
   beyond what ships.
 * :doc:`../reference/core/index` — the components the framework
   ships, parameter by parameter.
-* :doc:`../reference/framework/schemas` — every key of every file
+* :doc:`../reference/schemas/index` — every key of every file
   and the read-time selection grammar.

@@ -11,7 +11,7 @@ nothing else. Producing it happens during the pipeline run and can be aided by
 ``workflow-coda verify``.
 
 You can either write the manifest file by hand — the grammar is documented in
-:doc:`../reference/framework/schemas`, or you can employ ``workflow-coda
+:doc:`../reference/schemas/index`, or you can employ ``workflow-coda
 verify``, which reads each artifact file, checks it under its declared format,
 and writes the manifest carrying a SHA-256 checksum of exactly the bytes it
 checked, and the record of exactly what the check was.
@@ -417,6 +417,6 @@ The manifest records paths relative to itself. This way ``manifest.json`` and
 the artifacts it declares become portable as one tree.  From there the page can
 be constructed with the declared artifacts. The layout, the theme, the tabs
 (:doc:`report-authoring`) meet your manifest at ``workflow-coda build``
-(:doc:`../reference/framework/cli`).  The end-to-end story is the :doc:`hello
+(:doc:`../reference/cli`).  The end-to-end story is the :doc:`hello
 report tutorial <../tutorials/hello-report>`. The exact grammar of every file is
-documented at :doc:`../reference/framework/schemas`.
+documented at :doc:`../reference/schemas/index`.

@@ -33,7 +33,7 @@ owned by someone with different knowledge:
 The seams are the files and contracts you have already met: the
 manifest speaks pipeline-to-framework, the layout speaks
 author-to-framework, and the component contracts speak
-plugin-to-framework (:doc:`../reference/framework/schemas`).  No
+plugin-to-framework (:doc:`../reference/schemas/index`).  No
 party needs to know more about the others than these files say —
 which is why a report survives its pipeline, its author, and its
 plugin author all moving on.
@@ -95,7 +95,7 @@ mapping keys name the key and its line; an unknown
 ``header_color`` token names the tokens the theme actually
 declares; a nonexistent path is refused before the pipeline even
 starts.  This is why exit code ``1``
-(:doc:`../reference/framework/cli`) always means one teaching
+(:doc:`../reference/cli`) always means one teaching
 message on stderr — never a traceback.
 
 One file, no dependencies

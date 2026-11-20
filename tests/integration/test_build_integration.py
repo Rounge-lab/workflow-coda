@@ -17,9 +17,7 @@ def _maybe_write_fixture_report(fixture: Path, html: str) -> None:
 
 
 def test_core_table_fixture_builds_a_real_report(tmp_path: Path) -> None:
-    fixture = (
-        Path(__file__).resolve().parent / "fixtures" / "report" / "core-table"
-    )
+    fixture = Path(__file__).resolve().parent / "fixtures" / "report" / "core-table"
     manifest_path = fixture / "manifest.json"
     layout_path = fixture / "layout.yaml"
     output_path = tmp_path / "core-table-report.html"

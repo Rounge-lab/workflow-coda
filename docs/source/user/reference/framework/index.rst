@@ -15,6 +15,7 @@ are the fastest way in.
    api/errors
    api/manifest
    api/verification
+   api/verifiers
    api/artifact_store
    api/theme
    api/icons
@@ -29,5 +30,3 @@ are the fastest way in.
    api/report
    api/assets
    api/render
-   cli
-   schemas
