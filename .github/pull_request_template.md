@@ -8,7 +8,8 @@ Describe the change and its motivation.
 - [ ] I have run `pixi run test` and all tests passed.
 - [ ] I added or updated tests for this change, or explained below why tests are not applicable.
 - [ ] I updated relevant documentation, docstrings, examples, or changelog material.
-- [ ] I checked that the documentation builds with `pixi run -e docs docs`.
+- [ ] I checked that the documentation builds with `pixi run docs`.
+- [ ] I have updated the demo in accordance with the changes and checked it using `pixi run demo`.
 - [ ] This PR is focused and does not contain unrelated changes.
 
 ## Testing
