@@ -59,6 +59,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 workflow_coda = [
+    "py.typed",
     "templates/*",
     "core/assets/icons/*.svg",
     "core/assets/*.css",
