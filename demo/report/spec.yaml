@@ -1,0 +1,88 @@
+producer:
+  name: visual-demo
+  version: "1.0"
+
+artifacts:
+  - file: samples.tsv
+    id: samples
+    type: org.example.samples
+    format: core.tabular
+    schema_version: "1.0"
+    criteria:
+      sep: "\t"
+      header: true
+      columns: [sample_id, depth, batch, status]
+      min_rows: 4
+
+  - file: counts.tsv
+    id: counts
+    type: org.example.counts
+    format: core.tabular
+    schema_version: "1.0"
+    criteria:
+      columns: [A, B]
+      min_rows: 3
+
+  - file: measurements.csv
+    id: measurements
+    type: org.example.measurements
+    format: core.tabular
+    schema_version: "1.0"
+    criteria:
+      sep: ","
+      header: true
+      columns: [sample, value, group]
+      min_rows: 3
+
+  - file: headerless.csv
+    id: headerless
+    type: org.example.headerless
+    format: core.tabular
+    schema_version: "1.0"
+    criteria:
+      sep: ","
+      header: false
+      min_rows: 3
+
+  # This declaration is deliberately recorded as failed.
+  - file: missing.json
+    id: missing
+    type: org.example.failed
+    format: json
+    schema_version: "1.0"
+
+  - for_each:
+      dimension: sample
+      values: ["List A", "List B"]
+    sanitize: true
+    file: "list/{sample}.json"
+    id: "list_{sample}"
+    type: "org.example.list.{sample}"
+    format: json
+    schema_version: "1.0"
+    criteria:
+      keys: [value]
+
+  - for_each:
+      dimension: sample
+      samplesheet:
+        file: samplesheet.tsv
+        column: sample_id
+    sanitize: true
+    file: "sheet/{sample}.json"
+    id: "sheet_{sample}"
+    type: "org.example.sheet.{sample}"
+    format: json
+    schema_version: "1.0"
+    criteria:
+      keys: [value]
+
+  - for_each:
+      dimension: sample
+      glob: "glob/{sample}.json"
+    id: "glob_{sample}"
+    type: "org.example.glob.{sample}"
+    format: json
+    schema_version: "1.0"
+    criteria:
+      keys: [value]
