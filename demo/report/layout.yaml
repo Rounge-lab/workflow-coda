@@ -1,0 +1,441 @@
+schema_version: "0.3.0"
+title: Workflow Coda visual inspection
+subtitle: A deliberately varied report for manual browser review
+author: Workflow Coda developers
+version: "Visual fixture 1"
+theme: theme.yaml
+logo: core-coda
+favicon: favicon.svg
+header_color: primary
+on_missing: notice
+on_unavailable: notice
+
+tabs:
+  - title: Start here
+    components:
+      - id: core.markdown
+        title: Inspection guide
+        parameters:
+          text: |
+            This report exercises the core components and layout grammar.
+
+            - Inspect the header, logo, favicon, title, subtitle, author,
+              and report version.
+            - Resize the browser and check rows, grids, and cards.
+            - Use the state selectors and table controls.
+            - Check print preview and, where practical, keyboard navigation.
+            - The missing component and failed artifact on the Outcomes tab
+              are intentional. Other failure cards need investigation.
+
+            The manifest beside this report contains both successful and
+            failed verifier records.
+
+      - type: row
+        split: [2, 1]
+        children:
+          - id: core.notice
+            title: Expected warning
+            parameters:
+              level: warning
+              text: |
+                The build intentionally records one missing JSON artifact.
+                Its warning in the terminal is expected.
+          - id: core.notice
+            title: Inspect the diagnostics tab
+            parameters:
+              level: note
+              color: accent
+              text: |
+                Compare diagnostic entries with the intentional examples.
+                Unexpected plugin failures are not part of the fixture.
+
+  - title: KPIs
+    components:
+      - id: core.markdown
+        title: What to inspect
+        parameters:
+          text: |
+            Compare text, solid fill, and gradient plates. Check that the
+            rounded number, unit, caption, and icon positions are legible.
+            Threshold boundaries below are inclusive.
+
+      - type: grid
+        split: [1, 1, 1]
+        children:
+          - id: core.kpi
+            title: Text with inline icon
+            parameters:
+              artifact: org.example.stats
+              key: depth
+              variant: text
+              color: accent
+              decimals: 2
+              unit: x
+              caption: Expect 42.34 or 42.35 according to numeric rounding.
+              icon: core-arrow-up
+              icon_position: inline
+
+          - id: core.kpi
+            title: Solid fill
+            parameters:
+              artifact: org.example.stats
+              key: nested.count
+              variant: fill
+              color: primary
+              unit: samples
+              caption: Solid primary plate with contrast-selected ink.
+
+          - id: core.kpi
+            title: Gradient with corner icon
+            parameters:
+              artifact: org.example.stats
+              key: depth
+              variant: gradient
+              color: [surface, accent]
+              decimals: 1
+              unit: x
+              icon: core-arrow-up
+              icon_position: corner
+              caption: Two-color plate; icon sits at the upper right.
+
+      - type: card
+        title: Threshold outcomes
+        layout: row
+        split: [1, 1, 1]
+        children:
+          - id: core.kpi
+            title: OK — above and below
+            parameters:
+              artifact: org.example.stats
+              key: rate
+              variant: fill
+              unit: "%"
+              thresholds:
+                ok: {above: 90, below: 100}
+                notice: {above: 80}
+              caption: Green success plate.
+
+          - id: core.kpi
+            title: Notice — below OK
+            parameters:
+              artifact: org.example.stats
+              key: rate
+              variant: fill
+              unit: "%"
+              thresholds:
+                ok: {above: 95}
+                notice: {above: 80, below: 95}
+              caption: Warning-colored plate.
+
+          - id: core.kpi
+            title: Failure — outside bounds
+            parameters:
+              artifact: org.example.stats
+              key: low
+              variant: fill
+              thresholds:
+                ok: {above: 10}
+                notice: {above: 5}
+              caption: Danger-colored plate.
+
+  - title: Tables
+    components:
+      - id: core.notice
+        title: Table inspection
+        parameters:
+          text: |
+            Sort a column through ascending, descending, and original order.
+            Filter for S2, clear the filter, and try copy. Check the caption
+            and the table at a narrow browser width.
+
+      - id: core.table
+        title: Samples — reordered columns
+        parameters:
+          artifact: org.example.samples
+          columns: [status, sample_id, depth]
+          caption: Status is first; batch is omitted.
+
+      - type: card
+        title: Two table readings
+        layout: grid
+        split: [1, 1]
+        children:
+          - id: core.table
+            title: Index column
+            parameters:
+              artifact: org.example.counts
+              columns: [B, A]
+              caption: The unlabeled index remains first; B precedes A.
+
+          - id: core.table
+            title: Headerless CSV
+            parameters:
+              artifact: org.example.headerless
+              sep: ","
+              header: false
+              caption: Three data rows with positional column labels.
+
+      - id: core.table
+        title: Headered CSV
+        parameters:
+          artifact: org.example.measurements
+          sep: ","
+          caption: Three columns and three data rows.
+
+  - title: Charts
+    components:
+      - id: core.markdown
+        title: Chart inspection
+        parameters:
+          text: |
+            Figures are interactive. Check their colors, captions, labels,
+            hover behavior, and resizing after switching tabs or states.
+            The logarithmic examples use positive values only.
+
+      - type: grid
+        split: [1, 1]
+        children:
+          - id: core.chart
+            title: Bar — hue groups
+            parameters:
+              artifact: org.example.samples
+              chart: bar
+              x: sample_id
+              y: depth
+              hue: batch
+              caption: Expect three palette-colored batch traces.
+
+          - id: core.chart
+            title: Scatter — explicit color
+            parameters:
+              artifact: org.example.counts
+              chart: scatter
+              x: A
+              y: B
+              color: series-2
+              caption: Three points in the second series color.
+
+          - id: core.chart
+            title: Line — no grid
+            parameters:
+              artifact: org.example.counts
+              chart: line
+              x: A
+              y: B
+              grid: false
+              caption: Points are connected in file order; grid is hidden.
+
+          - id: core.chart
+            title: Histogram — grouped
+            parameters:
+              artifact: org.example.samples
+              chart: histogram
+              x: depth
+              hue: batch
+              caption: Batch distributions overlay with reduced opacity.
+
+          - id: core.chart
+            title: Box — grouped by batch
+            parameters:
+              artifact: org.example.samples
+              chart: box
+              x: batch
+              y: depth
+              caption: Compare distributions by batch.
+
+          - id: core.chart
+            title: Logarithmic axes and CSV delimiter
+            parameters:
+              artifact: org.example.measurements
+              chart: scatter
+              sep: ","
+              x: value
+              y: value
+              color: accent
+              log_x: true
+              log_y: true
+              caption: Positive values 1, 10, and 100 on both log axes.
+
+  - title: States
+    components:
+      - id: core.notice
+        title: Selector inspection
+        parameters:
+          text: |
+            Switch each selector. The categorical selector should show one
+            list value at a time; the ordered selector should use a slider.
+            Check the URL, reload, browser history behavior, keyboard access,
+            and the report without JavaScript if practical.
+
+      - type: states
+        dimension: sample
+        kind: categorical
+        values: [list-a, list-b]
+        children:
+          - type: card
+            title: "Categorical selection: {sample}"
+            children:
+              - id: core.kpi
+                title: "Value for {sample}"
+                parameters:
+                  artifact: "org.example.list.{sample}"
+                  key: value
+                  caption: List A is 11; List B is 22.
+
+      - type: states
+        dimension: point
+        kind: ordered
+        values: [sample2, sample10]
+        children:
+          - id: core.kpi
+            title: "Ordered selection: {point}"
+            parameters:
+              artifact: "org.example.glob.{point}"
+              key: value
+              caption: The slider should retain this declared order.
+
+  - title: Prose
+    components:
+      - id: core.markdown
+        title: Markdown vocabulary and substitution
+        parameters:
+          artifact: org.example.stats
+          text: |
+            ## Heading level two
+
+            Mean depth is **{{ depth }}**, and the nested count is
+            `{{ nested.count }}`. The verdict below is data: its stars and
+            angle brackets should remain literal, not become markup.
+
+            > {{ verdict }}
+
+            ### Heading level three
+
+            A paragraph with *emphasis*, **strong text**, and `inline code`.
+
+            - First unordered item
+            - Second unordered item
+              - Nested item
+
+            1. First ordered item
+            2. Second ordered item
+
+            #### Heading level four
+
+            `depth`
+            : Mean depth from the JSON artifact.
+
+            `rate`
+            : Percentage used by the threshold examples.
+
+            ---
+
+            A fenced block:
+
+            ```text
+            depth = {{ depth }}
+            ```
+
+      - type: row
+        children:
+          - id: core.markdown
+            title: Narrow prose
+            parameters:
+              text: |
+                Resize the window and check that this paragraph wraps
+                cleanly without overlapping its neighbor.
+          - id: core.markdown
+            title: Second column
+            parameters:
+              text: |
+                This row omits split ratios, so both children have equal
+                widths before responsive collapse.
+
+  - title: Notices
+    components:
+      - type: grid
+        split: [1, 1]
+        children:
+          - id: core.notice
+            title: Note — default
+            parameters:
+              level: note
+              text: A neutral note with the default muted border.
+
+          - id: core.notice
+            title: Success
+            parameters:
+              level: success
+              text: A success stance with the success-colored border.
+
+          - id: core.notice
+            title: Warning
+            parameters:
+              level: warning
+              text: A warning stance with the warning-colored border.
+
+          - id: core.notice
+            title: Failure
+            parameters:
+              level: failure
+              text: An author-declared failure stance, not a plugin error.
+
+          - id: core.notice
+            title: Collapsed custom note
+            parameters:
+              level: note
+              color: accent
+              collapsed: true
+              text: |
+                This note starts closed. Open and close it using both pointer
+                and keyboard, then compare print preview in each state.
+
+  - title: Outcomes
+    components:
+      - id: core.notice
+        title: Intentional degradation examples
+        parameters:
+          text: |
+            The next two placements are intentional: one component does not
+            exist, and one KPI references the artifact recorded as failed.
+            Both should produce notices rather than healthy components.
+
+      - id: absent.example
+        title: Missing component — intentional
+
+      - id: core.kpi
+        title: Failed artifact — intentional
+        on_unavailable: notice
+        parameters:
+          artifact: org.example.failed
+          key: depth
+
+      - id: core.markdown
+        title: Skipped unavailable placement follows
+        parameters:
+          text: |
+            No card should appear between this explanation and the next
+            notice: the unavailable placement uses the skip policy.
+
+      - id: core.kpi
+        title: This card should not be visible
+        on_unavailable: skip
+        parameters:
+          artifact: org.example.failed
+          key: depth
+
+      - id: core.notice
+        title: End of skipped placement example
+        parameters:
+          text: The skipped KPI should not render a visible card.
+
+  - title: Diagnostics
+    components:
+      - id: core.markdown
+        title: Inspect the ledger
+        parameters:
+          text: |
+            Compare the ledger with the intentional missing and unavailable
+            examples. Investigate unexpected plugin failures.
+
+      - type: diagnostics

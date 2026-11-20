@@ -13,16 +13,20 @@ registry.
 The grammar has two kinds of node, told apart by shape.  A node
 carrying ``id`` is a *placement*: one component instance with its
 optional title, parameters, and placement policies (on_missing,
-on_unavailable).  A node carrying
+on_unavailable).
+A node carrying
 ``type`` is a *composition node*: ``row`` lays its children side by
 side under optional width ratios, ``grid`` flows children row-major
 into ratio-given columns, ``card`` groups its children in an
-optionally titled box with its own arrangement, and ``diagnostics``
-places the report's diagnostics panel.  Nodes nest — a tab's list, a
-row's, a grid's, and a card's children all speak the same grammar —
-so layouts compose the way frames do in a design tool.  Tabs are the
-report's navigation: the rendered tab bar is generated from them, and
-a single-tab report shows no bar.
+optionally titled box with its own arrangement, ``diagnostics``
+places the report's diagnostics panel, and ``states`` expands its
+children once per value of a dimension's axis — declared in the file
+or derived from the manifest at build time.
+Nodes nest — a tab's list and the children of rows, grids, cards,
+and states all speak the same grammar — so layouts compose the way
+frames do in a design tool.  Tabs are the report's navigation: the
+rendered tab bar is generated from them, and a single-tab report
+shows no bar.
 
 The layout is the "third flavor" of the validation rules: it is
 deserialized from a file like the manifest (strict pydantic models,
@@ -35,16 +39,16 @@ Validation is two-stage, following the find/require line.  The
 models check *shape*: ids look like component ids, tabs are
 non-empty, split ratios are positive numbers, and composition is
 consistent (a row's ratios match its child count, a stack takes no
-split).  Resolution questions — does the component exist, does the
-theme file exist — belong to the report builder, which has the live
+split).  Resolution questions — does the component exist, does
+the theme file exist — belong to the report builder, which has the live
 registry and the filesystem.
 
 Three fields follow one rule: declared, then strict.  ``logo`` and
 ``favicon`` must exist next to the layout file and be embeddable
 images, or the build fails; omitted, the report renders without them
 and the builder records a diagnostic explaining how to add one.
-``theme`` likewise: omitted means the built-in default theme (and a
-diagnostic); declared, the file must load.  Assets are embedded into
+``theme`` likewise: omitted means the built-in default theme (and
+a diagnostic); declared, the file must load.  Assets are embedded into
 the single-page report as data URIs at build time — the report file
 never references external files.
 """
@@ -65,23 +69,26 @@ from pydantic_core import ErrorDetails
 
 from .artifact_store import JsonValue
 from .components import COMPONENT_ID_PATTERN
-from .text import has_visible_text
+from .text import DIMENSION_NAME_RE, has_visible_text
 from .theme import ThemeToken
 
-LayoutSchemaVersion = Literal["0.2.0"]
+LayoutSchemaVersion = Literal["0.3.0"]
 """The layout contract's own version.
 
 An axis entirely distinct from manifest schema versions: the manifest
-version gates plugins, the layout version versions the layout file
+version gate plugins, the layout version versions the layout file
 format itself.  The two are never compared.
 
+Version 0.3.0 added the ``states`` composition node — a dimension's
+family, its axis declared or derived from the manifest — and changed
+nothing else: a 0.2.0 file loads as-is once its version is updated.
 Version 0.2.0 renamed ``sections:`` to ``tabs:`` and made tabs the
-report's navigation (the ``toc:`` key is gone; layouts now compose
-through row, grid, card, and diagnostics nodes).  The loader teaches
-the migration for 0.1.0 files.
+report's navigation (the ``toc:`` key is gone; layouts compose through
+row, grid, card, diagnostics, and states nodes).  The loader teaches
+the migration for 0.1.0 and 0.2.0 files.
 """
 
-LAYOUT_SCHEMA_VERSION: Final[str] = "0.2.0"
+LAYOUT_SCHEMA_VERSION: Final[str] = "0.3.0"
 """The layout contract version this framework reads — the axis's single
 source of truth.  The loader's version gate and the layout factories
 read this constant; ``LayoutSchemaVersion`` beside it is the
@@ -124,6 +131,23 @@ def _require_component_id_shape(value: str) -> str:
     return value
 
 
+def _require_dimension_name(value: str) -> str:
+    """Reject dimension names that are not placeholder names.
+
+    A dimension is its children's placeholder name, so it follows the
+    placeholder grammar: lowercase snake_case — ``batch``,
+    ``sample_id`` — never uppercase, spaces, or braces.
+    """
+    if DIMENSION_NAME_RE.fullmatch(value) is None:
+        raise ValueError(
+            f"not a dimension name: {value!r} — a dimension is a "
+            "placeholder name, lowercase snake_case like 'batch' or "
+            "'sample_id'; its children's strings carry it in braces, "
+            'e.g. title: "QC — {batch}"'
+        )
+    return value
+
+
 class MissingPolicy(Enum):
     """What the builder does when a placement's component id resolves to
     no loaded component.
@@ -153,8 +177,8 @@ class UnavailablePolicy(Enum):
     component *resolution* (does the environment offer the
     component?); this governs the *outcome* (did the pipeline
     produce the component's data?).  Missing data is expected
-    pipeline behavior — a branch not taken, a partial run — so the
-    default is ``notice``, not ``fail``.
+    pipeline behavior — a branch not taken, a partial run — so
+    the default is ``notice``, not ``fail``.
 
     ``notice``
         The framework's notice card carries the outcome's message in
@@ -179,8 +203,8 @@ class ComponentPlacement(BaseModel):
     A placement is an *instance*, not a reference: the same component
     id may appear any number of times, in the same or different
     nodes, each with its own title and parameters.  A placement may
-    sit anywhere a node goes — a tab's list, a row's, a grid's, or a
-    card's children.  The builder renders each placement
+    sit anywhere a node goes — a tab's list or the children of a row,
+    grid, card, or states node.  The builder renders each placement
     independently.
     """
 
@@ -197,19 +221,27 @@ class ComponentPlacement(BaseModel):
     each carry their own heading.  Absent means inherit."""
 
     parameters: dict[str, JsonValue] = {}
-    """Transport: values pass to the component's render call exactly as
-    written.  The framework interprets none of them; each plugin reads
-    and validates the keys it cares about.  Values must be
-    JSON-compatible — YAML's richer types (dates, sets, binary) are
-    rejected with an error naming the field."""
+    """Component-owned transport.
+
+    Outside states, values pass to the component's render call as
+    written. Inside states, the builder first substitutes placeholders
+    in parameter keys and string leaves, recursively, using raw axis
+    values verbatim. Valid artifact variables in string-valued
+    ``core.markdown.text`` remain opaque to that expansion.
+
+    The framework does not interpret the component's parameter
+    vocabulary; each plugin reads and validates its own keys. Values
+    must be JSON-compatible — YAML's richer types (dates, sets, binary)
+    are rejected with an error naming the field."""
 
     on_missing: MissingPolicy | None = None
     """Per-placement override of the layout-level ``on_missing``; not
     given means inherit."""
 
     on_unavailable: UnavailablePolicy | None = None
-    """The policy when this component's render returns unavailable
-    (its data is missing); given means inherit the layout default."""
+    """Per-placement override when this component's render returns
+    unavailable (its data is missing); not given means inherit the
+    layout-level ``on_unavailable`` default."""
 
 
 def _require_positive_ratios(value: object) -> object:
@@ -348,7 +380,85 @@ class DiagnosticsNode(BaseModel):
     type: Literal["diagnostics"]
 
 
-_NODE_TYPES: Final[tuple[str, ...]] = ("row", "grid", "card", "diagnostics")
+StatesKind = Literal["categorical", "ordered"]
+"""What a states node's axis values are — declared, never inferred:
+``categorical`` peers or an ``ordered`` sequence.  The report
+document carries it forward onto its states entry, so the read-time
+half can offer its selector by it without re-reading the layout."""
+
+
+class StatesNode(BaseModel):
+    """``type: states`` — one dimension's family, expanded per value.
+
+    The composition grammar's repetition node: a *dimension* — a
+    placeholder name like ``batch`` or ``sample_id`` — and the
+    children expanded once per value of the dimension's *axis*.  The
+    axis is declared (``values``, order as written) or derived at
+    build time from the manifest's artifact types, in declaration
+    order; ``values`` absent means derived, and a single door carries
+    no contradiction to teach.
+
+    ``kind`` states what the values are, and the framework never
+    guesses it: ``categorical`` (the default) — the values are peers,
+    and no position means anything; ``ordered`` — the axis order is a
+    sequence.  ``["1", "2", "3"]`` are three labels that look like
+    numbers unless the author declares ``ordered``.
+
+    Children are the family's template: every free string may carry
+    the ``{dimension}`` placeholder — titles, parameter keys and
+    values — and the build substitutes the value verbatim.  A
+    placement's ``id`` refuses the placeholder: an id addresses a
+    component, and plugins declare no per-state components.  Nodes
+    nest — a states node may sit in any composition, and its children
+    may compose further, including another states node over a
+    different dimension.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    type: Literal["states"]
+    dimension: Annotated[str, AfterValidator(_require_dimension_name)]
+    """The family's dimension — the placeholder name its children's
+    strings carry, e.g. ``batch``."""
+
+    kind: StatesKind = "categorical"
+    """What the axis values are: ``categorical`` peers (the default)
+    or ``ordered`` positions — declared, never inferred, because the
+    framework refuses to guess whether ``["1", "2", "3"]`` are labels
+    or a sequence."""
+
+    values: tuple[VisibleText, ...] | None = None
+    """The declared axis, order as written: non-empty, unique values.
+    Absent means *derived* — the build collects the axis from the
+    manifest's artifact types, in declaration order."""
+
+    children: tuple[LayoutNode, ...] = Field(min_length=1)
+    """The family's template, expanded once per axis value."""
+
+    @model_validator(mode="after")
+    def _declared_axis_laws(self) -> Self:
+        """The declared door's own teachings: an empty axis is a
+        contradiction (omit ``values`` to derive), and a duplicate
+        value would render one state twice."""
+        if self.values is not None:
+            if not self.values:
+                raise ValueError(
+                    "a states node's 'values' must name at least one "
+                    "state — an empty axis renders nothing; omit "
+                    "'values' to derive the axis from the manifest"
+                )
+            seen: set[str] = set()
+            for value in self.values:
+                if value in seen:
+                    raise ValueError(
+                        f"a states node's 'values' names {value!r} twice "
+                        "— states are unique; remove the duplicate"
+                    )
+                seen.add(value)
+        return self
+
+
+_NODE_TYPES: Final[tuple[str, ...]] = ("row", "grid", "card", "diagnostics", "states")
 
 
 def _member_message(error: ErrorDetails) -> str:
@@ -419,6 +529,8 @@ def _dispatch_node(data: object) -> object:
         return _validate_member(CardNode, data)
     if node_type == "diagnostics":
         return _validate_member(DiagnosticsNode, data)
+    if node_type == "states":
+        return _validate_member(StatesNode, data)
     available = ", ".join(repr(name) for name in _NODE_TYPES)
     raise ValueError(
         f"unknown composition type {node_type!r} — compositions are {available}"
@@ -426,7 +538,7 @@ def _dispatch_node(data: object) -> object:
 
 
 LayoutNode = Annotated[
-    ComponentPlacement | RowNode | GridLayout | CardNode | DiagnosticsNode,
+    ComponentPlacement | RowNode | GridLayout | CardNode | DiagnosticsNode | StatesNode,
     BeforeValidator(_dispatch_node),
 ]
 """One node of the composition grammar, wherever nodes go.
@@ -438,6 +550,7 @@ consumers (the builder's walk) a precise type to narrow against."""
 RowNode.model_rebuild()
 GridLayout.model_rebuild()
 CardNode.model_rebuild()
+StatesNode.model_rebuild()
 # The node models reference LayoutNode before the alias exists; the
 # rebuilds above resolve those forward references now that it does.
 

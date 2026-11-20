@@ -7,13 +7,13 @@ the library: it validates its own invocation, then hands everything
 to code that already knows how to fail with teaching messages.
 One command ships today — ``build`` — which runs the whole pipeline
 and writes one self-contained HTML page.  The stages behind it are
-the framework's own: :doc:`api/manifest` loads and verifies the
-manifest, :doc:`api/layout_loader` loads the layout,
-:doc:`api/builder` composes the report document with the installed
-plugins, and :doc:`api/render` renders the page.
+the framework's own: :doc:`framework/api/manifest` loads and verifies the
+manifest, :doc:`framework/api/layout_loader` loads the layout,
+:doc:`framework/api/builder` composes the report document with the installed
+plugins, and :doc:`framework/api/render` renders the page.
 
 The fastest way to meet the command is the :doc:`"hello world" report
-<../../tutorials/hello-report>`.
+<../tutorials/hello-report>`.
 
 Usage
 -----
@@ -33,7 +33,7 @@ self-contained HTML page.
 each artifact file, check it under its declared format, and write
 the manifest — created, or updated in place — carrying each
 artifact's verification record and SHA-256 checksum.  The manifest
-is the stable interface ``build`` reads; :doc:`schemas` documents
+is the stable interface ``build`` reads; :doc:`schemas/index` documents
 it as written.
 
 ``build`` arguments
@@ -159,7 +159,7 @@ been placed; a crash never leaves a torn manifest.
 
 The pipeline-side workflow — a spec beside the outputs, verify as
 the workflow's last rule, reruns and recorded failures — is walked
-in :doc:`../../how-to/producing-manifests`.
+in :doc:`../how-to/producing-manifests`.
 
 Exit codes
 ----------

@@ -1,0 +1,14 @@
+schema_version: "0.3.0"
+title: Batch summary
+tabs:
+  - title: Headlines
+    components:
+      - type: states
+        dimension: batch
+        values: [a, b]
+        children:
+          - id: core.kpi
+            title: "Mean depth — batch {batch}"
+            parameters:
+              artifact: "org.example.sample_metrics-{batch}"
+              key: depth

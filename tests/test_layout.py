@@ -1,4 +1,4 @@
-"""Tests for the report layout model: shape validation — the 0.2.0
+"""Tests for the report layout model: shape validation — the
 grammar of tabs and composition nodes."""
 
 import re
@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from workflow_coda.artifact_store import JsonValue
 from workflow_coda.layout import (
+    LAYOUT_SCHEMA_VERSION,
     CardNode,
     ComponentPlacement,
     DiagnosticsNode,
@@ -40,7 +41,7 @@ def kpi(**overrides: JsonValue) -> dict[str, JsonValue]:
 
 def test_valid_layout_loads_with_defaults() -> None:
     layout = ReportLayout.model_validate(make_layout_payload())
-    assert layout.schema_version == "0.2.0"
+    assert layout.schema_version == LAYOUT_SCHEMA_VERSION
     assert layout.title == "Metagenomic analysis"
     assert layout.subtitle is None
     assert layout.theme is None
@@ -393,12 +394,19 @@ def test_placements_require_component_id_shape(id: str) -> None:
 def test_schema_version_is_required_and_must_be_known() -> None:
     payload = make_layout_payload()
     del payload["schema_version"]
-    with pytest.raises(ValidationError, match="schema_version"):
-        ReportLayout.model_validate(payload)
-    with pytest.raises(ValidationError, match="Input should be '0.2.0'"):
+    with pytest.raises(
+        ValidationError, match=f"Input should be '{LAYOUT_SCHEMA_VERSION}'"
+    ):
         ReportLayout.model_validate(make_layout_payload(schema_version="9.9.9"))
-    # 0.1.0 is rejected here too; the loader teaches the migration.
-    with pytest.raises(ValidationError, match="Input should be '0.2.0'"):
+    # Old versions are rejected here too; the loader teaches each
+    # migration — 0.2.0 is this flip's own addition.
+    with pytest.raises(
+        ValidationError, match=f"Input should be '{LAYOUT_SCHEMA_VERSION}'"
+    ):
+        ReportLayout.model_validate(make_layout_payload(schema_version="0.2.0"))
+    with pytest.raises(
+        ValidationError, match=f"Input should be '{LAYOUT_SCHEMA_VERSION}'"
+    ):
         ReportLayout.model_validate(make_layout_payload(schema_version="0.1.0"))
 
 

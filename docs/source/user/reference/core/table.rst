@@ -118,7 +118,7 @@ format is decoupled from any one component, the way ``json`` is:
 ``core.chart`` (:doc:`chart`) reads the same format and plots it —
 one format, two readers, the grammar living in the core plugin
 (the format value space is documented in
-:doc:`../framework/schemas`).
+:doc:`../schemas/index`).
 
 The index-column convention
 ---------------------------

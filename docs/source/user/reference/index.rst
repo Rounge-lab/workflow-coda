@@ -17,3 +17,5 @@ grammar.
 
    framework/index
    core/index
+   schemas/index
+   cli

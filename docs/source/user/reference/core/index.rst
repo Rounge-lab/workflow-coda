@@ -125,3 +125,4 @@ described once, in `Placement gates`_ above.
    chart
    markdown
    notice
+   tabular-verifier

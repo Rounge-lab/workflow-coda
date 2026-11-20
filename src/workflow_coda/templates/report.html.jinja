@@ -11,17 +11,19 @@
                       framework text and left exactly one raw point,
                       the plugin html of rendered components)
      has_tabs         whether the report has more than one tab; a
-                      single-tab report renders no bar and no script
+                      single-tab report renders no tab bar
      css_tokens       generated ":root" block (theme -> properties)
-     css_base         the framework stylesheet (style.css)
+     css_base         merged framework stylesheets: style.css and
+                      selection.css
      css_layout       the generated split-ratio rules (may be empty)
      component_css    the component style block — banner-commented
                       plugin css after the framework's own style, or
                       empty when no component contributed
      plotly_js        the inlined Plotly.js library, or None when no
                       entry contains a figure
-     report_js        the inlined tab-navigation script, or None when
-                      there is no tab bar
+     report_js        merged URL codec, selection policy, selector
+                      planner, and tab/state controller; None unless
+                      the document has multiple tabs or states
      component_js     the component script block — banner-commented
                       plugin js after the framework's own scripts, or
                       empty when no component contributed
@@ -96,6 +98,9 @@
       </main>
       {{ provenance_footer(document, provenance_lines, attribution) }}
     </div>
+    {% if dropdown_icon %}
+    <template id="coda-dropdown-icon">{{ dropdown_icon | safe }}</template>
+    {% endif %}
     {% if report_js %}
     <script>{{ report_js | safe }}</script>
     {% endif %}

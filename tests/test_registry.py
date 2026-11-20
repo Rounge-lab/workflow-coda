@@ -137,7 +137,7 @@ def test_require_component_on_empty_registry_says_none() -> None:
 
 
 def test_plugins_supporting_filters_by_manifest_schema_version() -> None:
-    # ``ManifestSchemaVersion`` is a Literal: "0.2.0" is the only version
+    # ``ManifestSchemaVersion`` is a Literal: the only version
     # the manifest contract carries today, so the *query* side is fixed
     # and the plugin *declarations* provide the variation.  (Asking about
     # "0.2.0" is a type type system enforcing that only

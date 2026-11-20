@@ -26,6 +26,7 @@ from workflow_coda.components import (
 )
 from workflow_coda.context import RenderContext
 from workflow_coda.core.plugin import get_plugin
+from workflow_coda.layout import LAYOUT_SCHEMA_VERSION
 from workflow_coda.manifest import ReportManifest
 from workflow_coda.registry import PluginRegistry
 from workflow_coda.render import render_report
@@ -287,7 +288,7 @@ def test_the_notice_reaches_the_page_under_its_banner(tmp_path: Path) -> None:
     # css in the page's component style block under its own banner —
     # the chrome channel's once-per-report law.
     (tmp_path / "layout.yaml").write_text(
-        'schema_version: "0.2.0"\n'
+        f'schema_version: "{LAYOUT_SCHEMA_VERSION}"\n'
         "title: Notices\n"
         "tabs:\n"
         "  - title: One\n"

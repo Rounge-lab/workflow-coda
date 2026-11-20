@@ -11,7 +11,7 @@ nothing else. Producing it happens during the pipeline run and can be aided by
 ``workflow-coda verify``.
 
 You can either write the manifest file by hand — the grammar is documented in
-:doc:`../reference/framework/schemas`, or you can employ ``workflow-coda
+:doc:`../reference/schemas/index`, or you can employ ``workflow-coda
 verify``, which reads each artifact file, checks it under its declared format,
 and writes the manifest carrying a SHA-256 checksum of exactly the bytes it
 checked, and the record of exactly what the check was.
@@ -119,6 +119,151 @@ The spec is a hand-authored file and gets checked by ``workflow-coda`` when the
 command is executed: duplicate keys are rejected naming the key and its line,
 unknown keys are rejected, and a spec declaring no artifacts is considered an
 authoring mistake.
+
+.. _families-for-each:
+
+Families of artifacts: ``for_each``
+-----------------------------------
+
+A pipeline rarely produces single-file outputs. QC files may be produced in
+batches, one results table may be produced per sample, and so on.
+``workflow-coda`` enables users to handle these axes through the spec's
+``for_each`` block. The axis family, the *dimension*, is declared once (e.g.
+``batch`` or ``sample_id``) and the *source* discovers its values.
+``workflow-coda verify``
+expands the block into its concrete members before anything is
+verified: the spec loads as if every block had been written out by
+hand, and the manifest never knows the family existed. ``for_each`` can exist in
+one of three shapes:
+
+.. code-block:: yaml
+
+   # Pre-determined values
+   - for_each: {dimension: batch, values: [b1, b2, b3]}
+     file: "qc/{batch}.json"
+     id: "qc-{batch}"
+     type: "org.example.qc-{batch}"
+     format: json
+     schema_version: "1.0"
+
+   # Values derived from a sample sheet
+   - for_each:
+       dimension: sample_id
+       samplesheet: {file: samples.csv, column: sample, sep: ","}
+     file: "tables/{sample_id}.tsv"
+     id: "table-{sample_id}"
+     type: "org.example.table-{sample_id}"
+     format: core.tabular
+     schema_version: "1.0"
+
+   # Values derived through file glob
+   - for_each: {dimension: sample_id, glob: "tables/{sample_id}.tsv"}
+     id: "table-{sample_id}"
+     type: "org.example.table-{sample_id}"
+     format: core.tabular
+     schema_version: "1.0"
+
+The house shape follows the sources.  ``file:`` is required with
+``values`` and ``samplesheet``, and forbidden with ``glob`` (the
+glob is its own path provider).  The glob carries exactly one
+placeholder, the block's own ``{dimension}``; the rest of the
+pattern is the file's literal shape.  The samplesheet is a small
+mapping (``file``, ``column``, and an optional ``sep``).
+
+Each source carries its own order, and the order is the
+declaration order in the manifest. ``values`` remain sorted as written.
+When a samplesheet is provided, samples remain in the same order as declared in
+the samplesheet.  The glob orders values in *natural* order (i.e. ``s2`` before
+``s10``).
+
+A family that discovers no values (an empty list, an empty
+column, a glob matching nothing) aborts at spec load with the
+source named, whatever ``--on-failure`` says: an empty family
+declares no artifacts, and there is nothing yet to record.  A
+family *member* whose file is missing is different: that is the
+artifact's own fact, recordable under ``write`` exactly like any
+other missing output.  And on rerun a family behaves like any
+block: each member updates in place, its position in the manifest
+remain preserved.
+
+Names and addresses: ``sanitize``
+---------------------------------
+
+Sample names may be end-user provided data. In some cases, this could cause
+issues for ``workflow-coda``. ``id:`` and ``type:`` are *addresses* and must fit
+their ``workflow-coda`` grammar.  Add the samplesheet family to the spec:
+
+.. code-block:: yaml
+
+   - for_each:
+       dimension: sample_id
+       samplesheet: {file: samples.csv, column: sample, sep: ","}
+     file: "tables/{sample_id}.tsv"
+     id: "table-{sample_id}"
+     type: "org.example.table-{sample_id}"
+     format: core.tabular
+     schema_version: "1.0"
+
+with a sheet carrying capitalized names:
+
+.. code-block:: text
+
+   sample
+   S-1
+   S-2
+
+The run refuses at spec load (before any artifact is verified) with the teaching
+on stderr and exit 1:
+
+.. code-block:: text
+
+   spec.yaml: the value 'S-1' for dimension 'sample_id' does not fit the artifact id grammar — ids and types are addresses, never display names; pass 'sanitize: true' to use its slug ('s-1'), or fix the value in its source
+
+You can let ``workflow-coda`` automatically reformat these values to match the
+required grammar.  Add ``sanitize: true`` to the block and rerun:
+
+.. code-block:: console
+
+   $ workflow-coda verify manifest.json --spec spec.yaml
+   verified 4 artifacts — appended 2, updated 2 in manifest.json
+
+The two family members were appended; the spec's earlier artifacts
+updated in place.  The manifest carries each member with the raw
+name on the disk side and the re-formatted slug on the address side:
+
+.. code-block:: json
+
+   {
+     "id": "table-s-1",
+     "type": "org.example.table-s-1",
+     "schema_version": "1.0",
+     "path": "tables/S-1.tsv",
+     "format": "core.tabular",
+     "status": "complete",
+     "sha256": "3c990b8f5f4e2a7d6b1c8e4f9a2b5d7c1e6f3a8b4d9c2e7f1a6b5d8c3e9f2a4b7",
+     "verification": {
+       "format": "core.tabular",
+       "status": "ok",
+       "sep": "\t",
+       "header": true,
+       "rows": 12
+     }
+   }
+
+``sanitize: true`` substitutes the *slug* into ``id:`` and
+``type:`` only.  The slug is lowercase; every run of characters
+outside ``[a-z0-9_-]`` becomes one ``-``; edge hyphens strip; a
+result not starting with a lowercase letter gains an ``s-``
+prefix (``S-42`` slugs to ``s-42``, ``42`` to ``s-42``); a value
+that slugs to nothing teaches.  Ids are addresses,
+never display names: the raw name
+never disappears, it lives on in the artifact's ``path``.
+
+Two values that expand to the same address refuse the spec load
+together, e.g. ``S-1`` and ``s-1`` under ``sanitize: true``, or a
+value listed twice.  The report side addresses
+each member by its own type: a layout placement names
+``org.example.table-s-1`` directly.
 
 What to check: criteria
 -----------------------
@@ -272,6 +417,6 @@ The manifest records paths relative to itself. This way ``manifest.json`` and
 the artifacts it declares become portable as one tree.  From there the page can
 be constructed with the declared artifacts. The layout, the theme, the tabs
 (:doc:`report-authoring`) meet your manifest at ``workflow-coda build``
-(:doc:`../reference/framework/cli`).  The end-to-end story is the :doc:`hello
+(:doc:`../reference/cli`).  The end-to-end story is the :doc:`hello
 report tutorial <../tutorials/hello-report>`. The exact grammar of every file is
-documented at :doc:`../reference/framework/schemas`.
+documented at :doc:`../reference/schemas/index`.

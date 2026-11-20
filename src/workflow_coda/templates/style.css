@@ -288,13 +288,36 @@ body {
   margin: 0 0 0.75rem;
 }
 
+/* States ship complete and stacked. These group boxes contain report
+   content, not controls. The controller uses their dimension/value
+   markers for selection; selection.css owns enhancement and controls. */
+.coda-states {
+  margin: 1rem 0;
+}
+
+.coda-state {
+  border: 1px solid var(--coda-border);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.coda-state + .coda-state {
+  margin-top: 1rem;
+}
+
+.coda-state > h3 {
+  font-family: var(--coda-font-heading);
+  font-size: 1.1rem;
+  margin: 0 0 0.75rem;
+}
+
 /* --- Interactive tab state ----------------------------------------------- */
 
-/* The report's inline script adds .coda-js to <html> first thing, so
-   no-JS readers (and the DOM before the script runs) see the full
-   stacked document: every panel, every heading.  With script, the
-   selected panel is the visible one, and the panel h2 hides — the
-   tab button already carries the title. */
+/* The report controller adds .coda-js to <html> after applying its
+   initial selection and controls. Without that class, readers see
+   the full stacked document: every panel, every heading. With
+   enhancement, selected tabs are visible and panel h2 headings hide;
+   the tab buttons carry their titles. Print restores the headings. */
 .coda-js .coda-tabpanel[aria-hidden="true"] {
   display: none;
 }
@@ -303,8 +326,8 @@ body {
   display: none;
 }
 
-/* Printing a report shows every tab, stacked — save-to-PDF is a
-   first-class reader. */
+/* Printing a report shows every tab and state, stacked —
+   save-to-PDF is a first-class reader. */
 @media print {
   .coda-tabs {
     display: none;
@@ -315,6 +338,10 @@ body {
   }
 
   .coda-tabpanel > h2 {
+    display: block !important;
+  }
+
+  .coda-state {
     display: block !important;
   }
 }
@@ -380,10 +407,6 @@ body {
   margin: 0 0 0.5rem;
   padding: 0;
   list-style: none;
-}
-
-.coda-provenance li {
-  margin: 0.1rem 0;
 }
 
 .coda-attribution {

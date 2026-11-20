@@ -28,10 +28,17 @@ one report document.
 5. Walk every tab's composition: resolve each placement against the
    *gated* plugins and apply the ``on_missing`` policy (layout-level
    default, per-placement override); render the resolved ones; and
-   compose row, grid, and card nodes around their walked children.
-   A diagnostics node becomes its marker entry.  Compositions whose
-   children all resolve away collapse, and so do tabs left with no
-   nodes — the diagnostics already explain why.
+   compose row, grid, card, and states nodes around their walked
+   children.  A diagnostics node becomes its marker entry.  A states
+   node expands its template once per axis value — the declared
+   ``values``, or the axis derived from the manifest's artifact
+   types — substituting the value into every free string leaf
+   before the walk descends, so the document holds every state's
+   content and no states placeholder survives it. Valid markdown
+   variables in string-valued ``core.markdown.text`` remain opaque
+   during expansion; the component resolves them from its artifact.
+   Compositions whose children all resolve away collapse, and so do
+   tabs left with no nodes — the diagnostics already explain why.
 6. Catch plugin bugs per component and collect them as ``failed``
    entries plus diagnostics; the build itself only fails on
    authoring and environment problems.
@@ -47,11 +54,12 @@ from pathlib import Path
 import yaml
 from pydantic import ValidationError
 
-from .artifact_store import ArtifactStore
+from .artifact_store import ArtifactStore, JsonValue
 from .assets import embed_asset, embed_inline_svg
 from .components import ComponentStatus, PlacementInfo, ReportComponent
 from .context import RenderContext
-from .errors import ComponentUnavailableError, LayoutError
+from .core.markdown_variables import MARKDOWN_VARIABLE_RE
+from .errors import ComponentUnavailableError, LayoutError, SpecError
 from .icons import IconLibrary, IconSource
 from .layout import (
     CardNode,
@@ -61,6 +69,7 @@ from .layout import (
     LayoutNode,
     MissingPolicy,
     RowNode,
+    StatesNode,
     UnavailablePolicy,
 )
 from .layout_loader import UniqueKeySafeLoader, load_layout
@@ -82,8 +91,11 @@ from .report import (
     InlineLogo,
     ReportDocument,
     RowEntry,
+    StatePanel,
+    StatesEntry,
 )
 from .theme import DEFAULT_THEME, Theme, ThemeToken
+from .verification.expansion import expand_template, substitute_raw
 
 
 def _load_theme(layout_path: Path, declared: str) -> Theme:
@@ -332,6 +344,12 @@ class _WalkState:
     schema_version: ManifestSchemaVersion
     """The manifest's schema version, for the teaching messages."""
 
+    layout_path: Path
+    """The layout file's path — the states substitution boundary
+    wraps the expansion teachings in :class:`LayoutError`, and it
+    rides down to them as their path, so the teaching names the
+    author's own file."""
+
 
 def _triage_unavailable(
     state: _WalkState, placement: ComponentPlacement, entry: ComponentEntry
@@ -463,25 +481,351 @@ def _resolve_placement(
     return None
 
 
-def _walk(state: _WalkState, node: LayoutNode) -> DocumentNode | None:
-    """One layout node to its document node, or ``None`` when it
-    collapses."""
+def _states_axis(state: _WalkState, node: StatesNode) -> tuple[str, ...]:
+    """The node's axis: the declared ``values`` as written, or — the
+    derived door — the manifest's distinct artifact types, in
+    declaration order."""
+    if node.values is not None:
+        return tuple(node.values)
+    artifacts = state.context.store.manifest.artifacts
+    return tuple(dict.fromkeys(artifact.type for artifact in artifacts))
+
+
+def _pending_dimensions(node: LayoutNode) -> tuple[str, ...]:
+    """The dimensions states nodes inside *node*'s subtree will bind,
+    in traversal order, deduplicated.
+
+    One substitution round passes these placeholders through
+    untouched: they belong to inner rounds, which substitute them
+    when the walk reaches their owning nodes.  A states node binds
+    its own dimension, so the node itself counts.
+    """
+    if isinstance(node, StatesNode):
+        pending = [node.dimension]
+        for child in node.children:
+            pending.extend(_pending_dimensions(child))
+        return tuple(dict.fromkeys(pending))
+    if isinstance(node, (RowNode, GridLayout, CardNode)):
+        nested: list[str] = []
+        for child in node.children:
+            nested.extend(_pending_dimensions(child))
+        return tuple(dict.fromkeys(nested))
+    return ()
+
+
+def _expand_all(
+    nodes: tuple[LayoutNode, ...],
+    *,
+    dimension: str,
+    raw: str,
+    bound: tuple[str, ...],
+    path: Path,
+) -> tuple[LayoutNode, ...]:
+    """One substitution round over every child, in order."""
+    return tuple(
+        _expand_node(child, dimension=dimension, raw=raw, bound=bound, path=path)
+        for child in nodes
+    )
+
+
+def _expand_markdown_text(
+    text: str,
+    *,
+    dimension: str,
+    raw: str,
+    bound: tuple[str, ...],
+    path: Path,
+) -> str:
+    """Expand states text between valid markdown artifact variables.
+
+    Valid markdown variables are opaque only within string-valued
+    ``core.markdown.text``. This helper preserves their exact spelling;
+    malformed braces and unbound states placeholders still reach the
+    strict expansion engine. The joined result is never re-expanded.
+    """
+    parts: list[str] = []
+    cursor = 0
+    for match in MARKDOWN_VARIABLE_RE.finditer(text):
+        parts.append(
+            expand_template(
+                text[cursor : match.start()],
+                dimension=dimension,
+                raw=raw,
+                path=path,
+                scope=bound,
+            )
+        )
+        parts.append(match.group(0))
+        cursor = match.end()
+    parts.append(
+        expand_template(
+            text[cursor:],
+            dimension=dimension,
+            raw=raw,
+            path=path,
+            scope=bound,
+        )
+    )
+    return "".join(parts)
+
+
+def _expand_parameters(
+    placement: ComponentPlacement,
+    *,
+    dimension: str,
+    raw: str,
+    bound: tuple[str, ...],
+    path: Path,
+) -> dict[str, JsonValue]:
+    """Expand parameter keys and values in their declared order.
+
+    Valid markdown variables are opaque only within string-valued
+    ``core.markdown.text``. Eligibility uses the original placement id
+    and parameter key, never the expanded key. Other values recurse
+    through the ordinary states engine, preserving its overwrite
+    behavior when expanded keys coincide.
+    """
+    parameters: dict[str, JsonValue] = {}
+    for key, value in placement.parameters.items():
+        expanded_key = expand_template(
+            key, dimension=dimension, raw=raw, path=path, scope=bound
+        )
+        if placement.id == "core.markdown" and key == "text" and isinstance(value, str):
+            expanded_value: JsonValue = _expand_markdown_text(
+                value, dimension=dimension, raw=raw, bound=bound, path=path
+            )
+        else:
+            expanded_value = substitute_raw(
+                value, dimension=dimension, raw=raw, path=path, scope=bound
+            )
+        parameters[expanded_key] = expanded_value
+    return parameters
+
+
+def _expand_placement(
+    placement: ComponentPlacement,
+    *,
+    dimension: str,
+    raw: str,
+    bound: tuple[str, ...],
+    path: Path,
+) -> ComponentPlacement:
+    """One substitution round over a placement: the free string
+    leaves take the round's value; the addressing and policy fields
+    ride untouched — ``id`` refuses placeholders at load, and the
+    policies are enums. Valid markdown variables in string-valued
+    ``core.markdown.text`` remain opaque for component resolution.
+    """
+    title = (
+        expand_template(
+            placement.title, dimension=dimension, raw=raw, path=path, scope=bound
+        )
+        if placement.title is not None
+        else None
+    )
+    parameters = _expand_parameters(
+        placement, dimension=dimension, raw=raw, bound=bound, path=path
+    )
+    return placement.model_copy(update={"title": title, "parameters": parameters})
+
+
+def _expand_states_node(
+    node: StatesNode,
+    *,
+    dimension: str,
+    raw: str,
+    bound: tuple[str, ...],
+    path: Path,
+) -> StatesNode:
+    """One substitution round over a nested states node: its declared
+    values take the round's value too — the one-law ruling, an outer
+    placeholder in a nested axis substitutes in the outer round —
+    and its children recurse.  The structural fields — ``dimension``
+    and ``kind`` — ride untouched.
+    """
+    values = (
+        tuple(
+            expand_template(value, dimension=dimension, raw=raw, path=path, scope=bound)
+            for value in node.values
+        )
+        if node.values is not None
+        else None
+    )
+    return node.model_copy(
+        update={
+            "values": values,
+            "children": _expand_all(
+                node.children, dimension=dimension, raw=raw, bound=bound, path=path
+            ),
+        }
+    )
+
+
+def _expand_node(
+    node: LayoutNode,
+    *,
+    dimension: str,
+    raw: str,
+    bound: tuple[str, ...],
+    path: Path,
+) -> LayoutNode:
+    """One substitution round over a copy of *node*: *raw* replaces
+    every ``{dimension}`` in the subtree's free string leaves.
+
+    The decided architecture, one round per states node: this round
+    substitutes exactly its own dimension across the whole subtree
+    — placement titles, parameter keys and values, card titles,
+    and nested states nodes' declared values included — while
+    placeholders naming a dimension in *bound* pass through
+    untouched, because their owning node's round substitutes them
+    when the walk reaches it. Valid markdown variables in
+    string-valued ``core.markdown.text`` are opaque to every round.
+    Nesting resolves by round order, and a shadowed dimension means
+    the outer round wins: its round has already replaced every
+    occurrence before the inner node's round runs.
+
+    The structural fields ride untouched — placement ``id`` refuses
+    placeholders at load, policies are enums, splits are numbers,
+    and a states node's ``dimension`` cannot carry braces by its
+    own grammar.  The copy is built with ``model_copy``, which
+    skips the models' validators — safe by construction: an axis
+    value is visible text, so substituting it keeps every
+    visible-text field visible.
+    """
+    if isinstance(node, ComponentPlacement):
+        return _expand_placement(
+            node, dimension=dimension, raw=raw, bound=bound, path=path
+        )
+    if isinstance(node, (RowNode, GridLayout)):
+        return node.model_copy(
+            update={
+                "children": _expand_all(
+                    node.children, dimension=dimension, raw=raw, bound=bound, path=path
+                )
+            }
+        )
+    if isinstance(node, CardNode):
+        title = (
+            expand_template(
+                node.title, dimension=dimension, raw=raw, path=path, scope=bound
+            )
+            if node.title is not None
+            else None
+        )
+        return node.model_copy(
+            update={
+                "title": title,
+                "children": _expand_all(
+                    node.children, dimension=dimension, raw=raw, bound=bound, path=path
+                ),
+            }
+        )
+    if isinstance(node, StatesNode):
+        return _expand_states_node(
+            node, dimension=dimension, raw=raw, bound=bound, path=path
+        )
+    assert isinstance(node, DiagnosticsNode)  # the node union is exhausted
+    return node
+
+
+def _walk_states(
+    state: _WalkState, node: StatesNode, scope_prefix: tuple[str, ...]
+) -> StatesEntry | None:
+    """Walk one states node: expand its children once per axis value.
+
+    The axis is :func:`_states_axis`'s — declared values as written,
+    or the manifest's distinct artifact types.  A derived-empty axis
+    is a build-time fact, not a load-time contradiction: the node
+    collapses and an informational diagnostic names the two ways to
+    give it values.
+
+    Per value, every child takes one substitution round — the
+    round's value substituted into every free string leaf, with the
+    dimensions inner states nodes will bind passed through for
+    their own rounds — and the substituted copy walks like any
+    other node, under the layout-error family: the expansion
+    teachings (a malformed or unbindable placeholder) wrap as
+    :class:`LayoutError`, the authoring family.  A value whose
+    children all collapse drops its panel; a node whose every panel
+    dropped collapses too — the ledger already explains why.
+    """
+    axis = _states_axis(state, node)
+    if not axis:
+        state.diagnostics.append(
+            Diagnostic(
+                kind=DiagnosticKind.STATES_EMPTY,
+                subject=node.dimension,
+                message=(
+                    f"states node omitted: its dimension "
+                    f"{node.dimension!r} derives an empty axis — the "
+                    "manifest declares no artifacts to derive one "
+                    "from; declare artifacts in the manifest, or name "
+                    "the axis with 'values:' on the states node"
+                ),
+            )
+        )
+        return None
+    scope = scope_prefix + (node.dimension,)
+    panels: list[StatePanel] = []
+    for raw in axis:
+        children: list[DocumentNode] = []
+        for child in node.children:
+            bound = scope + _pending_dimensions(child)
+            try:
+                expanded = _expand_node(
+                    child,
+                    dimension=node.dimension,
+                    raw=raw,
+                    bound=bound,
+                    path=state.layout_path,
+                )
+            except SpecError as e:
+                # The expansion teachings already open with the
+                # layout's path — it rides down as the expansion
+                # path — so the wrap adds the authoring family, not
+                # a second path prefix.
+                raise LayoutError(str(e)) from e
+            walked = _walk(state, expanded, scope_prefix=scope)
+            if walked is not None:
+                children.append(walked)
+        if children:
+            panels.append(StatePanel(value=raw, children=tuple(children)))
+    if not panels:
+        return None
+    return StatesEntry(dimension=node.dimension, kind=node.kind, panels=tuple(panels))
+
+
+def _walk(
+    state: _WalkState, node: LayoutNode, scope_prefix: tuple[str, ...] = ()
+) -> DocumentNode | None:
+    """Walk one layout node into its document node, or ``None`` when
+    the node collapses.
+
+    Placements resolve through the two policy gates; a diagnostics
+    node becomes its marker; compositions walk their children and
+    collapse when none survive.  *scope_prefix* carries the states
+    dimensions already bound by outer rounds — only a states node
+    consumes it, composing it into its own scope so nested
+    dimensions stack; every other node passes it through unchanged.
+    """
     if isinstance(node, ComponentPlacement):
         return _resolve_placement(state, node)
     if isinstance(node, DiagnosticsNode):
         return DiagnosticsEntry()
+    if isinstance(node, StatesNode):
+        return _walk_states(state, node, scope_prefix)
     if isinstance(node, RowNode):
-        children = _walk_all(state, node.children)
+        children = _walk_all(state, node.children, scope_prefix)
         if not children:
             return None
         return RowEntry(split=node.split, children=children)
     if isinstance(node, GridLayout):
-        children = _walk_all(state, node.children)
+        children = _walk_all(state, node.children, scope_prefix)
         if not children:
             return None
         return GridEntry(split=node.split, children=children)
     assert isinstance(node, CardNode)  # the node union is exhausted
-    children = _walk_all(state, node.children)
+    children = _walk_all(state, node.children, scope_prefix)
     if not children:
         return None
     return CardEntry(
@@ -490,37 +834,30 @@ def _walk(state: _WalkState, node: LayoutNode) -> DocumentNode | None:
 
 
 def _walk_all(
-    state: _WalkState, nodes: Iterable[LayoutNode]
+    state: _WalkState,
+    nodes: tuple[LayoutNode, ...],
+    scope_prefix: tuple[str, ...] = (),
 ) -> tuple[DocumentNode, ...]:
-    """Walk every node, keeping the ones that survive."""
-    return tuple(walked for node in nodes if (walked := _walk(state, node)) is not None)
+    """Walk a node list in order, dropping the nodes that collapse —
+    the composition law: a row whose every child resolved away
+    renders nothing, and the ledger already explains why."""
+    walked = (_walk(state, node, scope_prefix) for node in nodes)
+    return tuple(entry for entry in walked if entry is not None)
 
 
-def _resolve_chrome(state: _WalkState) -> tuple[ChromeContribution, ...]:
-    """The document's resolved page chrome, from the walk's collection.
+def _component_map(
+    plugins: Iterable[ReportPlugin],
+) -> dict[str, tuple[ReportPlugin, ReportComponent]]:
+    """Index a plugin set's components by id, in declaration order.
 
-    One contribution per collected component that declared css or js
-    — deduplicated by component id and in first-use order, the
-    collection's own guarantees, so the page inlines each component's
-    chrome exactly once no matter how many times it was placed.
-    Components that rendered but declared no chrome are skipped
-    here: the collection records what rendered, and the resolution
-    filters by what was declared — which also guarantees the
-    contribution's at-least-one invariant by construction.
-    """
-    chrome: list[ChromeContribution] = []
-    for component_id in state.ok_component_ids:
-        _, component = state.gated[component_id]
-        if component.css is None and component.js is None:
-            continue
-        chrome.append(
-            ChromeContribution(
-                component_id=component_id,
-                css=component.css,
-                js=component.js,
-            )
-        )
-    return tuple(chrome)
+    The registry guarantees id uniqueness across plugins, so this is
+    an index build, not a re-check — the one shape both of the walk's
+    maps (gated and full) share."""
+    return {
+        component.id: (plugin, component)
+        for plugin in plugins
+        for component in plugin.components
+    }
 
 
 def build_report(
@@ -528,79 +865,48 @@ def build_report(
     store: ArtifactStore,
     registry: PluginRegistry | None = None,
 ) -> ReportDocument:
-    """Build the report document for one artifact bundle under one
-    layout.
+    """Build one report document: a layout, a manifest's artifact
+    store, and the loaded plugins in, one registry-free document out.
 
-    *store* is the bundle's artifact store; the manifest is read from
-    ``store.manifest``, so the two can never disagree.  *registry*
-    defaults to the plugins installed in the environment; pass one to
-    build against a fixed set.
-
-    Raises :class:`~workflow_coda.errors.LayoutError` for authoring
-    problems (the layout file, the theme file it declares, declared
-    image assets, the header color token, and the logo's icon-name
-    vocabulary), :class:`~workflow_coda.errors.PluginLoadError` /
-    ``PluginConflictError`` for a broken plugin environment,
-    :class:`~workflow_coda.errors.PluginAssetError` for a declared
-    icon package that is not importable or whose icons break the
-    namespace laws (a broken installation, not an authoring
-    problem), and :class:`~workflow_coda.errors.ComponentUnavailableError`
-    when the ``fail`` policy meets an unresolvable placement.  Plugin
-    bugs never propagate — they become ``failed`` entries and
-    diagnostics.
+    *registry* injects a fixed plugin set — the tests' door — and
+    defaults to the installed environment.  Authoring failures raise
+    :class:`~workflow_coda.errors.LayoutError` (layout, theme, and
+    states-expansion problems), a policy-``fail`` placement raises
+    :class:`~workflow_coda.errors.ComponentUnavailableError`, and a
+    plugin's own bug never fails the build: it renders in place, the
+    ledger carrying the details.  See the module docstring for the
+    pipeline's steps.
     """
+    layout = load_layout(layout_path)
     if registry is None:
         registry = PluginRegistry.load()
-    manifest = store.manifest
-    layout = load_layout(layout_path)
+    schema_version = store.manifest.schema_version
+    supporting = registry.plugins_supporting(schema_version)
+    gated = _component_map(supporting)
+    full = _component_map(registry.plugins)
+    library = IconLibrary(
+        IconSource.for_plugin(plugin.metadata.id, plugin.metadata.icons_package)
+        for plugin in supporting
+        if plugin.metadata.icons_package is not None
+    )
     diagnostics: list[Diagnostic] = []
-
-    # Theme and header color: declared-then-strict.
-    if layout.theme is not None:
-        theme = _load_theme(layout_path, layout.theme)
-    else:
+    if layout.theme is None:
         theme = DEFAULT_THEME
         diagnostics.append(
             Diagnostic(
                 kind=DiagnosticKind.DEFAULT_THEME,
-                subject=DEFAULT_THEME.name,
+                subject="theme",
                 message=(
-                    "no theme file declared in the layout — rendered "
-                    "with the built-in default theme; add a 'theme:' "
-                    "path to customize"
+                    "no theme declared in the layout — the report "
+                    "renders with the built-in default theme; add a "
+                    "'theme:' path next to the layout file to load one"
                 ),
             )
         )
+    else:
+        theme = _load_theme(layout_path, layout.theme)
     header_color = _resolve_header_color(theme, layout.header_color)
-
-    # Plugin gating and the walk's resolution tables.  The icon
-    # library assembles here — before the assets, a knowing
-    # reorder: the logo's icon-name branch loads through it, with
-    # the consequence that a broken icon installation teaches
-    # before a declared logo's authoring error on that one
-    # interleaving.
-    gated_plugins = registry.plugins_supporting(manifest.schema_version)
-    gated: dict[str, tuple[ReportPlugin, ReportComponent]] = {
-        component.id: (plugin, component)
-        for plugin in gated_plugins
-        for component in plugin.components
-    }
-    full: dict[str, tuple[ReportPlugin, ReportComponent]] = {
-        component.id: (plugin, component)
-        for plugin in registry.plugins
-        for component in plugin.components
-    }
-    icon_library = IconLibrary(
-        [
-            IconSource.for_plugin(plugin.metadata.id, plugin.metadata.icons_package)
-            for plugin in gated_plugins
-            if plugin.metadata.icons_package is not None
-        ]
-    )
-
-    # Assets: declared-then-strict — the logo in two vocabularies,
-    # the favicon a file.
-    logo = _prepare_logo(layout_path, layout.logo, icon_library, diagnostics)
+    logo = _prepare_logo(layout_path, layout.logo, library, diagnostics)
     favicon = _prepare_asset(
         layout_path,
         layout.favicon,
@@ -608,8 +914,7 @@ def build_report(
         DiagnosticKind.FAVICON_OMITTED,
         diagnostics,
     )
-
-    context = RenderContext(store=store, theme=theme, icons=icon_library)
+    context = RenderContext(store=store, theme=theme, icons=library)
     state = _WalkState(
         gated=gated,
         full=full,
@@ -618,16 +923,25 @@ def build_report(
         ok_component_ids=[],
         missing_policy=layout.on_missing,
         unavailable_policy=layout.on_unavailable,
-        schema_version=manifest.schema_version,
+        schema_version=schema_version,
+        layout_path=layout_path,
     )
-
-    # The tab walk: compose, resolve, render — and collapse empties.
     tabs: list[DocumentTab] = []
-    for layout_tab in layout.tabs:
-        nodes = _walk_all(state, layout_tab.components)
+    for tab in layout.tabs:
+        nodes = _walk_all(state, tab.components)
         if nodes:
-            tabs.append(DocumentTab(title=layout_tab.title, nodes=nodes))
-
+            tabs.append(DocumentTab(title=tab.title, nodes=nodes))
+    chrome: list[ChromeContribution] = []
+    for component_id in state.ok_component_ids:
+        _, component = gated[component_id]
+        if component.css is not None or component.js is not None:
+            chrome.append(
+                ChromeContribution(
+                    component_id=component_id,
+                    css=component.css,
+                    js=component.js,
+                )
+            )
     return ReportDocument(
         title=layout.title,
         subtitle=layout.subtitle,
@@ -636,9 +950,9 @@ def build_report(
         theme=theme,
         logo=logo,
         favicon=favicon,
-        manifest=manifest,
+        manifest=store.manifest,
         tabs=tuple(tabs),
         diagnostics=tuple(diagnostics),
-        chrome=_resolve_chrome(state),
+        chrome=tuple(chrome),
         header_color=header_color,
     )
