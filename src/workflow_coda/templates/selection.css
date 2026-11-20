@@ -43,10 +43,133 @@
   max-width: 100%;
 }
 
-.coda-selection-control > input {
+/* Ordered state slider */
+.coda-range {
+  --thumb-height: 1rem;
+  --thumb-width: 0.4rem;
+  --track-height: 0.4rem;
+  --tick-size: 0.3rem;
+
+  position: relative;
   width: 16rem;
   max-width: 100%;
-  accent-color: var(--coda-accent);
+  margin-bottom: 0.65rem;
+}
+
+.coda-range > input[type="range"] {
+  appearance: none;
+  -webkit-appearance: none;
+  display: block;
+  width: 100%;
+  height: var(--thumb-height);
+  margin: 0;
+  overflow: hidden;
+  color: var(--coda-primary);
+  background: transparent;
+  cursor: grab;
+}
+
+.coda-range > input[type="range"]:hover {
+  color: var(--coda-accent);
+}
+
+.coda-range > input[type="range"]:active {
+  cursor: grabbing;
+}
+
+.coda-range > input[type="range"]:focus-visible {
+  outline: 2px solid var(--coda-accent);
+  outline-offset: 3px;
+}
+
+.coda-range > input[type="range"]:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Marks are centered on the thumb's travel, below the track. */
+.coda-range-ticks {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: calc(var(--thumb-width) / 2);
+  right: calc(var(--thumb-width) / 2);
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.coda-range-tick {
+  position: relative;
+  width: 0;
+  height: var(--tick-size);
+  flex: 0 0 0;
+}
+
+.coda-range-tick::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--tick-size) / -2);
+  width: var(--tick-size);
+  height: var(--tick-size);
+  border-radius: 50%;
+  background: var(--coda-border);
+}
+
+.coda-range-tick--placeholder {
+  visibility: hidden;
+}
+
+/* Chromium and Safari */
+.coda-range > input[type="range"]::-webkit-slider-runnable-track {
+  -webkit-appearance: none;
+  height: var(--thumb-height);
+  background: linear-gradient(var(--coda-border), var(--coda-border))
+    center / 100% var(--track-height) no-repeat;
+}
+
+.coda-range > input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  --clip-top: calc((var(--thumb-height) - var(--track-height)) / 2);
+  --clip-bottom: calc((var(--thumb-height) + var(--track-height)) / 2);
+
+  position: relative;
+  width: var(--thumb-width);
+  height: var(--thumb-height);
+  border: 0;
+  border-radius: var(--thumb-width);
+  background: currentColor;
+  box-shadow: calc(-100vmax - var(--thumb-width)) 0 0 100vmax currentColor;
+  clip-path: polygon(
+    100% 0,
+    0 0,
+    0 var(--clip-top),
+    -100vmax var(--clip-top),
+    -100vmax var(--clip-bottom),
+    0 var(--clip-bottom),
+    0 100%,
+    100% 100%
+  );
+}
+
+/* Firefox */
+.coda-range > input[type="range"]::-moz-range-track {
+  height: var(--track-height);
+  border-radius: var(--track-height);
+  background: var(--coda-border);
+}
+
+.coda-range > input[type="range"]::-moz-range-progress {
+  height: var(--track-height);
+  border-radius: var(--track-height);
+  background: currentColor;
+}
+
+.coda-range > input[type="range"]::-moz-range-thumb {
+  width: var(--thumb-width);
+  height: var(--thumb-height);
+  border: 0;
+  border-radius: var(--thumb-width);
+  background: currentColor;
 }
 
 .coda-selection-value {

@@ -226,6 +226,8 @@
   function orderedControl(plan, container) {
     var input = document.createElement("input");
     var output = document.createElement("span");
+    var range = document.createElement("div");
+    var ticks = document.createElement("div");
     var position = plan.values.indexOf(plan.selected);
 
     input.type = "range";
@@ -236,6 +238,23 @@
     output.className = "coda-selection-value";
     output.id = "coda-selection-value-" + plan.dimension;
     input.setAttribute("aria-describedby", output.id);
+
+    range.className = "coda-range";
+    ticks.className = "coda-range-ticks";
+    ticks.setAttribute("aria-hidden", "true");
+
+    // Reserve the temporary -1 position without showing a state tick.
+    if (position < 0) {
+      var placeholder = document.createElement("span");
+      placeholder.className = "coda-range-tick coda-range-tick--placeholder";
+      ticks.appendChild(placeholder);
+    }
+
+    plan.values.forEach(function () {
+      var tick = document.createElement("span");
+      tick.className = "coda-range-tick";
+      ticks.appendChild(tick);
+    });
 
     function describe() {
       var index = Number(input.value);
@@ -253,7 +272,10 @@
         selectValue(plan.dimension, plan.values[index]);
       }
     });
-    container.appendChild(input);
+
+    range.appendChild(input);
+    range.appendChild(ticks);
+    container.appendChild(range);
     container.appendChild(output);
     describe();
     return input;
