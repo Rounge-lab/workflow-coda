@@ -53,6 +53,10 @@ function element(classes, attributes, parent, tag) {
       add: function (name) {
         if (names.indexOf(name) < 0) { names.push(name); }
       },
+      remove: function (name) {
+        var index = names.indexOf(name);
+        if (index >= 0) { names.splice(index, 1); }
+      },
       toggle: function (name, enabled) {
         var index = names.indexOf(name);
         if (enabled && index < 0) { names.push(name); }
@@ -80,7 +84,16 @@ function element(classes, attributes, parent, tag) {
       value.listeners[name] = handler;
     },
     focus: function () { document.activeElement = value; },
-    querySelectorAll: function () { return []; }
+    querySelectorAll: function () { return []; },
+    removeAttribute: function (name) { delete attrs[name]; },
+    scrollIntoView: function () {},
+    contains: function (other) {
+      while (other) {
+        if (other === value) { return true; }
+        other = other.parentElement;
+      }
+      return false;
+    },
   };
   if (parent) { parent.children.push(value); }
   return value;
@@ -118,6 +131,8 @@ states("batch", ["A"], panels[1]);
 
 var document = {
   activeElement: null,
+  // This fixture exercises controller behavior without a rendered template.
+  getElementById: function () { return null; },
   documentElement: element(""),
   querySelectorAll: function (selector) {
     if (selector === ".coda-tab") { return tabs; }
@@ -147,30 +162,44 @@ function controlsArea() {
   })[0];
 }
 
-function inputFor(dimension) {
-  var found = null;
-  controlsArea().children.forEach(function (container) {
-    container.children.forEach(function (child) {
-      if (child.getAttribute("data-selection-dimension") === dimension) {
-        found = child;
-      }
-    });
+function descendants(root) {
+  var result = [];
+  root.children.forEach(function (child) {
+    result.push(child);
+    result = result.concat(descendants(child));
   });
-  return found;
+  return result;
+}
+
+function inputFor(dimension) {
+  return descendants(controlsArea()).filter(function (child) {
+    return child.getAttribute("data-selection-dimension") === dimension;
+  })[0] || null;
 }
 
 function widgetSnapshot() {
   return controlsArea().children.map(function (container) {
-    var input = container.children[1];
-    var output = container.children[2];
+    var nodes = descendants(container);
+    var input = nodes.filter(function (node) {
+      return node.getAttribute("data-selection-dimension") !== null;
+    })[0];
+    var output = nodes.filter(function (node) {
+      return node.className === "coda-selection-value";
+    })[0];
+    var list = nodes.filter(function (node) {
+      return node.getAttribute("role") === "listbox";
+    })[0];
+    var isDropdown = input.getAttribute("role") === "combobox";
+
     return {
       dimension: input.getAttribute("data-selection-dimension"),
       label: container.children[0].textContent,
       labelFor: container.children[0].getAttribute("for"),
       id: input.id,
       tag: input.tagName,
+      role: input.getAttribute("role"),
       type: input.type || null,
-      value: input.value,
+      value: isDropdown ? input.children[0].textContent : input.value,
       min: input.min || null,
       max: input.max || null,
       step: input.step || null,
@@ -178,13 +207,12 @@ function widgetSnapshot() {
       describedBy: input.getAttribute("aria-describedby"),
       outputId: output ? output.id : null,
       output: output ? output.textContent : null,
-      options: input.children.map(function (option) {
+      options: list ? list.children.map(function (option) {
         return {
-          value: option.value,
           text: option.textContent,
-          disabled: option.disabled || false
+          selected: option.getAttribute("aria-selected") === "true"
         };
-      })
+      }) : []
     };
   });
 }
@@ -285,7 +313,8 @@ def test_controller_plans_initial_context_and_creates_labeled_dropdowns() -> Non
     ]
     assert output["controlsVisible"] is True
     for widget in output["widgets"]:
-        assert widget["tag"] == "select"
+        assert widget["tag"] == "button"
+        assert widget["role"] == "combobox"
         assert widget["label"] == widget["dimension"]
         assert widget["labelFor"] == widget["id"]
     assert output["widgets"][0]["value"] == "A"
@@ -360,8 +389,9 @@ def test_dropdown_change_preserves_other_directives_and_focus() -> None:
         """
 var input = inputFor("batch");
 input.focus();
-input.value = "A";
-input.listeners.change();
+input.listeners.click(); // Open the list.
+var list = input.parentElement.children[1];
+list.children[0].listeners.click(); // Select A.
 """,
     )
     assert output["writes"] == ["#tab=2-results&state.batch=A&state.sample=s2"]
@@ -373,12 +403,8 @@ input.listeners.change();
 def test_unavailable_categorical_selection_is_not_displayed_as_first_value() -> None:
     output = _execute("#state.batch=missing")
     widget = output["widgets"][0]
-    assert widget["value"] == ""
-    assert widget["options"][0] == {
-        "value": "",
-        "text": "No selection — all states shown",
-        "disabled": True,
-    }
+    assert widget["value"] == "No selection — all states shown"
+    assert all(not option["selected"] for option in widget["options"])
     assert output["hidden"][0] == [False, False]
 
 
@@ -455,7 +481,7 @@ def test_raw_dropdown_labels_and_values_are_preserved() -> None:
     widget = output["widgets"][0]
     assert widget["value"] == raw
     assert widget["options"][0]["text"] == raw
-    assert widget["options"][0]["value"] == raw
+    assert widget["options"][0]["selected"] is True
 
 
 @pytest.mark.parametrize("has_states", [False, True])
@@ -498,6 +524,11 @@ def test_renderer_inlines_planner_once_before_controller(has_states: bool) -> No
         diagnostics=(),
     )
     page = render_report(document)
+    if has_states:
+        assert '<template id="coda-dropdown-icon">' in page
+        assert 'class="coda-icon"' in page
+    else:
+        assert '<template id="coda-dropdown-icon">' not in page
     assert page.count("<script>") == 1
     assert page.count("window.codaSelectionWidgets = Object.freeze") == 1
     assert (

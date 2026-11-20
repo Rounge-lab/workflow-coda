@@ -35,6 +35,9 @@ jobs:
       - name: Run linting, type checks, and tests
         run: pixi run test
 
+      - name: Build demo report
+        run: pixi run demo
+
       - name: Build distribution packages
         run: pixi run build
 

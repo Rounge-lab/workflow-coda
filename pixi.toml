@@ -5,6 +5,7 @@ platforms = ["linux-64", "osx-arm64", "win-64"]
 
 [dependencies]
 python = "3.14.*"
+nodejs = "24.*"
 
 [pypi-dependencies.workflow-coda]
 path = "."
