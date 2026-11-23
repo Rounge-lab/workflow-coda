@@ -45,7 +45,12 @@ from workflow_coda.report import (
     ReportDocument,
     RowEntry,
 )
-from workflow_coda.theme import DEFAULT_THEME
+from workflow_coda.theme import (
+    DEFAULT_THEME,
+    Theme,
+    bundled_theme_names,
+    load_bundled_theme,
+)
 
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 ICO_MAGIC = b"\x00\x00\x01\x00"
@@ -1210,6 +1215,90 @@ def test_gradient_header_uses_the_loaded_themes_vocabulary(
     assert document.header_color == ("brand-start", "brand-end")
     assert document.theme.colors["brand-start"] == "#123456"
     assert document.theme.colors["brand-end"] == "#abcdef"
+
+
+def test_bundled_theme_loads_without_omission_diagnostic(tmp_path: Path) -> None:
+    layout_path = write_layout(tmp_path, theme="default", tabs=[qc_tab("run A")])
+    document = build(tmp_path, layout_path, current_plugin())
+
+    assert document.theme == load_bundled_theme("default")
+    assert diagnostics_of(document, DiagnosticKind.DEFAULT_THEME) == []
+
+
+def test_bundled_theme_reaches_document_and_component_context(
+    tmp_path: Path,
+) -> None:
+    seen: list[Theme] = []
+
+    def theme_echo(
+        context: RenderContext,
+        _info: PlacementInfo,
+        _parameters: ComponentParameters,
+    ) -> RenderedComponent:
+        seen.append(context.theme)
+        return RenderedComponent.from_html("<p>ok</p>")
+
+    plugin = make_plugin(
+        metadata=make_metadata(id="themed"),
+        components=(make_component(id="themed.echo", render=theme_echo),),
+    )
+    layout_path = write_layout(
+        tmp_path,
+        theme="default",
+        tabs=[{"title": "QC", "components": [{"id": "themed.echo"}]}],
+    )
+    document = build(tmp_path, layout_path, plugin)
+
+    assert len(seen) == 1
+    assert seen[0] is document.theme
+    assert document.theme == load_bundled_theme("default")
+
+
+def test_unknown_bundled_theme_teaches_roster_and_fix(tmp_path: Path) -> None:
+    layout_path = write_layout(
+        tmp_path, theme="not-a-shipped-theme", tabs=[qc_tab("run A")]
+    )
+
+    with pytest.raises(LayoutError) as exc_info:
+        build(tmp_path, layout_path, current_plugin())
+
+    message = str(exc_info.value)
+    assert str(layout_path) in message
+    assert "unknown bundled theme 'not-a-shipped-theme'" in message
+    assert ", ".join(sorted(bundled_theme_names())) in message
+    assert "theme.yaml" in message
+    assert "./my-theme" in message
+    assert isinstance(exc_info.value.__cause__, ValueError)
+
+
+def test_bare_theme_name_does_not_fall_back_to_local_file(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "local-theme").write_text(
+        yaml.safe_dump(DEFAULT_THEME.model_dump()), encoding="utf-8"
+    )
+    layout_path = write_layout(tmp_path, theme="local-theme", tabs=[qc_tab("run A")])
+
+    with pytest.raises(LayoutError, match="unknown bundled theme 'local-theme'"):
+        build(tmp_path, layout_path, current_plugin())
+
+
+def test_extensionless_custom_theme_uses_explicit_path(tmp_path: Path) -> None:
+    (tmp_path / "local-theme").write_text(
+        yaml.safe_dump(DEFAULT_THEME.model_dump()), encoding="utf-8"
+    )
+    layout_path = write_layout(tmp_path, theme="./local-theme", tabs=[qc_tab("run A")])
+    document = build(tmp_path, layout_path, current_plugin())
+
+    assert document.theme == DEFAULT_THEME
+    assert diagnostics_of(document, DiagnosticKind.DEFAULT_THEME) == []
+
+
+def test_dotted_theme_selection_stays_a_file_address(tmp_path: Path) -> None:
+    layout_path = write_layout(tmp_path, theme="default.yaml", tabs=[qc_tab("run A")])
+
+    with pytest.raises(LayoutError, match="cannot read the theme file"):
+        build(tmp_path, layout_path, current_plugin())
 
 
 # ---------------------------------------------------------------------------

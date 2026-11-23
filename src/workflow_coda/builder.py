@@ -51,9 +51,6 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-import yaml
-from pydantic import ValidationError
-
 from .artifact_store import ArtifactStore, JsonValue
 from .assets import embed_asset, embed_inline_svg
 from .components import ComponentStatus, PlacementInfo, ReportComponent
@@ -94,50 +91,33 @@ from .report import (
     StatePanel,
     StatesEntry,
 )
-from .theme import DEFAULT_THEME, Theme, ThemeToken
+from .theme import (
+    DEFAULT_THEME,
+    Theme,
+    ThemeToken,
+    load_bundled_theme,
+    load_theme,
+)
 from .verification.expansion import expand_template, substitute_raw
-from .yaml_loader import UniqueKeySafeLoader
 
 
-def _load_theme(layout_path: Path, declared: str) -> Theme:
-    """Load the theme file declared in the layout, strictly.
+def _resolve_theme(layout_path: Path, declared: str) -> Theme:
+    """Resolve a bundled name or a layout-relative custom path.
 
-    Teaching errors name the theme file and the layout that declared
-    it; duplicate keys are rejected through the shared loader, and
-    validation problems are condensed to one line per token.
+    A dot or path separator selects the file vocabulary. Bare names
+    select bundled themes. Neither branch falls back to the other.
     """
-    theme_path = layout_path.parent / declared
+    if any(mark in declared for mark in ("/", "\\", ".")):
+        theme_path = layout_path.parent / declared
+        try:
+            return load_theme(theme_path)
+        except LayoutError as e:
+            raise LayoutError(f"{layout_path}: declares theme {declared!r}: {e}") from e
+
     try:
-        text = theme_path.read_text(encoding="utf-8")
-    except OSError as e:
-        raise LayoutError(
-            f"cannot read the theme file {theme_path} declared in "
-            f"{layout_path.name!r}: {e.strerror or e}"
-        ) from e
-    try:
-        parsed = yaml.load(text, Loader=UniqueKeySafeLoader)
-    except yaml.YAMLError as e:
-        detail = " ".join(str(e).split())
-        raise LayoutError(
-            f"{theme_path} (declared in the layout) is not valid YAML: {detail}"
-        ) from e
-    if not isinstance(parsed, dict):
-        found = (
-            "nothing (the file is empty)"
-            if parsed is None
-            else f"a single {type(parsed).__name__} value"
-        )
-        raise LayoutError(
-            f"{theme_path} (declared in the layout) must be a mapping "
-            f"of theme tokens, but contains {found}"
-        )
-    try:
-        return Theme.model_validate(parsed)
-    except ValidationError as e:
-        detail = "; ".join(f"{error['loc']}: {error['msg']}" for error in e.errors())
-        raise LayoutError(
-            f"{theme_path} (declared in the layout) is not a valid theme: {detail}"
-        ) from e
+        return load_bundled_theme(declared)
+    except ValueError as e:
+        raise LayoutError(f"{layout_path}: {e}") from e
 
 
 def _resolve_header_color(
@@ -902,7 +882,7 @@ def build_report(
             )
         )
     else:
-        theme = _load_theme(layout_path, layout.theme)
+        theme = _resolve_theme(layout_path, layout.theme)
     header_color = _resolve_header_color(theme, layout.header_color)
     logo = _prepare_logo(layout_path, layout.logo, library, diagnostics)
     favicon = _prepare_asset(

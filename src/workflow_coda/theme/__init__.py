@@ -12,6 +12,7 @@ from .bundled import (
     bundled_theme_names,
     load_bundled_theme,
 )
+from .loader import load_theme
 from .model import (
     CORE_COLOR_TOKENS,
     ColorHex,
@@ -32,4 +33,5 @@ __all__ = [
     "ThemeToken",
     "bundled_theme_names",
     "load_bundled_theme",
+    "load_theme",
 ]
