@@ -90,7 +90,16 @@ core.tabular``: a claim whose grammar lives in the core package,
 interpreted by this component and ``core.chart`` alike."""
 
 _TABLE_PARAMETERS: Final[frozenset[str]] = frozenset(
-    {"artifact", "caption", "columns", "header", "sep"}
+    {
+        "artifact",
+        "caption",
+        "columns",
+        "column_widths",
+        "copy_rows",
+        "header",
+        "max_visible_rows",
+        "sep",
+    }
 )
 """core.table's accepted parameter vocabulary: the closed set
 :func:`_parse_spec` reads, for the unknown-key teaching."""
@@ -130,6 +139,69 @@ def _columns_from(parameters: ComponentParameters) -> tuple[str, ...] | None:
     return tuple(names)
 
 
+def _column_widths_from(
+    parameters: ComponentParameters,
+) -> tuple[float, ...] | None:
+    """Optional positive, finite ratios for the rendered columns."""
+    if "column_widths" not in parameters:
+        return None
+    value = parameters["column_widths"]
+    if not isinstance(value, list) or not value:
+        raise ValueError(
+            "core.table: parameter 'column_widths' must be a non-empty "
+            f"list of positive, finite numbers, got {value!r} — "
+            "use one ratio per rendered column, e.g. [2, 1]"
+        )
+    ratios: list[float] = []
+    for item in value:
+        if isinstance(item, bool) or not isinstance(item, (int, float)):
+            raise ValueError(
+                "core.table: parameter 'column_widths' must contain "
+                f"numbers, not booleans or strings, got {item!r} — "
+                "use positive, finite ratios"
+            )
+        try:
+            ratio = float(item)
+        except OverflowError as e:
+            raise ValueError(
+                "core.table: parameter 'column_widths' contains "
+                f"{item!r} — use positive, finite ratios"
+            ) from e
+        if not math.isfinite(ratio) or ratio <= 0:
+            raise ValueError(
+                "core.table: parameter 'column_widths' contains "
+                f"{item!r} — use positive, finite ratios greater than 0"
+            )
+        ratios.append(ratio)
+    return tuple(ratios)
+
+
+def _max_visible_rows_from(parameters: ComponentParameters) -> int | None:
+    """An optional strictly positive integer, never coerced."""
+    if "max_visible_rows" not in parameters:
+        return None
+    value = parameters["max_visible_rows"]
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError(
+            "core.table: parameter 'max_visible_rows' must be a "
+            f"positive integer, got {value!r} — use e.g. 12, "
+            "or omit it to show an unrestricted table"
+        )
+    return value
+
+
+def _copy_rows_from(parameters: ComponentParameters) -> str:
+    """Copy all filter matches by default, or viewport-visible matches."""
+    value = parameters.get("copy_rows", "all")
+    if not isinstance(value, str) or value not in ("all", "visible"):
+        raise ValueError(
+            "core.table: parameter 'copy_rows' must be 'all' or "
+            f"'visible', got {value!r} — use 'all' to copy every "
+            "filter-matching row, or 'visible' for the scroll viewport"
+        )
+    return value
+
+
 @dataclass(frozen=True, slots=True)
 class _TableSpec:
     """One placement's parameters, parsed and shape-validated."""
@@ -139,18 +211,13 @@ class _TableSpec:
     header: bool
     columns: tuple[str, ...] | None
     caption: str | None
+    column_widths: tuple[float, ...] | None
+    max_visible_rows: int | None
+    copy_rows: str
 
 
 def _parse_spec(parameters: ComponentParameters) -> _TableSpec:
-    """Parse and shape-validate every parameter, or teach.
-
-    The shape half of the honest-data law: this function touches no
-    store and reads no artifact — every malformed parameter raises
-    its teaching ``ValueError`` here, before any data is read.  The
-    vocabulary is closed and checked first: unknown keys — typos, and
-    placement keys nested by accident — teach before any known key is
-    read.
-    """
+    """Validate the closed parameter vocabulary before reading data."""
     reject_unknown_parameters("core.table", parameters, _TABLE_PARAMETERS)
     spec = _TableSpec(
         artifact_type=_required_text("core.table", parameters, "artifact"),
@@ -158,6 +225,9 @@ def _parse_spec(parameters: ComponentParameters) -> _TableSpec:
         header=_optional_bool("core.table", parameters, "header", default=True),
         columns=_columns_from(parameters),
         caption=_optional_text("core.table", parameters, "caption"),
+        column_widths=_column_widths_from(parameters),
+        max_visible_rows=_max_visible_rows_from(parameters),
+        copy_rows=_copy_rows_from(parameters),
     )
     if spec.columns is not None and not spec.header:
         raise ValueError(
@@ -371,22 +441,35 @@ def _column_type(cells: list[str]) -> str:
     return "numeric" if seen_data else "text"
 
 
+def _column_group(rendered: _RenderedTable, spec: _TableSpec) -> str:
+    """Validate width count and emit normalized presentation ratios."""
+    ratios = spec.column_widths
+    if ratios is None:
+        return ""
+    if len(ratios) != len(rendered.labels):
+        raise ValueError(
+            f"core.table: 'column_widths' gives {len(ratios)} ratios "
+            f"for {len(rendered.labels)} rendered columns — use exactly "
+            "one ratio per column after 'columns' selection, including "
+            "the index column when present"
+        )
+    largest = max(ratios)
+    scaled = tuple(ratio / largest for ratio in ratios)
+    total = math.fsum(scaled)
+    columns = "".join(
+        f'<col style="width: {ratio / total * 100:.12g}%">' for ratio in scaled
+    )
+    return f"<colgroup>{columns}</colgroup>"
+
+
 def _assemble_markup(
     rendered: _RenderedTable,
-    caption: str | None,
+    spec: _TableSpec,
     sort_icons: str,
     controls_bar: str,
+    column_group: str,
 ) -> str:
-    """Emit the complete table: the iconed controls bar, the header
-    with its build-time stamps and sort-state icons, every row, the
-    caption.
-
-    Pure string assembly — every decision is already made; all
-    artifact- and author-sourced text escapes here.  The controls
-    bar and the sort-state icon stamp ride in prebuilt: chrome,
-    display-none until the page's script marks the document
-    scripted — nothing looks interactive that is not.
-    """
+    """Emit all content, with optional width policy and enhancement metadata."""
     head = "".join(
         f'<th scope="col" data-key="{html.escape(label)}"'
         f' data-type="{_column_type([row[i] for row in rendered.rows])}">'
@@ -398,18 +481,28 @@ def _assemble_markup(
         for row in rendered.rows
     )
     caption_html = (
-        f'<p class="coda-table__caption">{html.escape(caption)}</p>'
-        if caption is not None
+        f'<p class="coda-table__caption">{html.escape(spec.caption)}</p>'
+        if spec.caption is not None
+        else ""
+    )
+    classes = "coda-table"
+    if spec.column_widths is not None:
+        classes += " coda-table--fixed-widths"
+    limit_attribute = (
+        f' data-max-visible-rows="{spec.max_visible_rows}"'
+        if spec.max_visible_rows is not None
         else ""
     )
     return (
-        '<div class="coda-table">'
+        f'<div class="{classes}" data-copy-rows="{spec.copy_rows}"'
+        f"{limit_attribute}>"
         f"{controls_bar}"
-        "<table><thead><tr>"
+        '<div class="coda-table__viewport">'
+        f"<table>{column_group}<thead><tr>"
         f"{head}"
         "</tr></thead><tbody>"
         f"{body}"
-        "</tbody></table>"
+        "</tbody></table></div>"
         f"{caption_html}"
         "</div>"
     )
@@ -510,9 +603,10 @@ def render_table(
         parsed = _read_table(context, spec)
     except ArtifactUnavailableError as e:
         return RenderedComponent.unavailable(str(e))
+    rendered = _apply_columns(parsed, spec)
+    column_group = _column_group(rendered, spec)
     sort_icons = _sort_icons_html(context)
     controls_bar = _controls_bar(context)
-    rendered = _apply_columns(parsed, spec)
     return RenderedComponent.from_html(
-        _assemble_markup(rendered, spec.caption, sort_icons, controls_bar)
+        _assemble_markup(rendered, spec, sort_icons, controls_bar, column_group)
     )

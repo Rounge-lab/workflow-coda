@@ -130,6 +130,40 @@
   display: none;
 }
 
+.coda-table--fixed-widths table {
+  table-layout: fixed;
+}
+
+.coda-table--fixed-widths th,
+.coda-table--fixed-widths td {
+  overflow-wrap: anywhere;
+}
+
+.coda-table--fixed-widths thead th {
+  white-space: normal;
+}
+
+.coda-table--fixed-widths thead th button {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.coda-js .coda-table__viewport--scrolling {
+  overflow-y: auto;
+}
+
+.coda-js .coda-table__viewport--scrolling thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--coda-surface);
+}
+
+.coda-js .coda-table__viewport--scrolling:focus-visible {
+  outline: 2px solid var(--coda-primary);
+  outline-offset: 2px;
+}
+
 @media print {
   .coda-js .coda-table__controls {
     display: none !important;
@@ -141,5 +175,15 @@
 
   .coda-table__sort-icon {
     display: none !important;
+  }
+
+  .coda-table__viewport {
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .coda-js .coda-table__viewport--scrolling thead {
+    position: static !important;
   }
 }
