@@ -876,8 +876,10 @@ def build_report(
                 subject="theme",
                 message=(
                     "no theme declared in the layout — the report "
-                    "renders with the built-in default theme; add a "
-                    "'theme:' path next to the layout file to load one"
+                    "renders with the built-in default theme; add "
+                    "'theme: default' to select it explicitly, "
+                    "'theme: default-dark' for the bundled dark theme, "
+                    "or a 'theme:' file path to load a custom theme"
                 ),
             )
         )

@@ -1305,6 +1305,19 @@ def test_dotted_theme_selection_stays_a_file_address(tmp_path: Path) -> None:
         build(tmp_path, layout_path, current_plugin())
 
 
+def test_omitted_theme_diagnostic_teaches_bundled_and_custom_selections(
+    tmp_path: Path,
+) -> None:
+    layout_path = write_layout(tmp_path, tabs=[qc_tab("run A")])
+    document = build(tmp_path, layout_path, current_plugin())
+
+    (diagnostic,) = diagnostics_of(document, DiagnosticKind.DEFAULT_THEME)
+    assert "theme: default" in diagnostic.message
+    assert "theme: default-dark" in diagnostic.message
+    assert "file path" in diagnostic.message
+    assert document.theme is DEFAULT_THEME
+
+
 # ---------------------------------------------------------------------------
 # Declared assets, then strict
 # ---------------------------------------------------------------------------

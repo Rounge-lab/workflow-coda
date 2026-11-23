@@ -2,9 +2,50 @@
 Theme file
 ==========
 
-A layout declares a theme using its ``theme`` key and a path relative
-to the layout. If omitted, the built-in theme is used and a diagnostic
-is recorded. If declared, the file must load.
+A layout selects a theme using its ``theme`` key. The value is either
+a bundled theme name or a custom theme file path relative to the
+layout.
+
+If omitted, the bundled ``default`` theme is used and an informational
+diagnostic is recorded. An explicit selection, including
+``theme: default``, does not produce that omission diagnostic.
+
+Selection
+---------
+
+The framework ships these bundled themes:
+
+* ``default``: the light default theme.
+* ``default-dark``: its dark counterpart.
+
+.. code-block:: yaml
+
+   theme: default-dark
+
+Custom themes use a file path:
+
+.. code-block:: yaml
+
+   theme: themes/midnight.yaml
+
+Selection follows an explicit shape rule:
+
+* A value containing a dot or a path separator selects a custom file.
+* A bare name selects a bundled theme.
+* An unknown bundled name fails with the available names; it never
+  falls back to a local file.
+
+For an extensionless custom file, use an explicit path such as
+``theme: ./midnight``. A bare ``theme: midnight`` requests a bundled
+theme named ``midnight``.
+
+Bundled selection names come from YAML filename stems. The ``name``
+inside a theme declaration is a human-readable display name, not its
+selection identifier.
+
+Custom theme files are complete declarations and can be shared
+independently of plugins. There is no theme inheritance or
+plugin-contributed theme namespace.
 
 Structure
 ---------
@@ -115,22 +156,32 @@ CSS gradient expression; gradients are declared through the layout.
 Layout color references are still validated against the theme when
 an override is present.
 
-Each declared color is emitted as ``--coda-<token>``; series entries
-are emitted as ``--coda-series-N``, starting at 1. If the theme itself
-declares ``text``, ``header-background``, or ``header-text``, its
-declared value is retained instead of the corresponding derivation.
+If the theme itself declares ``text``, ``header-background``, or
+``header-text``, its declared value is retained instead of the
+corresponding derivation.
 
 Loading rules
 -------------
 
-The theme is UTF-8 YAML, parsed with the strict layout loader.
-Duplicate keys and unknown top-level keys are rejected. Token names are
-lowercase kebab-case. Colors contain exactly six hexadecimal digits
-after ``#``; quote them in YAML because ``#`` starts a comment.
+Themes are UTF-8 YAML. Bundled and custom declarations pass through
+the same parsing and model-validation boundary. Duplicate mapping
+keys and unknown top-level keys are rejected.
 
-Missing core tokens are reported together. Loading errors identify the
-theme and the layout that declared it. See the
-:doc:`theme API <../framework/api/theme>`.
+Token names are lowercase kebab-case. Colors contain exactly six
+hexadecimal digits after ``#``; quote them in YAML because ``#``
+starts a comment. Missing core tokens are reported together.
+
+An unreadable or invalid custom theme is an authoring failure:
+correct the file and build again. When selected through a layout,
+the error names both the theme file and the layout that declared it.
+
+A missing, unreadable, or invalid bundled theme is a framework
+installation failure, not a layout mistake; reinstall workflow-coda.
+An unknown bundled selection is instead an authoring error and lists
+the available names.
+
+See the :doc:`theme API <../framework/api/theme>` for discovery and
+loading functions.
 
 Example
 -------

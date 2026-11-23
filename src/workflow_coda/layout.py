@@ -40,17 +40,20 @@ models check *shape*: ids look like component ids, tabs are
 non-empty, split ratios are positive numbers, and composition is
 consistent (a row's ratios match its child count, a stack takes no
 split).  Resolution questions — does the component exist, does
-the theme file exist — belong to the report builder, which has the live
-registry and the filesystem.
+the selected theme load — belong to the report builder, which has
+the live registry, bundled resources, and filesystem context.
 
-Three fields follow one rule: declared, then strict.  ``logo`` and
-``favicon`` must exist next to the layout file and be embeddable
-images, or the build fails; omitted, the report renders without them
-and the builder records a diagnostic explaining how to add one.
-``theme`` likewise: omitted means the built-in default theme (and
-a diagnostic); declared, the file must load.  Assets are embedded into
-the single-page report as data URIs at build time — the report file
-never references external files.
+Three fields follow one rule: declared, then strict.  ``logo``
+selects a bundled icon name or a custom image path; ``favicon``
+selects a custom image path.  Declared assets must load and be
+embeddable, or the build fails.  Omitted, the report renders without
+them and the builder records a diagnostic explaining how to add one.
+``theme`` selects a bundled theme name or a custom YAML path;
+omitted means the built-in default theme and a diagnostic.
+Unknown bundled names never fall back to local files.
+Assets are embedded into the single-page report as inline SVG or
+data URIs at build time — the report file never references external
+asset files.
 """
 
 from enum import Enum
@@ -620,8 +623,15 @@ class ReportLayout(BaseModel):
     this revision of the report."""
 
     theme: VisibleText | None = None
-    """Optional path to a theme file, relative to the layout file.
-    Omitted means the built-in default theme."""
+    """Optional bundled theme name or custom theme file path.
+
+    Bare names select bundled themes, such as ``default`` or
+    ``default-dark``. Values containing a dot or path separator
+    select files relative to the layout, such as ``theme.yaml``
+    or ``./my-theme``. Unknown bundled names never fall back to
+    local files. Omitted means the built-in default theme, with
+    an informational diagnostic.
+    """
 
     logo: VisibleText | None = None
     """Optional path to a logo image, relative to the layout file;

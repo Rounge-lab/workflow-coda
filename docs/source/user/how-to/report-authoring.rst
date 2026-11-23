@@ -386,7 +386,11 @@ rewrite the manifest or add build diagnostics.
 Giving the report a look
 ------------------------
 
-All presentation lives in the theme file; the layout only names it.
+Theme tokens and fonts live in the selected theme declaration. The
+layout selects a bundled theme by name or a custom theme by file path;
+it also controls presentation choices such as the header variant.
+See the :doc:`theme reference <../reference/schemas/theme>` for
+selection and custom-file loading rules.
 A theme is a small vocabulary — the required core color tokens, a
 categorical ``series`` palette for figures, and two font stacks —
 with its shapes documented in the schemas page. Three authoring
