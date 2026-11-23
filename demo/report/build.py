@@ -32,7 +32,7 @@ def main() -> None:
     shutil.rmtree(BUILD, ignore_errors=True)
     BUILD.mkdir()
 
-    for filename in ("spec.yaml", "layout.yaml", "theme.yaml", "favicon.svg"):
+    for filename in ("spec.yaml", "layout.yaml", "favicon.svg"):
         source = HERE / filename
         if not source.is_file():
             raise SystemExit(f"Required demo file is missing: {source}")

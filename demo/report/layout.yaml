@@ -3,7 +3,7 @@ title: Workflow Coda visual inspection
 subtitle: A deliberately varied report for manual browser review
 author: Workflow Coda developers
 version: "Visual fixture 1"
-theme: theme.yaml
+theme: default-dark
 logo: core-coda
 favicon: favicon.svg
 header_variant: gradient
