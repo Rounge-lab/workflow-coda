@@ -9,6 +9,7 @@ from factories import make_theme_payload
 
 from workflow_coda.errors import FrameworkAssetError
 from workflow_coda.theme import (
+    DEFAULT_DARK_THEME,
     DEFAULT_THEME,
     bundled,
     bundled_theme_names,
@@ -21,6 +22,10 @@ def test_default_constant_matches_its_packaged_declaration() -> None:
     # Was a hardcoded model; now the YAML asset is authoritative.
     # Reading it again pins against stale or wrong-file wiring.
     assert _load_bundled_theme("default") == DEFAULT_THEME
+
+
+def test_dark_default_constant_matches_its_packaged_declaration() -> None:
+    assert _load_bundled_theme("default-dark") == DEFAULT_DARK_THEME
 
 
 @pytest.mark.parametrize("name", ["default", "default-dark"])
