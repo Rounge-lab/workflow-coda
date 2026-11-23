@@ -140,29 +140,20 @@ def _load_theme(layout_path: Path, declared: str) -> Theme:
 
 
 def _resolve_header_color(
-    theme: Theme, declared: ThemeToken | None
-) -> ThemeToken | None:
-    """The declared header color token, validated against the theme.
-
-    Omitted stays omitted: ``None`` rides to the document and the
-    renderer derives ``primary`` — a core token every theme must
-    carry, so the default always resolves.  The established
-    pattern for optional styling fields: subtitle, author, and
-    version all carry their omission honestly, and presentation
-    owns the default.  Declared, the token must be one the theme
-    declares: the declared-then-strict rule, taught with the
-    theme's own vocabulary, so a typo names what the theme
-    actually carries.
-    """
+    theme: Theme,
+    declared: ThemeToken | tuple[ThemeToken, ThemeToken] | None,
+) -> ThemeToken | tuple[ThemeToken, ThemeToken] | None:
+    """Validate declared header colors; omission remains omission."""
     if declared is None:
         return None
-    if declared not in theme.colors:
-        available = ", ".join(sorted(theme.colors))
-        raise LayoutError(
-            f"the layout declares header_color {declared!r}, but the "
-            f"report's theme declares no such token ({available}) — "
-            "declare the token in the theme, or name one it carries"
-        )
+
+    references = declared if isinstance(declared, tuple) else (declared,)
+    for reference in references:
+        try:
+            theme.resolve_color("the layout's header_color", reference)
+        except ValueError as e:
+            raise LayoutError(str(e)) from e
+
     return declared
 
 
@@ -955,4 +946,5 @@ def build_report(
         diagnostics=tuple(diagnostics),
         chrome=tuple(chrome),
         header_color=header_color,
+        header_variant=layout.header_variant,
     )

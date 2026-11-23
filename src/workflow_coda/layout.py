@@ -116,6 +116,21 @@ def _require_token_name(value: object) -> object:
     return value
 
 
+HeaderColorReference = Annotated[
+    ThemeToken,
+    BeforeValidator(_require_token_name),
+]
+
+
+def _require_header_color(value: object) -> object:
+    if isinstance(value, (list, tuple)):
+        for stop in value:
+            _require_token_name(stop)
+    else:
+        _require_token_name(value)
+    return value
+
+
 VisibleText = Annotated[str, AfterValidator(_require_visible_text)]
 """Non-empty, non-whitespace-only text, preserved exactly as written."""
 
@@ -616,15 +631,30 @@ class ReportLayout(BaseModel):
     """Optional path to a favicon image, relative to the layout file;
     embedded into the report at build time."""
 
-    header_color: Annotated[ThemeToken | None, BeforeValidator(_require_token_name)] = (
-        None
-    )
-    """Optional theme token for the page header's background, e.g.
-    ``primary`` (the default) or ``accent``.  A token *name*, never a
-    color literal: the header's ink is the theme's own contrast-picked
-    text against it, so the bar reads on any theme without the author
-    choosing.  The builder validates the token against the loaded
-    theme; the renderer derives the page's header properties from it."""
+    header_variant: Literal["fill", "gradient"] = "fill"
+    """Solid background by default, or a two-stop gradient."""
+
+    header_color: Annotated[
+        HeaderColorReference | tuple[HeaderColorReference, HeaderColorReference] | None,
+        BeforeValidator(_require_header_color),
+    ] = None
+    """A theme token or series entry for fill; two entries for gradient.
+    Omitted fill uses primary. Gradient requires explicit stops."""
+
+    @model_validator(mode="after")
+    def _header_color_matches_variant(self) -> Self:
+        if self.header_variant == "gradient":
+            if not isinstance(self.header_color, tuple):
+                raise ValueError(
+                    "header_variant: gradient requires header_color "
+                    "as a two-entry list, e.g. [primary, accent]"
+                )
+        elif isinstance(self.header_color, tuple):
+            raise ValueError(
+                "a header_color list requires header_variant: gradient "
+                "— use a single token for a solid header"
+            )
+        return self
 
     on_missing: MissingPolicy = MissingPolicy.FAIL
     """The default placement policy when a component id resolves to

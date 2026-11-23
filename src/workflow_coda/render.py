@@ -55,7 +55,7 @@ import importlib.resources
 import re
 from collections.abc import Iterator
 from itertools import count
-from typing import Final
+from typing import Final, Literal
 
 from jinja2 import Environment, PackageLoader, StrictUndefined, TemplateNotFound
 from markupsafe import Markup, escape
@@ -102,7 +102,11 @@ def _slugify(value: str) -> str:
 _ENV.filters["slugify"] = _slugify
 
 
-def _css_tokens(theme: Theme, header_color: ThemeToken | None) -> str:
+def _css_tokens(
+    theme: Theme,
+    header_color: ThemeToken | tuple[ThemeToken, ThemeToken] | None,
+    header_variant: Literal["fill", "gradient"] = "fill",
+) -> str:
     """The ``:root`` custom-property block for one theme.
 
     One rule, no special cases: every theme color token becomes
@@ -132,13 +136,29 @@ def _css_tokens(theme: Theme, header_color: ThemeToken | None) -> str:
         # it, and a declared token wins.
         lines.append(f"  --coda-text: {theme.text_on(theme.colors['background'])};")
     if "header-background" in theme.colors:
+        # Preserve the established rule: a theme declaration wins.
         header_background = theme.colors["header-background"]
-    else:
-        token = header_color if header_color is not None else "primary"
-        header_background = theme.colors[token]
+        header_backgrounds = (header_background,)
+    elif header_variant == "gradient":
+        if not isinstance(header_color, tuple) or len(header_color) != 2:
+            raise ValueError("a gradient header requires two header_color references")
+        stops = (
+            theme.resolve_color("header_color", header_color[0]),
+            theme.resolve_color("header_color", header_color[1]),
+        )
+        header_background = f"linear-gradient(135deg, {stops[0]}, {stops[1]})"
+        header_backgrounds = stops
         lines.append(f"  --coda-header-background: {header_background};")
+    else:
+        if isinstance(header_color, tuple):
+            raise ValueError("a solid header requires one header_color reference")
+        reference = header_color if header_color is not None else "primary"
+        header_background = theme.resolve_color("header_color", reference)
+        header_backgrounds = (header_background,)
+        lines.append(f"  --coda-header-background: {header_background};")
+
     if "header-text" not in theme.colors:
-        lines.append(f"  --coda-header-text: {theme.text_on(header_background)};")
+        lines.append(f"  --coda-header-text: {theme.text_on(*header_backgrounds)};")
     for index, color in enumerate(theme.series, start=1):
         lines.append(f"  --coda-series-{index}: {color};")
     lines.append(f"  --coda-font-body: {theme.font_body};")
@@ -591,7 +611,11 @@ def render_report(document: ReportDocument) -> str:
         document=document,
         tabs=tabs,
         has_tabs=has_tabs,
-        css_tokens=_css_tokens(document.theme, document.header_color),
+        css_tokens=_css_tokens(
+            document.theme,
+            document.header_color,
+            document.header_variant,
+        ),
         css_base=_chrome_file("style.css") + "\n" + _chrome_file("selection.css"),
         css_layout=_splits_css(document),
         component_css=_component_css(document),

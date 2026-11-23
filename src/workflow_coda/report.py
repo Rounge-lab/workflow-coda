@@ -50,7 +50,7 @@ panel dropped produces no node either.
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Final
+from typing import Final, Literal
 
 from .components import ComponentChrome, RenderedComponent
 from .layout import CardLayoutKind, StatesKind
@@ -510,10 +510,8 @@ class ReportDocument:
     after the framework's.  Empty by default: a document built from
     chrome-less components inlines no plugin chrome at all."""
 
-    header_color: ThemeToken | None = None
-    """The header color's theme token as declared in the layout, or
-    ``None`` for the ``primary`` default.  Validated against the
-    theme at build; the renderer derives the bar's background and
-    its contrast-picked ink from it, unless the theme itself declares
-    the ``header-background`` / ``header-text`` tokens — a declared
-    token wins, the ``--coda-text`` precedent."""
+    header_color: ThemeToken | tuple[ThemeToken, ThemeToken] | None = None
+    """Validated header color reference(s), or None for primary."""
+
+    header_variant: Literal["fill", "gradient"] = "fill"
+    """The header's solid or gradient presentation."""

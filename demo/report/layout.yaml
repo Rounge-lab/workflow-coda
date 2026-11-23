@@ -6,7 +6,8 @@ version: "Visual fixture 1"
 theme: theme.yaml
 logo: core-coda
 favicon: favicon.svg
-header_color: primary
+header_variant: gradient
+header_color: [accent, primary]
 on_missing: notice
 on_unavailable: notice
 
