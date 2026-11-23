@@ -1120,6 +1120,98 @@ def test_header_color_literals_teach_the_token_law(tmp_path: Path) -> None:
         build(tmp_path, layout_path, current_plugin())
 
 
+def test_header_variant_defaults_to_fill(tmp_path: Path) -> None:
+    layout_path = write_layout(tmp_path, tabs=[qc_tab("run A")])
+    document = build(tmp_path, layout_path, current_plugin())
+    assert document.header_variant == "fill"
+
+
+@pytest.mark.parametrize(
+    "colors",
+    [
+        ["primary", "accent"],
+        ["series-1", "series-2"],
+        ["primary", "series-2"],
+    ],
+)
+def test_gradient_header_carries_to_the_document(
+    tmp_path: Path, colors: list[str]
+) -> None:
+    layout_path = write_layout(
+        tmp_path,
+        header_variant="gradient",
+        header_color=list(colors),
+        tabs=[qc_tab("run A")],
+    )
+    document = build(tmp_path, layout_path, current_plugin())
+
+    assert document.header_variant == "gradient"
+    assert document.header_color == tuple(colors)
+    assert not any(d.subject == "header_color" for d in document.diagnostics)
+
+
+@pytest.mark.parametrize(
+    "colors",
+    [
+        ["shiny", "accent"],
+        ["primary", "shiny"],
+    ],
+)
+def test_unknown_gradient_stop_teaches_the_theme_vocabulary(
+    tmp_path: Path, colors: list[str]
+) -> None:
+    layout_path = write_layout(
+        tmp_path,
+        header_variant="gradient",
+        header_color=list(colors),
+        tabs=[qc_tab("run A")],
+    )
+    with pytest.raises(
+        LayoutError,
+        match=re.escape("declares header_color 'shiny'")
+        + ".*"
+        + re.escape("declare the token in the theme"),
+    ):
+        build(tmp_path, layout_path, current_plugin())
+
+
+@pytest.mark.parametrize("reference", ["series-0", "series-999"])
+def test_header_series_reference_must_be_in_range(
+    tmp_path: Path, reference: str
+) -> None:
+    layout_path = write_layout(
+        tmp_path,
+        header_variant="gradient",
+        header_color=["primary", reference],
+        tabs=[qc_tab("run A")],
+    )
+    with pytest.raises(LayoutError, match="series palette"):
+        build(tmp_path, layout_path, current_plugin())
+
+
+def test_gradient_header_uses_the_loaded_themes_vocabulary(
+    tmp_path: Path,
+) -> None:
+    payload = DEFAULT_THEME.model_dump()
+    payload["colors"]["brand-start"] = "#123456"
+    payload["colors"]["brand-end"] = "#abcdef"
+    (tmp_path / "custom_theme.yaml").write_text(
+        yaml.safe_dump(payload), encoding="utf-8"
+    )
+    layout_path = write_layout(
+        tmp_path,
+        theme="custom_theme.yaml",
+        header_variant="gradient",
+        header_color=["brand-start", "brand-end"],
+        tabs=[qc_tab("run A")],
+    )
+    document = build(tmp_path, layout_path, current_plugin())
+
+    assert document.header_color == ("brand-start", "brand-end")
+    assert document.theme.colors["brand-start"] == "#123456"
+    assert document.theme.colors["brand-end"] == "#abcdef"
+
+
 # ---------------------------------------------------------------------------
 # Declared assets, then strict
 # ---------------------------------------------------------------------------

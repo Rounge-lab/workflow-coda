@@ -143,7 +143,7 @@ def _resolve_header_color(
     theme: Theme,
     declared: ThemeToken | tuple[ThemeToken, ThemeToken] | None,
 ) -> ThemeToken | tuple[ThemeToken, ThemeToken] | None:
-    """Validate declared header colors; omission remains omission."""
+    """Validate each declared reference; omission stays omitted."""
     if declared is None:
         return None
 
@@ -152,7 +152,13 @@ def _resolve_header_color(
         try:
             theme.resolve_color("the layout's header_color", reference)
         except ValueError as e:
-            raise LayoutError(str(e)) from e
+            available = ", ".join(sorted(theme.colors))
+            raise LayoutError(
+                f"the layout declares header_color {reference!r}, but the "
+                f"report's theme cannot resolve it ({available}) — "
+                "declare the token in the theme, or name one it carries "
+                f"or a valid series entry; {e}"
+            ) from e
 
     return declared
 

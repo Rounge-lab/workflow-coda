@@ -12,7 +12,7 @@ from factories import make_manifest_payload, stub_figure
 from workflow_coda.components import ComponentChrome, RenderedComponent
 from workflow_coda.errors import RenderError
 from workflow_coda.manifest import ArtifactStatus, ReportManifest
-from workflow_coda.render import render_report
+from workflow_coda.render import _css_tokens, render_report
 from workflow_coda.report import (
     CardEntry,
     ChromeContribution,
@@ -720,6 +720,63 @@ def test_declared_header_tokens_win_over_the_derivation() -> None:
     assert "--coda-header-background: #123456;" in page
     assert f"--coda-header-text: {background_only.text_on('#123456')};" in page
     assert page.count("--coda-header-background:") == 1
+
+
+def test_default_header_css_remains_solid_primary() -> None:
+    theme = DEFAULT_THEME
+    css = _css_tokens(theme, None)
+
+    assert f"--coda-header-background: {theme.colors['primary']};" in css
+    assert f"--coda-header-text: {theme.text_on(theme.colors['primary'])};" in css
+    assert "linear-gradient(" not in css
+
+
+def test_gradient_header_css_uses_both_stops_for_ink() -> None:
+    theme = DEFAULT_THEME
+    start = theme.colors["primary"]
+    end = theme.colors["accent"]
+
+    css = _css_tokens(theme, ("primary", "accent"), "gradient")
+
+    assert f"--coda-header-background: linear-gradient(135deg, {start}, {end});" in css
+    assert f"--coda-header-text: {theme.text_on(start, end)};" in css
+    assert css.count("--coda-header-background:") == 1
+    assert css.count("--coda-header-text:") == 1
+
+
+def test_gradient_header_css_resolves_series_entries() -> None:
+    theme = DEFAULT_THEME
+    start, end = theme.series[:2]
+
+    css = _css_tokens(theme, ("series-1", "series-2"), "gradient")
+
+    assert f"--coda-header-background: linear-gradient(135deg, {start}, {end});" in css
+    assert f"--coda-header-text: {theme.text_on(start, end)};" in css
+
+
+def test_theme_header_background_overrides_requested_gradient() -> None:
+    payload = DEFAULT_THEME.model_dump()
+    payload["colors"]["header-background"] = "#123456"
+    theme = Theme.model_validate(payload)
+
+    css = _css_tokens(theme, ("primary", "accent"), "gradient")
+
+    assert "--coda-header-background: #123456;" in css
+    assert "linear-gradient(" not in css
+    assert f"--coda-header-text: {theme.text_on('#123456')};" in css
+    assert css.count("--coda-header-background:") == 1
+
+
+def test_theme_header_text_overrides_gradient_derived_ink() -> None:
+    payload = DEFAULT_THEME.model_dump()
+    payload["colors"]["header-text"] = "#abcdef"
+    theme = Theme.model_validate(payload)
+
+    css = _css_tokens(theme, ("primary", "accent"), "gradient")
+
+    assert "linear-gradient(" in css
+    assert "--coda-header-text: #abcdef;" in css
+    assert css.count("--coda-header-text:") == 1
 
 
 # ---------------------------------------------------------------------------

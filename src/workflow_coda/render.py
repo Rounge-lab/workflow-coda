@@ -77,7 +77,7 @@ from .report import (
     RowEntry,
     StatesEntry,
 )
-from .theme import Theme, ThemeToken
+from .theme import ColorHex, Theme, ThemeToken
 
 _ENV: Final[Environment] = Environment(
     loader=PackageLoader("workflow_coda", "templates"),
@@ -135,6 +135,7 @@ def _css_tokens(
         # `text` token keeps its own ink — the loop above emitted
         # it, and a declared token wins.
         lines.append(f"  --coda-text: {theme.text_on(theme.colors['background'])};")
+    header_backgrounds: tuple[ColorHex, ...]
     if "header-background" in theme.colors:
         # Preserve the established rule: a theme declaration wins.
         header_background = theme.colors["header-background"]

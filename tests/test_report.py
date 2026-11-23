@@ -567,6 +567,49 @@ def test_document_carries_the_header_color_token() -> None:
     assert colored != document
 
 
+def test_document_header_styling_defaults() -> None:
+    document = ReportDocument(
+        title="Report",
+        subtitle=None,
+        author=None,
+        version=None,
+        theme=DEFAULT_THEME,
+        logo=None,
+        favicon=None,
+        manifest=ReportManifest.model_validate(make_manifest_payload()),
+        tabs=(),
+        diagnostics=(),
+    )
+
+    assert document.header_color is None
+    assert document.header_variant == "fill"
+
+
+def test_document_carries_gradient_header_styling() -> None:
+    document = ReportDocument(
+        title="Report",
+        subtitle=None,
+        author=None,
+        version=None,
+        theme=DEFAULT_THEME,
+        logo=None,
+        favicon=None,
+        manifest=ReportManifest.model_validate(make_manifest_payload()),
+        tabs=(),
+        diagnostics=(),
+    )
+    gradient = replace(
+        document,
+        header_variant="gradient",
+        header_color=("primary", "accent"),
+    )
+
+    assert gradient.header_variant == "gradient"
+    assert gradient.header_color == ("primary", "accent")
+    assert document.header_variant == "fill"
+    assert document.header_color is None
+
+
 @pytest.mark.parametrize(
     ("kind", "is_problem"),
     [

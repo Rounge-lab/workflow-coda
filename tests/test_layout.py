@@ -117,6 +117,78 @@ def test_header_color_must_be_a_token_shape(bad: str) -> None:
         ReportLayout.model_validate(make_layout_payload(header_color=bad))
 
 
+def test_header_styling_defaults() -> None:
+    layout = ReportLayout.model_validate(make_layout_payload())
+    assert layout.header_variant == "fill"
+    assert layout.header_color is None
+
+
+def test_gradient_header_normalizes_yaml_list_to_tuple() -> None:
+    layout = ReportLayout.model_validate(
+        make_layout_payload(
+            header_variant="gradient",
+            header_color=["primary", "accent"],
+        )
+    )
+    assert layout.header_variant == "gradient"
+    assert layout.header_color == ("primary", "accent")
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"header_variant": "gradient"},
+        {"header_variant": "gradient", "header_color": None},
+        {"header_variant": "gradient", "header_color": "primary"},
+        {"header_variant": "gradient", "header_color": []},
+        {"header_variant": "gradient", "header_color": ["primary"]},
+        {
+            "header_variant": "gradient",
+            "header_color": ["primary", "accent", "surface"],
+        },
+        {"header_color": ["primary", "accent"]},
+        {
+            "header_variant": "fill",
+            "header_color": ["primary", "accent"],
+        },
+        {"header_variant": "text"},
+        {"header_variant": "unknown"},
+        {"header_variant": True},
+        {"header_color": True},
+        {
+            "header_variant": "gradient",
+            "header_color": ["primary", False],
+        },
+        {
+            "header_variant": "gradient",
+            "header_color": ["primary", ""],
+        },
+    ],
+)
+def test_invalid_header_styling_is_rejected(
+    overrides: dict[str, JsonValue],
+) -> None:
+    with pytest.raises(ValidationError):
+        ReportLayout.model_validate(make_layout_payload(**overrides))
+
+
+@pytest.mark.parametrize(
+    "colors",
+    [
+        ["#ff0000", "accent"],
+        ["primary", "#ff0000"],
+    ],
+)
+def test_gradient_literals_teach_the_token_law(colors: list[str]) -> None:
+    with pytest.raises(ValidationError, match="never a color literal"):
+        ReportLayout.model_validate(
+            make_layout_payload(
+                header_variant="gradient",
+                header_color=list(colors),
+            )
+        )
+
+
 # ---------------------------------------------------------------------------
 # The composition grammar
 # ---------------------------------------------------------------------------
