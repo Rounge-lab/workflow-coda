@@ -1217,16 +1217,20 @@ def test_gradient_header_uses_the_loaded_themes_vocabulary(
     assert document.theme.colors["brand-end"] == "#abcdef"
 
 
-def test_bundled_theme_loads_without_omission_diagnostic(tmp_path: Path) -> None:
-    layout_path = write_layout(tmp_path, theme="default", tabs=[qc_tab("run A")])
+@pytest.mark.parametrize("name", ["default", "default-dark"])
+def test_bundled_theme_loads_without_omission_diagnostic(
+    tmp_path: Path, name: str
+) -> None:
+    layout_path = write_layout(tmp_path, theme=name, tabs=[qc_tab("run A")])
     document = build(tmp_path, layout_path, current_plugin())
 
-    assert document.theme == load_bundled_theme("default")
+    assert document.theme == load_bundled_theme(name)
     assert diagnostics_of(document, DiagnosticKind.DEFAULT_THEME) == []
 
 
+@pytest.mark.parametrize("name", ["default", "default-dark"])
 def test_bundled_theme_reaches_document_and_component_context(
-    tmp_path: Path,
+    tmp_path: Path, name: str
 ) -> None:
     seen: list[Theme] = []
 
@@ -1244,14 +1248,14 @@ def test_bundled_theme_reaches_document_and_component_context(
     )
     layout_path = write_layout(
         tmp_path,
-        theme="default",
+        theme=name,
         tabs=[{"title": "QC", "components": [{"id": "themed.echo"}]}],
     )
     document = build(tmp_path, layout_path, plugin)
 
     assert len(seen) == 1
     assert seen[0] is document.theme
-    assert document.theme == load_bundled_theme("default")
+    assert document.theme == load_bundled_theme(name)
 
 
 def test_unknown_bundled_theme_teaches_roster_and_fix(tmp_path: Path) -> None:

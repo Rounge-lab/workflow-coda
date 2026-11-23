@@ -23,8 +23,9 @@ def test_default_constant_matches_its_packaged_declaration() -> None:
     assert _load_bundled_theme("default") == DEFAULT_THEME
 
 
-def test_default_asset_has_disciplined_newlines() -> None:
-    path = resources.files("workflow_coda.theme") / "assets" / "default.yaml"
+@pytest.mark.parametrize("name", ["default", "default-dark"])
+def test_default_assets_have_disciplined_newlines(name: str) -> None:
+    path = resources.files("workflow_coda.theme") / "assets" / f"{name}.yaml"
     data = path.read_bytes()
     assert not data.startswith(b"\n")
     assert data.endswith(b"\n")
@@ -81,8 +82,8 @@ def test_invalid_bundled_asset_is_an_installation_failure(
     assert isinstance(exc_info.value.__cause__, ValueError)
 
 
-def test_shipped_default_is_discovered() -> None:
-    assert "default" in bundled_theme_names()
+def test_shipped_default_themes_are_discovered() -> None:
+    assert {"default", "default-dark"} <= bundled_theme_names()
 
 
 def test_every_shipped_theme_validates() -> None:
@@ -212,3 +213,12 @@ def test_public_loading_rejects_paths_as_unknown_names(
 
     with pytest.raises(ValueError, match="unknown bundled theme"):
         load_bundled_theme("../outside")
+
+
+def test_dark_theme_has_distinct_background_and_surface() -> None:
+    dark = load_bundled_theme("default-dark")
+
+    assert dark.name == "default-dark"
+    assert dark.colors["background"] != DEFAULT_THEME.colors["background"]
+    assert dark.colors["surface"] != DEFAULT_THEME.colors["surface"]
+    assert dark.colors["background"] != dark.colors["surface"]
