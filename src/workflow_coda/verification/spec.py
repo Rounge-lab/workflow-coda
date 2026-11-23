@@ -31,9 +31,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from ..errors import SpecError
 from ..layout_loader import (
-    UniqueKeySafeLoader,
     _describe_violation,
-    _DuplicateKeyError,
 )
 from ..manifest import (
     ArtifactFormat,
@@ -44,6 +42,7 @@ from ..manifest import (
     NamespacedArtifactFormat,
     NonEmptyStr,
 )
+from ..yaml_loader import UniqueKeySafeLoader, _DuplicateKeyError
 from .expansion import (
     check_family_collisions,
     expand_template,

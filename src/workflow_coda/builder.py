@@ -72,7 +72,7 @@ from .layout import (
     StatesNode,
     UnavailablePolicy,
 )
-from .layout_loader import UniqueKeySafeLoader, load_layout
+from .layout_loader import load_layout
 from .manifest import ManifestSchemaVersion
 from .plugins import ReportPlugin
 from .registry import PluginRegistry
@@ -96,6 +96,7 @@ from .report import (
 )
 from .theme import DEFAULT_THEME, Theme, ThemeToken
 from .verification.expansion import expand_template, substitute_raw
+from .yaml_loader import UniqueKeySafeLoader
 
 
 def _load_theme(layout_path: Path, declared: str) -> Theme:

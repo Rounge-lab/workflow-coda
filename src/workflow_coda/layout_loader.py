@@ -37,12 +37,10 @@ author wrote — it fails loudly with an explanation.
 """
 
 from pathlib import Path
-from typing import Any
 
 import yaml
 from pydantic import ValidationError
 from pydantic_core import ErrorDetails
-from yaml.constructor import ConstructorError
 
 from .artifact_store import JsonValue
 from .core.markdown_variables import MARKDOWN_VARIABLE_RE
@@ -56,6 +54,12 @@ from .layout import (
     ReportLayout,
     StatesNode,
 )
+from .yaml_loader import (
+    UniqueKeySafeLoader as UniqueKeySafeLoader,
+)
+from .yaml_loader import (
+    _DuplicateKeyError,
+)
 
 _MISSING = object()
 """Sentinel for a location that does not resolve into the parsed document."""
@@ -64,46 +68,6 @@ _MARKDOWN_VARIABLE = MARKDOWN_VARIABLE_RE
 """core.markdown's variable syntax, recognized only to exclude it from
 the states orphan check.  The component owns resolution and validation;
 the loader never substitutes or changes the parameter text."""
-
-
-class _DuplicateKeyError(yaml.YAMLError):
-    """Internal: a duplicate mapping key, with its 1-based line number."""
-
-    def __init__(self, key: object, line: int) -> None:
-        super().__init__(f"duplicate key {key!r} on line {line}")
-        self.key = key
-        self.line = line
-
-
-class UniqueKeySafeLoader(yaml.SafeLoader):
-    """``SafeLoader`` that rejects duplicate mapping keys.
-
-    The shared YAML machinery for the framework's human-authored files:
-    the layout file and the theme files it declares.  YAML's silent
-    last-wins resolution is a trap for a hand-authored file, so a
-    duplicate becomes an error naming the key and line.
-    """
-
-    def construct_mapping(
-        self, node: yaml.MappingNode, deep: bool = False
-    ) -> dict[Any, Any]:
-        seen: set[object] = set()
-        for key_node, _ in node.value:
-            key = self.construct_object(key_node, deep=deep)
-            try:
-                hash(key)
-            except TypeError:
-                raise ConstructorError(
-                    None,
-                    None,
-                    "mapping keys must be simple values like text or "
-                    "numbers; this key is a complex value",
-                    key_node.start_mark,
-                ) from None
-            if key in seen:
-                raise _DuplicateKeyError(key, key_node.start_mark.line + 1)
-            seen.add(key)
-        return super().construct_mapping(node, deep)
 
 
 def _format_location(location: tuple[int | str, ...]) -> str:
