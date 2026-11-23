@@ -30,7 +30,7 @@ Placing it
 
 .. code-block:: yaml
 
-   schema_version: "0.2.0"
+   schema_version: "0.3.0"
    title: Sample QC
    tabs:
      - title: Samples
@@ -94,6 +94,30 @@ close, the nearest match.
        artifact's own header, where the data lives.
        ``header: false`` and ``columns`` together are refused:
        positional selection would be invented vocabulary.
+   * - ``column_widths``
+     - no — default automatic sizing
+     - non-empty list of positive, finite numbers
+     - Relative widths, one per rendered column after ``columns``
+       selection, including the index column when present.
+       ``[2, 1]`` gives the first column twice the second's width.
+       Declared widths use fixed table layout with wrapping;
+       omitted widths preserve automatic sizing.
+   * - ``max_visible_rows``
+     - no — default unrestricted
+     - positive integer
+     - Maximum number of complete body rows in the enhanced scroll
+       viewport; the header does not count. Every row remains in
+       the HTML. Without scripting, and when printing, all rows
+       remain visible.
+   * - ``copy_rows``
+     - no — default ``all``
+     - ``all`` or ``visible``
+     - ``all`` copies every filter-matching row, preserving the
+       existing behavior. ``visible`` copies filter-matching rows
+       intersecting the table's scroll viewport, including partially
+       visible rows. Both preserve current sort order and rendered
+       columns. Without a scroll restriction, both copy every
+       filter-matching row.
    * - ``caption``
      - no
      - non-empty string
@@ -106,6 +130,48 @@ shape policy, ``columns`` presentation policy, ``caption``
 authorship.  Placement keys — ``title``, ``on_unavailable`` — live
 at the placement level, never inside ``parameters:``; a key nested
 by accident teaches the move.
+
+Column widths and scrolling
+---------------------------
+
+Width ratios describe the final rendered columns, not the artifact's
+original column order. An automatically retained index column counts
+as a rendered column and takes the first ratio. Headerless tables
+also support ratios, in file-column order. A one-column table may
+declare a single ratio.
+
+.. code-block:: yaml
+
+   - id: core.table
+     title: Sample status
+     parameters:
+       artifact: org.example.samples
+       columns: [status, sample_id]
+       column_widths: [1, 2]
+       max_visible_rows: 12
+       copy_rows: all
+       caption: Per-sample status.
+
+This example assumes the artifact has no index column. With an index
+column, supply three ratios instead.
+
+The row limit is a scripted enhancement, not truncation: every row
+ships in the HTML. The script measures the header and the first
+declared number of matching body rows, allowing for wrapped cells.
+It refreshes the measurement after sorting, filtering, resizing,
+and when a hidden panel becomes visible. Sorting and filtering reset
+the table's scroll position to the top.
+
+The scroll region is keyboard-focusable and its header stays visible
+while scrolling. Without scripting, the table has no height
+restriction. Printing removes the restriction and restores
+filter-hidden rows.
+
+``copy_rows: all`` means all rows in the current filtered result,
+not rows excluded by the filter. ``copy_rows: visible`` uses the
+table's own scroll viewport, not the browser's page viewport; rows
+covered entirely by the sticky header are excluded. The copy button's
+accessible label and tooltip identify its policy.
 
 The ``core.tabular`` format
 ---------------------------
@@ -154,14 +220,20 @@ interactive that is not.
   so clearing the filter restores the table exactly.  The field is
   named through its ``aria-label``, with the framework's filter
   icon as a decorative prefix.
-* **Copy** exports the current view — post-``columns`` columns,
-  sorted, filtered — as TSV through ``navigator.clipboard``, cells
-  quoted per the ``csv`` dialect. The button is named through its
-  ``aria-label``. Success shows a check icon, clipboard refusal shows
-  a message. The button icon is restored after a moment.
-* **Print** honors the panels law: the controls bar is hidden and
-  filter-hidden rows are restored, so the printed page shows the
-  complete table in its current order.
+* **Copy** exports post-``columns`` columns in current sort order
+  as TSV through ``navigator.clipboard``, cells quoted per the
+  ``csv`` dialect. By default, ``copy_rows: all`` exports every
+  filter-matching row, including rows outside the scroll viewport.
+  ``copy_rows: visible`` exports only filter-matching rows
+  intersecting that viewport, including partially visible rows.
+  The button's accessible label and tooltip identify the policy.
+  Success shows a check icon and announces the actual copied row
+  count; clipboard refusal shows a message. The button icon is
+  restored after a moment.
+* **Print** honors the panels law: controls are hidden,
+  filter-hidden rows are restored, and the scroll viewport becomes
+  unrestricted, so the printed page shows the complete table in
+  its current order.
 
 Outcomes and chrome
 -------------------

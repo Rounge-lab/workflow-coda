@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import shutil
 import subprocess
@@ -59,6 +61,48 @@ def main() -> None:
         "S3\t10\tb1\tpassed\n"
         "S4\t40\tb3\tpending\n",
     )
+    # Dedicated table-enhancement fixture: enough rows to scroll, numeric
+    # values whose lexical and numeric orders differ, and varying text
+    # lengths to exercise measured row heights at narrow widths.
+    inspection_rows = (
+        ("T01", "9", "keep", "Short note."),
+        (
+            "T02",
+            "100",
+            "keep",
+            "A longer note that should wrap across multiple lines "
+            "when the browser is narrow.",
+        ),
+        ("T03", "10", "keep", "Review *literal stars* and <literal tags>."),
+        ("T04", "40", "drop", "Excluded by the group filter."),
+        (
+            "T05",
+            "2",
+            "keep",
+            "Unbroken_identifier_abcdefghijklmnopqrstuvwxyz_0123456789"
+            "_abcdefghijklmnopqrstuvwxyz",
+        ),
+        ("T06", "80", "keep", "A note with a tab\tinside the cell."),
+        ("T07", "3", "drop", "Another excluded group row."),
+        ("T08", "25", "keep", 'A note with "quoted text".'),
+        ("T09", "60", "keep", "First line.\nSecond line inside the same cell."),
+        (
+            "T10",
+            "7",
+            "drop",
+            "Another longer note for checking row heights after sorting "
+            "changes which rows occupy the top of the viewport.",
+        ),
+        ("T11", "12", "keep", "Near the end of the table."),
+        ("T12", "1", "keep", "Final row in original file order."),
+    )
+    inspection_buffer = io.StringIO(newline="")
+    inspection_writer = csv.writer(
+        inspection_buffer, delimiter="\t", lineterminator="\n"
+    )
+    inspection_writer.writerow(("sample_id", "depth", "group", "note"))
+    inspection_writer.writerows(inspection_rows)
+    write_text("table_inspection.tsv", inspection_buffer.getvalue())
     write_text(
         "counts.tsv",
         "\tA\tB\nS1\t9\t100\nS2\t10\t3\nS3\t2\t45\n",

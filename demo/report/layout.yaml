@@ -183,6 +183,159 @@ tabs:
           sep: ","
           caption: Three columns and three data rows.
 
+      - id: core.markdown
+        title: Widths, scrolling, and copy inspection
+        parameters:
+          text: |
+            This tab uses a dedicated twelve-row table. It starts hidden
+            when the report opens: switching here should initialize the
+            scroll viewports without leaving an empty or zero-height table.
+
+            ## Column widths and wrapping
+
+            - Compare the first two tables: both use width ratios
+              `[1, 1, 1, 5]`. The note column should occupy roughly five
+              times the width of each other column.
+            - Narrow the browser until long notes wrap. Text must remain
+              readable without overlapping neighboring cells.
+            - Check the long unbroken identifier in T05.
+            - T03's stars and angle brackets must remain literal text.
+            - T06 contains a tab, T08 contains quotes, and T09 contains a
+              newline within one cell. Copying must preserve those values
+              using TSV quoting.
+
+            ## Scroll viewport
+
+            - Each restricted table should show at most four complete body
+              rows before scrolling; the header does not count.
+            - Wrapped rows have different heights. The viewport must be
+              measured from the actual first four matching rows, not a
+              fixed assumed row height.
+            - Scroll to the middle and bottom. The header should stay
+              visible, and T12 must remain reachable.
+            - Sort depth ascending: T12, T05, T07, and T10 should be first.
+              Descending starts T02, T06, T09, and T04. A third click restores
+              original file order.
+            - Sorting should reset scrolling to the top and update the
+              viewport height for the newly leading rows.
+            - Filter for `keep`: nine rows match, so scrolling remains.
+              Filter for `T02`: one row matches, so there should be no
+              unnecessary vertical scroll region. Clear the filter to
+              restore all twelve rows.
+            - Filtering should also reset scrolling to the top.
+            - Resize while scrolled, switch away and back, and check that
+              row heights and viewport sizing remain sensible.
+            - Use the keyboard to focus a restricted scroll region and
+              scroll it. Check the focus outline and accessible region name.
+
+            ## Copy policy
+
+            Paste clipboard results into a text editor or spreadsheet.
+            If clipboard access is refused by the browser, expect an honest
+            refusal message rather than a success check.
+
+            - The default-copy table omits `copy_rows`, so it must behave
+              as `all`. With no filter it copies twelve body rows plus the
+              header, even when scrolled to the middle.
+            - Filter that table for `keep`: copying must produce nine body
+              rows, not twelve. All means all filter matches.
+            - The visible-copy table copies only rows intersecting its own
+              scroll viewport at the moment of copying.
+            - Scroll so rows are partially visible at the viewport edges:
+              those rows count. Rows covered entirely by the sticky header
+              must not count.
+            - Both policies preserve current sort order and rendered column
+              order. The success announcement must match the actual copied
+              body-row count.
+            - Inspect each copy button's tooltip and accessible label: one
+              names all matching rows, the other visible rows.
+            - The unrestricted visible-copy table should copy all twelve
+              rows regardless of where the whole browser page is scrolled.
+
+            ## No JavaScript and print
+
+            - Disable JavaScript and reload if practical. Every row in every
+              table must remain visible without vertical clipping, and
+              enhancement controls must disappear.
+            - With JavaScript enabled, filter a table and scroll it before
+              opening print preview. All twelve rows must print in current
+              sort order, including filter-hidden and scrolled-off rows.
+            - Print must remove controls and viewport restrictions.
+              Width ratios and wrapped content should remain readable.
+
+      - id: core.table
+        title: Restricted viewport — default copy all matching rows
+        parameters:
+          artifact: org.example.table_inspection
+          columns: [sample_id, depth, group, note]
+          column_widths: [1, 1, 1, 5]
+          max_visible_rows: 4
+          caption: |
+            Four-row viewport. Copy policy is omitted deliberately:
+            all twelve rows, or all nine keep matches, should copy.
+
+      - id: core.table
+        title: Restricted viewport — copy visible rows
+        parameters:
+          artifact: org.example.table_inspection
+          columns: [sample_id, depth, group, note]
+          column_widths: [1, 1, 1, 5]
+          max_visible_rows: 4
+          copy_rows: visible
+          caption: |
+            Four-row viewport. Copy only intersecting rows, including
+            partially visible rows but excluding the sticky header's cover.
+
+      - id: core.table
+        title: Unrestricted viewport — visible copy without a row limit
+        parameters:
+          artifact: org.example.table_inspection
+          columns: [sample_id, depth]
+          column_widths: [2, 1]
+          copy_rows: visible
+          caption: |
+            No row limit: all twelve filter-matching rows copy, independently
+            of the browser page's scroll position.
+
+      - type: card
+        title: Width grammar edge cases
+        layout: grid
+        split: [1, 1]
+        children:
+          - id: core.table
+            title: Index column included in ratios
+            parameters:
+              artifact: org.example.counts
+              columns: [B, A]
+              column_widths: [1, 3, 2]
+              max_visible_rows: 2
+              caption: |
+                Three ratios for index, B, A. The unlabeled index stays
+                first; only two of the three body rows fit before scrolling.
+
+          - id: core.table
+            title: Headerless positional widths
+            parameters:
+              artifact: org.example.headerless
+              sep: ","
+              header: false
+              column_widths: [3, 1]
+              max_visible_rows: 2
+              caption: |
+                Column 1 should be three times Column 2's width.
+                All three rows remain reachable.
+
+      - id: core.table
+        title: Single selected column — one ratio
+        parameters:
+          artifact: org.example.table_inspection
+          columns: [depth]
+          column_widths: [1]
+          max_visible_rows: 4
+          caption: |
+            One rendered column accepts one ratio and occupies the full
+            table width. Numeric sorting should still work.
+
   - title: Charts
     components:
       - id: core.markdown
