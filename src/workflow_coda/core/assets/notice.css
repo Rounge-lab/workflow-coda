@@ -25,22 +25,29 @@
   display: none;
 }
 
-/* The chevron: drawn in CSS so it follows the summary's ink —
-   currentColor — on any theme and at any level; it rotates to
-   point up while the notice is open. */
-.coda-notice__summary::after {
-  content: "";
+
+.coda-notice__title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.coda-notice__dropdown {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
   margin-left: auto;
-  width: 0.4em;
-  height: 0.4em;
-  border-right: 2px solid currentColor;
-  border-bottom: 2px solid currentColor;
-  transform: rotate(45deg);
   transition: transform 0.15s ease;
 }
 
-.coda-notice[open] > .coda-notice__summary::after {
-  transform: rotate(-135deg);
+.coda-notice[open] > .coda-notice__summary > .coda-notice__dropdown {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coda-notice__dropdown {
+    transition: none;
+  }
 }
 
 /* The body sits under the summary; the prose vocabulary

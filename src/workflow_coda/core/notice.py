@@ -122,7 +122,11 @@ def _parse_spec(parameters: ComponentParameters) -> _NoticeSpec:
 
 
 def _assemble_markup(
-    spec: _NoticeSpec, title: str, border: ColorHex | None, body: str
+    spec: _NoticeSpec,
+    title: str,
+    border: ColorHex | None,
+    body: str,
+    dropdown_icon: str,
 ) -> str:
     """Emit the disclosure card: the summary row, the prose body.
 
@@ -135,7 +139,10 @@ def _assemble_markup(
     open_attr = "" if spec.collapsed else " open"
     return (
         f'<details class="{classes}"{style}{open_attr}>'
-        f'<summary class="coda-notice__summary">{html.escape(title)}</summary>'
+        '<summary class="coda-notice__summary">'
+        f'<span class="coda-notice__title">{html.escape(title)}</span>'
+        f'<span class="coda-notice__dropdown">{dropdown_icon}</span>'
+        "</summary>"
         f'<div class="coda-notice__body coda-prose">{body}</div>'
         "</details>"
     )
@@ -166,4 +173,7 @@ def render_notice(
         else None
     )
     body = _walk_block(_MD.parse(spec.text), {}, "the notice")
-    return RenderedComponent.from_html(_assemble_markup(spec, info.title, border, body))
+    dropdown_icon = context.icons.load("core-dropdown").markup
+    return RenderedComponent.from_html(
+        _assemble_markup(spec, info.title, border, body, dropdown_icon)
+    )

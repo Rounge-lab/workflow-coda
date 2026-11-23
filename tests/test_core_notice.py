@@ -26,6 +26,7 @@ from workflow_coda.components import (
 )
 from workflow_coda.context import RenderContext
 from workflow_coda.core.plugin import get_plugin
+from workflow_coda.icons import IconLibrary, IconSource
 from workflow_coda.layout import LAYOUT_SCHEMA_VERSION
 from workflow_coda.manifest import ReportManifest
 from workflow_coda.registry import PluginRegistry
@@ -49,7 +50,12 @@ def _render(
 ) -> RenderedComponent:
     """One render call against a real context and placement."""
     return _notice().render(
-        RenderContext(store=store), PlacementInfo(title=title), parameters
+        RenderContext(
+            store=store,
+            icons=IconLibrary((IconSource.for_plugin("core", "workflow_coda.core"),)),
+        ),
+        PlacementInfo(title=title),
+        parameters,
     )
 
 
@@ -210,9 +216,48 @@ def test_the_summary_carries_the_resolved_title_escaped(tmp_path: Path) -> None:
         title="QC & thresholds",
     )
     assert outcome.html is not None
-    assert '<summary class="coda-notice__summary">QC &amp; thresholds</summary>' in (
-        outcome.html
-    )
+    assert (
+        '<summary class="coda-notice__summary">'
+        '<span class="coda-notice__title">QC &amp; thresholds</span>'
+    ) in (outcome.html)
+
+
+@pytest.mark.parametrize("collapsed", [False, True])
+def test_the_summary_embeds_the_shipped_dropdown_icon(
+    tmp_path: Path, collapsed: bool
+) -> None:
+    # The icon rides the build's sanitized library, directly in the
+    # summary: available without scripting in either initial state.
+    library = IconLibrary((IconSource.for_plugin("core", "workflow_coda.core"),))
+    dropdown_icon = library.load("core-dropdown").markup
+
+    outcome = _render(_store(tmp_path), {"text": "Hello.", "collapsed": collapsed})
+    assert outcome.status is ComponentStatus.OK
+    assert outcome.html is not None
+    assert (
+        f'<span class="coda-notice__dropdown">{dropdown_icon}</span></summary>'
+    ) in outcome.html
+    assert outcome.html.count("<svg") == 1
+    assert 'aria-hidden="true"' in dropdown_icon
+    assert 'focusable="false"' in dropdown_icon
+    assert 'class="coda-icon"' in dropdown_icon
+
+
+def test_the_dropdown_affordance_uses_native_open_state() -> None:
+    # The SVG replaces the CSS-drawn chevron; native details state
+    # owns rotation, with no script needed.
+    component = _notice()
+    assert component.css is not None
+    assert ".coda-notice__dropdown" in component.css
+    assert (
+        ".coda-notice[open] > .coda-notice__summary > .coda-notice__dropdown"
+    ) in component.css
+    assert "transform: rotate(180deg)" in component.css
+    assert ".coda-notice__summary::after" not in component.css
+    # Safari's marker must still be suppressed.
+    assert ".coda-notice__summary::-webkit-details-marker" in component.css
+    assert "prefers-reduced-motion: reduce" in component.css
+    assert component.js is None
 
 
 # ---------------------------------------------------------------------------
@@ -256,9 +301,10 @@ def test_a_collapsed_column_guide_is_the_driving_use_case(tmp_path: Path) -> Non
     assert outcome.status is ComponentStatus.OK
     assert outcome.html is not None
     assert '<details class="coda-card coda-card--note coda-notice">' in outcome.html
-    assert '<summary class="coda-notice__summary">Column guide</summary>' in (
-        outcome.html
-    )
+    assert (
+        '<summary class="coda-notice__summary">'
+        '<span class="coda-notice__title">Column guide</span>'
+    ) in (outcome.html)
     assert "<dt><code>sample</code></dt>" in outcome.html
     assert "<dd>Sample name parsed from the filenames.</dd>" in outcome.html
 
@@ -307,4 +353,6 @@ def test_the_notice_reaches_the_page_under_its_banner(tmp_path: Path) -> None:
     page = render_report(document)
     assert 'data-component="core.notice"' in page
     assert "/* core.notice */" in page
-    assert ".coda-notice__summary" in page
+    assert '<span class="coda-notice__dropdown"><svg' in page
+    # A notice embeds its icon directly and needs no navigation template.
+    assert '<template id="coda-dropdown-icon">' not in page
