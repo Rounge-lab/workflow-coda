@@ -25,6 +25,7 @@ from workflow_coda.components import (
 )
 from workflow_coda.context import RenderContext
 from workflow_coda.core.plugin import get_plugin
+from workflow_coda.icons import IconLibrary, IconSource
 from workflow_coda.manifest import ReportManifest
 
 STATS = '{"n_samples": 3, "run_id": "run-42", "depth": 12.5, "flag": true}'
@@ -43,9 +44,10 @@ def _markdown() -> ReportComponent:
 def _render(
     store: ArtifactStore, parameters: Mapping[str, JsonValue]
 ) -> RenderedComponent:
-    """One render call against a real context and placement."""
+    """One render call against a real context, icons, and placement."""
+    icons = IconLibrary([IconSource.for_plugin("core", "workflow_coda.core")])
     return _markdown().render(
-        RenderContext(store=store),
+        RenderContext(store=store, icons=icons),
         PlacementInfo(title="Prose"),
         parameters,
     )
@@ -78,16 +80,17 @@ def _store(tmp_path: Path, stats: str | None = None) -> ArtifactStore:
 
 
 def test_markdown_is_on_the_core_roster() -> None:
-    # The author's door: one prose component on the shipped roster,
-    # CARD chrome — the framework's card owns the heading — with
-    # self-hosted styles and no script: prose is static content.
+    # CARD chrome owns the heading; prose is complete without
+    # scripting, with fenced-code copy as a page-chrome enhancement.
     component = _markdown()
     assert component.id == "core.markdown"
     assert component.title == "Prose"
     assert component.chrome is ComponentChrome.CARD
     assert component.css is not None
-    assert ".coda-prose" in component.css  # the scoped vocabulary
-    assert component.js is None
+    assert ".coda-prose" in component.css
+    assert ".coda-prose__copy" in component.css
+    assert component.js is not None
+    assert ".coda-prose__code-block" in component.js
 
 
 # ---------------------------------------------------------------------------
@@ -332,14 +335,16 @@ def test_blockquotes_render(tmp_path: Path) -> None:
 
 
 def test_fenced_code_renders_escaped(tmp_path: Path) -> None:
-    # Code is author-written content, so it escapes, never teaches
-    # — the contrast with raw HTML below is the line: structure
-    # teaches, content renders.
-    outcome = _render(_store(tmp_path), {"text": "```\nif x < y:\n    pass\n```"})
+    # Code remains complete, literal content inside its copy wrapper.
+    # Escaping preserves indentation and the fence's trailing newline.
+    outcome = _render(
+        _store(tmp_path),
+        {"text": "```\nif x < y:\n    pass\n```"},
+    )
+    assert outcome.status is ComponentStatus.OK
     assert outcome.html is not None
-    assert "<pre>" in outcome.html
-    assert "<code>" in outcome.html
-    assert "x &lt; y" in outcome.html
+    assert '<div class="coda-prose__code-block">' in outcome.html
+    assert "<pre><code>if x &lt; y:\n    pass\n</code></pre>" in outcome.html
     assert "<y:" not in outcome.html
 
 
@@ -519,3 +524,100 @@ def test_the_designs_example_renders_end_to_end(tmp_path: Path) -> None:
         in outcome.html
     )
     assert "<li>host reads removed first</li>" in outcome.html
+
+
+# ---------------------------------------------------------------------------
+# Fenced-code copy: chrome around complete, literal content
+# ---------------------------------------------------------------------------
+
+
+def test_each_fence_has_its_own_copy_control(tmp_path: Path) -> None:
+    outcome = _render(
+        _store(tmp_path),
+        {"text": "```\nfirst\n```\n\n```python\nsecond\n```"},
+    )
+    assert outcome.status is ComponentStatus.OK
+    assert outcome.html is not None
+    assert outcome.html.count('class="coda-prose__code-block"') == 2
+    assert outcome.html.count('class="coda-prose__copy"') == 2
+    assert outcome.html.count('aria-label="Copy code"') == 2
+    assert "<pre><code>first\n</code></pre>" in outcome.html
+    assert "<pre><code>second\n</code></pre>" in outcome.html
+
+
+def test_copy_control_ships_both_icon_faces_and_live_regions(
+    tmp_path: Path,
+) -> None:
+    # Faces ship at build time; script changes their visibility,
+    # not the code content. Each block has separate feedback channels.
+    outcome = _render(_store(tmp_path), {"text": "```\nexample\n```"})
+    assert outcome.html is not None
+    assert 'type="button"' in outcome.html
+    assert 'class="coda-prose__copy-icon"><svg' in outcome.html
+    assert 'class="coda-prose__copy-check"><svg' in outcome.html
+    assert 'class="coda-prose__copy-feedback" aria-live="polite"' in outcome.html
+    assert (
+        'class="coda-prose__copy-status coda-prose__sr"'
+        ' aria-live="polite"' in outcome.html
+    )
+    # Enhancement state belongs to the script, not build-time markup.
+    assert "coda-prose__code-block--enhanced" not in outcome.html
+    assert "coda-prose__copy--copied" not in outcome.html
+
+
+def test_inline_code_has_no_copy_control(tmp_path: Path) -> None:
+    outcome = _render(_store(tmp_path), {"text": "Run `example --help`."})
+    assert outcome.html is not None
+    assert "<code>example --help</code>" in outcome.html
+    assert "coda-prose__copy" not in outcome.html
+    assert "coda-prose__code-block" not in outcome.html
+
+
+def test_fenced_variables_preserve_literal_code_content(tmp_path: Path) -> None:
+    # Substitution is still post-parse and escaped exactly once.
+    # Clipboard code reads the resulting code node, not its chrome.
+    value = '  a & b <tag> **literal**\n\t"quoted"'
+    outcome = _render(
+        _store(tmp_path, json.dumps({"note": value})),
+        {
+            "artifact": "org.example.stats",
+            "text": "```\n{{ note }}\n```",
+        },
+    )
+    assert outcome.status is ComponentStatus.OK
+    assert outcome.html is not None
+    assert (
+        "<pre><code>  a &amp; b &lt;tag&gt; **literal**\n"
+        '\t"quoted"\n</code></pre>' in outcome.html
+    )
+    assert "&amp;amp;" not in outcome.html
+    assert "<strong>" not in outcome.html
+
+
+def test_prose_without_fences_does_not_load_icons(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def unexpected_load(self: IconLibrary, name: str) -> None:
+        pytest.fail(f"prose without fences loaded icon {name!r}")
+
+    monkeypatch.setattr(IconLibrary, "load", unexpected_load)
+    outcome = _render(_store(tmp_path), {"text": "Plain prose with `code`."})
+    assert outcome.status is ComponentStatus.OK
+
+
+def test_missing_artifact_with_fence_does_not_load_icons(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Missing data converts before enhancement chrome is assembled.
+    def unexpected_load(self: IconLibrary, name: str) -> None:
+        pytest.fail(f"unavailable prose loaded icon {name!r}")
+
+    monkeypatch.setattr(IconLibrary, "load", unexpected_load)
+    outcome = _render(
+        _store(tmp_path),
+        {
+            "artifact": "org.example.stats",
+            "text": "```\n{{ n_samples }}\n```",
+        },
+    )
+    assert outcome.status is ComponentStatus.UNAVAILABLE
