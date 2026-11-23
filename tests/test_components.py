@@ -50,7 +50,11 @@ def test_from_figure_pins_the_embedding_flags() -> None:
     assert outcome.status is ComponentStatus.OK
     assert figure.full_html is False
     assert figure.include_plotlyjs is False
-    assert figure.config == {"responsive": True}
+    assert figure.config == {
+        "responsive": True,
+        "modeBarButtonsToRemove": ["sendDataToCloud"],
+        "showSendToCloud": False,
+    }
 
 
 def test_from_figure_wraps_the_plot_in_the_framework_marker() -> None:

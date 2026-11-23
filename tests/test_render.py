@@ -31,6 +31,16 @@ from workflow_coda.report import (
 from workflow_coda.theme import DEFAULT_THEME, Theme, ThemeToken
 
 
+class MetaParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.metas: list[dict[str, str | None]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "meta":
+            self.metas.append(dict(attrs))
+
+
 def figure_entry() -> ComponentEntry:
     """A rendered entry carrying the framework figure marker — built
     through the real constructor, so detection is pinned against the
@@ -875,12 +885,24 @@ def test_the_page_declares_its_content_security_policy() -> None:
     # network, closed by default-src 'none'.  First head child: the
     # posture is declared before anything else in the page loads.
     html = render_report(make_document())
-    expected = (
-        '<meta http-equiv="Content-Security-Policy" '
-        "content=\"default-src 'none'; img-src data:; "
-        "style-src 'unsafe-inline'; script-src 'unsafe-inline'\">"
+    parser = MetaParser()
+    parser.feed(html)
+
+    csp_metas = [
+        meta
+        for meta in parser.metas
+        if (meta.get("http-equiv") or "").lower() == "content-security-policy"
+    ]
+
+    assert len(csp_metas) == 1
+    assert csp_metas[0]["content"] == (
+        "default-src 'none'; connect-src 'none'; "
+        "img-src data: blob:; style-src 'unsafe-inline'; "
+        "script-src 'unsafe-inline'"
     )
-    assert expected in html
+
+    # Declare the policy before subsequent metadata/resources.
+    assert parser.metas[0] == csp_metas[0]
     assert html.index("Content-Security-Policy") < html.index("<meta charset")
 
 
