@@ -684,7 +684,9 @@ def test_the_card_body_carries_no_title(tmp_path: Path) -> None:
     assert outcome.status is ComponentStatus.OK
     assert outcome.html is not None
     assert "Never rendered" not in outcome.html
-    assert outcome.html.startswith('<div class="coda-table">')
+    # Knowing shift: the CARD body root now stamps the default copy
+    # policy; title ownership remains with the framework.
+    assert outcome.html.startswith('<div class="coda-table" data-copy-rows="all">')
 
 
 # ---------------------------------------------------------------------------
@@ -785,11 +787,406 @@ def test_the_enhancement_script_registration_census() -> None:
     assert js.count('getAttribute("data-key")') == 2
     # One timer binding — the duplicate-declaration casualty read 2.
     assert js.count("var feedbackTimer") == 1
-    # The feedback story: one definition, three calls; the retired
-    # text-restore path and its corpse signature read 0.
-    assert js.count("showFeedback") == 4
+    # Knowing shift: one definition plus three calls was 4; now 5 —
+    # the additional refusal call handles a synchronous clipboard
+    # exception, beside promise refusal and unsupported browsers.
+    assert js.count("showFeedback") == 5
     assert js.count('feedback("Copied"') == 0
     assert js.count("COPY_LABEL") == 0
     # The success path and the runtime label: one source site each.
     assert js.count("Copied ") == 1
     assert js.count('aria-label", "Sort') == 1
+
+
+# ---------------------------------------------------------------------------
+# Widths, row limits, and copy policy: shape before artifact access
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("value", "message"),
+    [
+        (
+            [],
+            "core.table: parameter 'column_widths' must be a non-empty "
+            "list of positive, finite numbers, got [] — "
+            "use one ratio per rendered column, e.g. [2, 1]",
+        ),
+        (
+            "2, 1",
+            "core.table: parameter 'column_widths' must be a non-empty "
+            "list of positive, finite numbers, got '2, 1' — "
+            "use one ratio per rendered column, e.g. [2, 1]",
+        ),
+        (
+            None,
+            "core.table: parameter 'column_widths' must be a non-empty "
+            "list of positive, finite numbers, got None — "
+            "use one ratio per rendered column, e.g. [2, 1]",
+        ),
+        (
+            [True],
+            "core.table: parameter 'column_widths' must contain "
+            "numbers, not booleans or strings, got True — "
+            "use positive, finite ratios",
+        ),
+        (
+            ["2"],
+            "core.table: parameter 'column_widths' must contain "
+            "numbers, not booleans or strings, got '2' — "
+            "use positive, finite ratios",
+        ),
+        (
+            [0],
+            "core.table: parameter 'column_widths' contains "
+            "0 — use positive, finite ratios greater than 0",
+        ),
+        (
+            [-1],
+            "core.table: parameter 'column_widths' contains "
+            "-1 — use positive, finite ratios greater than 0",
+        ),
+        (
+            [float("inf")],
+            "core.table: parameter 'column_widths' contains "
+            "inf — use positive, finite ratios greater than 0",
+        ),
+        (
+            [float("-inf")],
+            "core.table: parameter 'column_widths' contains "
+            "-inf — use positive, finite ratios greater than 0",
+        ),
+        (
+            [float("nan")],
+            "core.table: parameter 'column_widths' contains "
+            "nan — use positive, finite ratios greater than 0",
+        ),
+    ],
+)
+def test_column_width_shape_teaches_before_unavailable_data(
+    tmp_path: Path, value: JsonValue, message: str
+) -> None:
+    store = _write_bundle(tmp_path, status="failed")
+    context = RenderContext(store=store, theme=DEFAULT_THEME)
+    with pytest.raises(ValueError) as exc_info:
+        _render(context, _table({"column_widths": value}))
+    assert str(exc_info.value) == message
+
+
+@pytest.mark.parametrize("value", [True, False, 0, -1, 2.0, "2", None])
+def test_row_limit_shape_teaches_before_unavailable_data(
+    tmp_path: Path, value: JsonValue
+) -> None:
+    store = _write_bundle(tmp_path, status="failed")
+    context = RenderContext(store=store, theme=DEFAULT_THEME)
+    with pytest.raises(ValueError) as exc_info:
+        _render(context, _table({"max_visible_rows": value}))
+    assert str(exc_info.value) == (
+        "core.table: parameter 'max_visible_rows' must be a "
+        f"positive integer, got {value!r} — use e.g. 12, "
+        "or omit it to show an unrestricted table"
+    )
+
+
+@pytest.mark.parametrize("value", ["ALL", "filtered", "", True, 1, None])
+def test_copy_policy_shape_teaches_before_unavailable_data(
+    tmp_path: Path, value: JsonValue
+) -> None:
+    store = _write_bundle(tmp_path, status="failed")
+    context = RenderContext(store=store, theme=DEFAULT_THEME)
+    with pytest.raises(ValueError) as exc_info:
+        _render(context, _table({"copy_rows": value}))
+    assert str(exc_info.value) == (
+        "core.table: parameter 'copy_rows' must be 'all' or "
+        f"'visible', got {value!r} — use 'all' to copy every "
+        "filter-matching row, or 'visible' for the scroll viewport"
+    )
+
+
+def test_table_presentation_defaults_preserve_existing_behavior(
+    tmp_path: Path,
+) -> None:
+    context = _context(_write_bundle(tmp_path))
+    body = _html(context, _table())
+    assert body.startswith('<div class="coda-table" data-copy-rows="all">')
+    assert "data-max-visible-rows" not in body
+    assert "coda-table--fixed-widths" not in body
+    assert "<colgroup>" not in body
+    assert '<div class="coda-table__viewport"><table>' in body
+    assert "<tr><td>S1</td><td>30.5</td><td>passed</td></tr>" in body
+    assert "<tr><td>S2</td><td>0</td><td>failed</td></tr>" in body
+    assert "<tr><td>S3</td><td>12.25</td><td>passed</td></tr>" in body
+
+
+# ---------------------------------------------------------------------------
+# Width ratios: validated against the final rendered columns
+# ---------------------------------------------------------------------------
+
+
+def test_column_widths_follow_selected_column_order(tmp_path: Path) -> None:
+    context = _context(_write_bundle(tmp_path))
+    body = _html(
+        context,
+        _table(
+            {
+                "columns": ["status", "sample_id"],
+                "column_widths": [1, 3],
+            }
+        ),
+    )
+    assert body.startswith(
+        '<div class="coda-table coda-table--fixed-widths" data-copy-rows="all">'
+    )
+    assert (
+        '<table><colgroup><col style="width: 25%">'
+        '<col style="width: 75%"></colgroup><thead>' in body
+    )
+    assert body.index('data-key="status"') < body.index('data-key="sample_id"')
+    assert 'data-key="depth"' not in body
+    assert "<tr><td>passed</td><td>S1</td></tr>" in body
+
+
+@pytest.mark.parametrize(
+    ("parameters", "count"),
+    [
+        ({"column_widths": [1, 1]}, 3),
+        ({"columns": ["depth"], "column_widths": [1, 1]}, 1),
+    ],
+)
+def test_width_count_matches_rendered_columns(
+    tmp_path: Path, parameters: ComponentParameters, count: int
+) -> None:
+    context = _context(_write_bundle(tmp_path))
+    with pytest.raises(ValueError) as exc_info:
+        _render(context, _table(parameters))
+    assert str(exc_info.value) == (
+        "core.table: 'column_widths' gives 2 ratios "
+        f"for {count} rendered columns — use exactly "
+        "one ratio per column after 'columns' selection, including "
+        "the index column when present"
+    )
+
+
+def test_width_count_includes_the_retained_index(tmp_path: Path) -> None:
+    context = _context(_write_bundle(tmp_path, content=_INDEX_TABLE))
+    parameters = _table({"columns": ["depth"], "column_widths": [1]})
+    with pytest.raises(ValueError) as exc_info:
+        _render(context, parameters)
+    assert str(exc_info.value) == (
+        "core.table: 'column_widths' gives 1 ratios "
+        "for 2 rendered columns — use exactly "
+        "one ratio per column after 'columns' selection, including "
+        "the index column when present"
+    )
+    body = _html(
+        context,
+        _table({"columns": ["depth"], "column_widths": [1, 3]}),
+    )
+    assert (
+        '<colgroup><col style="width: 25%"><col style="width: 75%"></colgroup>' in body
+    )
+    assert body.index('data-key=""') < body.index('data-key="depth"')
+    assert "<tr><td>S1</td><td>30.5</td></tr>" in body
+
+
+def test_headerless_tables_accept_positional_widths(tmp_path: Path) -> None:
+    context = _context(_write_bundle(tmp_path, content="S1\t30.5\nS2\t0\n"))
+    body = _html(
+        context,
+        _table({"header": False, "column_widths": [3, 1]}),
+    )
+    assert (
+        '<colgroup><col style="width: 75%"><col style="width: 25%"></colgroup>' in body
+    )
+    assert body.index('data-key="Column 1"') < body.index('data-key="Column 2"')
+    assert "<tr><td>S1</td><td>30.5</td></tr>" in body
+
+
+def test_single_column_tables_accept_one_width_ratio(tmp_path: Path) -> None:
+    context = _context(_write_bundle(tmp_path))
+    body = _html(
+        context,
+        _table({"columns": ["depth"], "column_widths": [2]}),
+    )
+    assert '<colgroup><col style="width: 100%"></colgroup>' in body
+    assert "<tr><td>30.5</td></tr>" in body
+
+
+def test_width_normalization_avoids_sum_overflow(tmp_path: Path) -> None:
+    context = _context(_write_bundle(tmp_path))
+    body = _html(
+        context,
+        _table(
+            {
+                "columns": ["sample_id", "depth"],
+                "column_widths": [1e308, 1e308],
+            }
+        ),
+    )
+    assert (
+        '<colgroup><col style="width: 50%"><col style="width: 50%"></colgroup>' in body
+    )
+
+
+# ---------------------------------------------------------------------------
+# Row limits are enhancement metadata, never content truncation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("copy_rows", ["all", "visible"])
+def test_row_limit_ships_every_row_without_inline_clipping(
+    tmp_path: Path, copy_rows: str
+) -> None:
+    context = _context(_write_bundle(tmp_path))
+    body = _html(
+        context,
+        _table({"max_visible_rows": 1, "copy_rows": copy_rows}),
+    )
+    assert body.startswith(
+        f'<div class="coda-table" data-copy-rows="{copy_rows}"'
+        ' data-max-visible-rows="1">'
+    )
+    assert '<div class="coda-table__viewport"><table>' in body
+    assert body.count("<tr><td>") == 3
+    assert "<tr><td>S1</td><td>30.5</td><td>passed</td></tr>" in body
+    assert "<tr><td>S2</td><td>0</td><td>failed</td></tr>" in body
+    assert "<tr><td>S3</td><td>12.25</td><td>passed</td></tr>" in body
+    assert "max-height" not in body
+    assert "overflow" not in body
+    assert "coda-table__viewport--scrolling" not in body
+    assert 'tabindex="0"' not in body
+
+
+def test_visible_copy_policy_is_allowed_without_a_row_limit(
+    tmp_path: Path,
+) -> None:
+    context = _context(_write_bundle(tmp_path))
+    body = _html(context, _table({"copy_rows": "visible"}))
+    assert body.startswith('<div class="coda-table" data-copy-rows="visible">')
+    assert "data-max-visible-rows" not in body
+    assert body.count("<tr><td>") == 3
+
+
+def test_row_limit_accepts_a_header_only_table(tmp_path: Path) -> None:
+    context = _context(_write_bundle(tmp_path, content="sample\tdepth\n"))
+    body = _html(context, _table({"max_visible_rows": 1}))
+    assert 'data-max-visible-rows="1"' in body
+    assert "<tbody></tbody>" in body
+    assert "max-height" not in body
+
+
+def test_caption_is_outside_the_scroll_viewport(tmp_path: Path) -> None:
+    context = _context(_write_bundle(tmp_path))
+    body = _html(
+        context,
+        _table({"max_visible_rows": 1, "caption": "All samples."}),
+    )
+    assert (
+        "</tbody></table></div>"
+        '<p class="coda-table__caption">All samples.</p>'
+        "</div>" in body
+    )
+    assert body.index("coda-table__controls") < body.index("coda-table__viewport")
+
+
+def test_valid_enhancement_parameters_preserve_unavailable_outcomes(
+    tmp_path: Path,
+) -> None:
+    store = _write_bundle(tmp_path, status="failed")
+    context = RenderContext(store=store, theme=DEFAULT_THEME)
+    message = _unavailable_message(
+        context,
+        _table(
+            {
+                "column_widths": [1, 2, 1],
+                "max_visible_rows": 1,
+                "copy_rows": "visible",
+            }
+        ),
+    )
+    assert "declared with status 'failed'" in message
+
+
+# ---------------------------------------------------------------------------
+# Enhancement source contracts: not browser-execution tests
+# ---------------------------------------------------------------------------
+
+
+def test_width_styles_are_opt_in_and_allow_wrapping() -> None:
+    css = read_core_asset("table.css")
+    assert ".coda-table--fixed-widths table {\n  table-layout: fixed;\n}" in css
+    assert (
+        ".coda-table--fixed-widths th,\n"
+        ".coda-table--fixed-widths td {\n"
+        "  overflow-wrap: anywhere;\n"
+        "}" in css
+    )
+    assert ".coda-table--fixed-widths thead th {\n  white-space: normal;\n}" in css
+
+
+def test_scroll_styles_are_script_gated_and_print_restores_content() -> None:
+    css = read_core_asset("table.css")
+    screen, print_rules = css.split("@media print {", 1)
+    assert (
+        ".coda-js .coda-table__viewport--scrolling {\n  overflow-y: auto;\n}" in screen
+    )
+    # Baseline CSS cannot clip content without successful measurement.
+    assert "max-height:" not in screen
+    assert (
+        ".coda-table__viewport {\n"
+        "    max-height: none !important;\n"
+        "    height: auto !important;\n"
+        "    overflow: visible !important;\n"
+        "  }" in print_rules
+    )
+    assert (
+        ".coda-table--filtered {\n"
+        "    display: table-row !important;\n"
+        "  }" in print_rules
+    )
+    assert (
+        ".coda-js .coda-table__viewport--scrolling thead {\n"
+        "    position: static !important;\n"
+        "  }" in print_rules
+    )
+
+
+def test_viewport_measurement_source_tracks_rows_and_visibility() -> None:
+    js = read_core_asset("table.js")
+    assert 'root.getAttribute("data-max-visible-rows")' in js
+    assert "height = table.tHead.getBoundingClientRect().height;" in js
+    assert "height += row.getBoundingClientRect().height;" in js
+    assert "if (count < limit)" in js
+    assert "if (count <= limit)" in js
+    assert "if (rect.width <= 0 || rect.height <= 0)" in js
+    assert 'viewport.style.removeProperty("max-height");' in js
+    assert 'viewport.style.maxHeight = Math.ceil(height) + "px";' in js
+    assert 'viewport.setAttribute("tabindex", "0");' in js
+    assert 'viewport.setAttribute("role", "region");' in js
+    assert 'viewport.setAttribute("aria-label", "Scrollable table rows");' in js
+    # One definition and two calls: sort and filter reset scrolling.
+    assert js.count("resetViewport()") == 3
+    assert 'window.addEventListener("resize", scheduleRefresh);' in js
+    assert "observer.observe(root);" in js
+    assert "observer.observe(table);" in js
+    assert 'attributeFilter: ["class", "style", "hidden"]' in js
+    assert "document.fonts.ready.then(scheduleRefresh);" in js
+
+
+def test_copy_source_respects_filter_and_declared_viewport_policy() -> None:
+    js = read_core_asset("table.js")
+    assert 'var copyVisible = root.getAttribute("data-copy-rows") === "visible";' in js
+    # An unbounded table copies every filter match even in visible mode.
+    assert "if (!copyVisible || !viewport.classList.contains(SCROLLING))" in js
+    # Positive rectangle intersection includes partially visible rows;
+    # the sticky header's bottom bounds the unobscured viewport.
+    assert "table.tHead.getBoundingClientRect().bottom" in js
+    assert (
+        "return rowBounds.bottom > top &&\n"
+        "        rowBounds.top < bounds.top + viewport.clientHeight;" in js
+    )
+    assert "if (row.classList.contains(HIDDEN) || !withinViewport(row))" in js
+    assert '"Copy visible rows as TSV" : "Copy all matching rows as TSV";' in js
+    assert 'copyButton.setAttribute("aria-label", copyLabel);' in js
+    assert 'copyButton.setAttribute("title", copyLabel);' in js
+    assert 'showFeedback("Copied " + count + " rows", true);' in js

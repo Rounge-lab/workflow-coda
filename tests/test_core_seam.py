@@ -114,6 +114,9 @@ tabs:
         parameters:
           artifact: org.example.samples
           columns: [status, sample_id]
+          column_widths: [1, 2]
+          max_visible_rows: 2
+          copy_rows: visible
           caption: Per-sample status.
       - id: core.table
         parameters:
@@ -179,7 +182,26 @@ def test_core_components_render_through_the_cli(tmp_path: Path) -> None:
     # placement carries the columns policy and a caption, the other
     # the header's own order; the build-time stamps ride along.
     assert page.count('data-component="core.table"') == 2
-    assert page.count('<div class="coda-table">') == 2
+    # Knowing shift: bare table roots now carry copy policy metadata.
+    # One placement declares widths, a row limit, and visible copying;
+    # the second retains automatic widths and default all-match copying.
+    assert (
+        page.count(
+            '<div class="coda-table coda-table--fixed-widths"'
+            ' data-copy-rows="visible" data-max-visible-rows="2">'
+        )
+        == 1
+    )
+    assert page.count('<div class="coda-table" data-copy-rows="all">') == 1
+    assert page.count('<div class="coda-table__viewport">') == 2
+    assert (
+        '<colgroup><col style="width: 33.3333333333%">'
+        '<col style="width: 66.6666666667%"></colgroup>' in page
+    )
+    # The row limit is enhancement metadata, never build-time truncation.
+    assert "<tr><td>passed</td><td>S1</td></tr>" in page
+    assert "<tr><td>failed</td><td>S2</td></tr>" in page
+    assert "<tr><td>passed</td><td>S3</td></tr>" in page
     assert "<h3>Sample status</h3>" in page  # the placement's resolved title
     assert "<h3>Table</h3>" in page  # the untitled placement: the declaration default
     # Knowing shift (sort-state icons): was — the two header cells
@@ -253,14 +275,13 @@ def test_core_components_render_through_the_cli(tmp_path: Path) -> None:
     # so a missing stylesheet reads 15 and the pin teaches.
     assert page.count('class="coda-icon"') == 22
     assert page.count("coda-table__sort-icon--") == 19
-    # The controls chrome census — the coda-table__ vocabulary is
-    # table-owned, so every author is held.  The copy button's two
-    # stamped faces: one span per table in the markup plus the two
-    # stylesheet rules that swap them — 4.  The success-state class:
-    # two stylesheet rules, two script sites — 4, absent from the
-    # served markup because the script owns it at runtime.  The
-    # screen-reader utility: one count span per table plus its one
-    # stylesheet rule — 3.
+    # The controls chrome census — both markup and shipped source
+    # authors are held. The check face appears twice in markup and
+    # twice in CSS: 4. Knowing shift: the success-state class was 4
+    # (two CSS sites and two JS sites), now 5 — feedback first clears
+    # the preceding state, then adds success or reports refusal, and
+    # the timer clears success afterward. The screen-reader utility
+    # remains two markup spans plus one CSS rule: 3.
     assert page.count("coda-table__copy-check") == 4
-    assert page.count("coda-table__copy--copied") == 4
+    assert page.count("coda-table__copy--copied") == 5
     assert page.count("coda-table__sr") == 3
