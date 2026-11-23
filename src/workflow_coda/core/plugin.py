@@ -112,9 +112,22 @@ core.table."""
 
 
 _MARKDOWN_CSS: Final[str] = read_core_asset("markdown.css")
-"""core.markdown's page chrome: the prose card's typographic scale,
-scoped under ``.coda-prose`` — theme tokens only, and no script:
-prose is static content."""
+"""core.markdown's page chrome: the prose card's typographic scale
+and fenced-code copy controls, scoped under .coda-prose and styled
+with theme tokens. Copy controls remain hidden until enhanced and
+are omitted when printing."""
+
+
+_MARKDOWN_JS: Final[str] = read_core_asset("markdown.js")
+"""core.markdown's enhancement script, inlined once per report
+through the page-chrome channel.
+
+Each fenced code block receives an independent copy control.
+Copy preserves the rendered code's literal text and whitespace;
+success swaps the copy icon for the check icon and announces
+confirmation, while clipboard refusal displays an honest message.
+Prose remains complete without scripting.
+"""
 
 
 _MARKDOWN: Final[ReportComponent] = ReportComponent(
@@ -125,6 +138,7 @@ _MARKDOWN: Final[ReportComponent] = ReportComponent(
     render=render_markdown,
     chrome=ComponentChrome.CARD,
     css=_MARKDOWN_CSS,
+    js=_MARKDOWN_JS,
 )
 """The core plugin's markdown component"""
 

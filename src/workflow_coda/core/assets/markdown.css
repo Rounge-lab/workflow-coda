@@ -3,7 +3,7 @@
    emits, the coda-brand > svg pattern again — and theme tokens
    only: ink from --coda-text, hairlines from --coda-border.  Code
    plates wear --coda-background, the page tone recessed one step
-   below the surface card.  No script: prose is static content. */
+   below the surface card. */
 
 .coda-prose > :first-child {
   margin-top: 0;
@@ -11,6 +11,93 @@
 
 .coda-prose > :last-child {
   margin-bottom: 0;
+}
+
+/* Code remains complete without scripting; copy is enhancement. */
+.coda-prose__code-block {
+  position: relative;
+  margin: 0 0 0.9em;
+}
+
+.coda-prose__code-block pre {
+  margin: 0;
+}
+
+.coda-prose__copy {
+  display: none;
+}
+
+.coda-prose__code-block--enhanced pre {
+  padding-right: 3.5rem;
+}
+
+.coda-prose__code-block--enhanced .coda-prose__copy {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2em;
+  height: 2em;
+  box-sizing: border-box;
+  padding: 0;
+  border: 1px solid var(--coda-border);
+  border-radius: 4px;
+  font: inherit;
+  font-size: 0.9em;
+  color: var(--coda-text);
+  background: var(--coda-background);
+  cursor: pointer;
+}
+
+.coda-prose__copy:hover {
+  background: var(--coda-accent);
+  color: var(--coda-surface);
+}
+
+.coda-prose__copy-check {
+  display: none;
+}
+
+.coda-prose__copy--copied .coda-prose__copy-icon {
+  display: none;
+}
+
+.coda-prose__copy--copied .coda-prose__copy-check {
+  display: inline-flex;
+}
+
+.coda-prose__copy-feedback {
+  display: block;
+  color: var(--coda-muted);
+  font-size: 0.9em;
+}
+
+.coda-prose__copy-feedback:empty {
+  display: none;
+}
+
+.coda-prose__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media print {
+  .coda-prose__copy,
+  .coda-prose__copy-feedback,
+  .coda-prose__copy-status {
+    display: none !important;
+  }
+
+  .coda-prose__code-block--enhanced pre {
+    padding-right: 1em;
+  }
 }
 
 /* Prose headings stay below the card's own title (1.1rem), the

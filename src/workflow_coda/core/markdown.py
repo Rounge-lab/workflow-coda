@@ -251,6 +251,22 @@ def _open_heading(tag: str) -> str:
     return f"<{_demote(tag)}>"
 
 
+def _copy_button(context: RenderContext) -> str:
+    """Copy chrome for fenced code, hidden until scripting enhances it."""
+    copy_icon = context.icons.load("core-copy").markup
+    check_icon = context.icons.load("core-check").markup
+    return (
+        '<button type="button" class="coda-prose__copy"'
+        ' aria-label="Copy code">'
+        f'<span class="coda-prose__copy-icon">{copy_icon}</span>'
+        f'<span class="coda-prose__copy-check">{check_icon}</span>'
+        "</button>"
+        '<span class="coda-prose__copy-feedback" aria-live="polite"></span>'
+        '<span class="coda-prose__copy-status coda-prose__sr"'
+        ' aria-live="polite"></span>'
+    )
+
+
 def _walk_inline(
     children: Sequence[Token], values: dict[str, JsonValue], label: str
 ) -> str:
@@ -285,7 +301,10 @@ def _walk_inline(
 
 
 def _walk_block(
-    tokens: Sequence[Token], values: dict[str, JsonValue], label: str
+    tokens: Sequence[Token],
+    values: dict[str, JsonValue],
+    label: str,
+    copy_button: str = "",
 ) -> str:
     """Render a block token stream: the subset's block vocabulary."""
     out: list[str] = []
@@ -301,7 +320,12 @@ def _walk_block(
             out.append(f"</{_demote(token.tag)}>")
         elif kind == "fence":
             rendered = _escape_code(_substitute(token.content, values, label))
-            out.append(f"<pre><code>{rendered}</code></pre>")
+            out.append(
+                '<div class="coda-prose__code-block">'
+                f"{copy_button}"
+                f"<pre><code>{rendered}</code></pre>"
+                "</div>"
+            )
         elif kind == "hr":
             out.append("<hr>")
         elif kind in _BLOCK_TEACHINGS:
@@ -360,5 +384,9 @@ def render_markdown(
                 f"artifact's top-level object, but artifact {label} is "
                 f"not one"
             )
-    body = _walk_block(_MD.parse(spec.text), values, label)
+    tokens = _MD.parse(spec.text)
+    copy_button = (
+        _copy_button(context) if any(token.type == "fence" for token in tokens) else ""
+    )
+    body = _walk_block(tokens, values, label, copy_button)
     return RenderedComponent.from_html(f'<div class="coda-prose">{body}</div>')
