@@ -7,7 +7,11 @@ and may change without notice.
 
 from typing import Final
 
-from .bundled import _load_bundled_theme
+from .bundled import (
+    _load_bundled_theme,
+    bundled_theme_names,
+    load_bundled_theme,
+)
 from .model import (
     CORE_COLOR_TOKENS,
     ColorHex,
@@ -21,9 +25,11 @@ DEFAULT_THEME: Final[Theme] = _load_bundled_theme("default")
 
 __all__ = [
     "CORE_COLOR_TOKENS",
-    "DEFAULT_THEME",
     "ColorHex",
+    "DEFAULT_THEME",
     "FontStack",
     "Theme",
     "ThemeToken",
+    "bundled_theme_names",
+    "load_bundled_theme",
 ]
