@@ -43,10 +43,16 @@ Identity
      - no
      - Relative image path. Omission renders without a favicon and
        records a diagnostic.
+   * - ``header_variant``
+     - no
+     - ``fill`` (default) or ``gradient``. Selects a solid or
+       two-color gradient header background.
    * - ``header_color``
      - no
-     - Theme color token. Defaults to ``primary``; a declared token
-       must exist in the theme.
+     - For ``fill``, a theme color token or ``series-N`` entry;
+       omission uses ``primary``. For ``gradient``, a required
+       two-entry list of color references. Declared references must
+       resolve against the report's theme.
    * - ``on_missing``
      - no
      - ``fail`` (default), ``notice``, or ``skip``: the layout-wide
@@ -59,9 +65,61 @@ Identity
      - yes
      - A non-empty list of tabs, in display order.
 
+
 Declared theme, logo, and favicon files must load. Assets are embedded
 at build time; the written report is self-contained. Header text color
 is selected for contrast against the header background.
+
+Header styling
+--------------
+
+The header uses a token declared in the report's :doc:`theme <theme>`,
+such as ``primary`` or ``accent``, or a categorical palette entry
+such as ``series-1``. Series indices start at 1 and must be within the
+theme's palette. Color literals are not accepted in the layout;
+declare them in the theme and reference their tokens.
+
+By default, the header has a solid ``primary`` background. To choose
+another solid color:
+
+.. code-block:: yaml
+
+   header_color: accent
+
+``header_variant: fill`` may be written explicitly, but is the
+default. Omitted or ``null`` ``header_color`` uses ``primary`` and
+does not produce an omission diagnostic.
+
+A gradient requires ``header_variant: gradient`` and exactly two
+color references, in written order:
+
+.. code-block:: yaml
+
+   header_variant: gradient
+   header_color: [primary, accent]
+
+Token and series references may be mixed:
+
+.. code-block:: yaml
+
+   header_variant: gradient
+   header_color: [primary, series-2]
+
+A single color or omitted color is invalid for
+``gradient``; a color list is invalid for ``fill``.
+Header ink is selected from the theme's ``text-light`` and
+``text-dark`` colors. For a solid background, selection compares
+contrast against that color. For a gradient, it compares contrast
+against the mean relative luminance of both stops. This is a
+heuristic, not a guarantee of sufficient contrast at every point
+along the gradient.
+
+A theme-declared ``header-background`` token overrides the requested
+header background, including a gradient, with its solid color. Ink
+is then selected against that effective background. A theme-declared
+``header-text`` token overrides the selected ink independently.
+Declared layout color references must still resolve, even when a
+theme override takes precedence.
 
 Tabs and placements
 -------------------
@@ -227,6 +285,8 @@ Example
 
    schema_version: "0.3.0"
    title: Run summary
+   header_variant: gradient
+   header_color: [primary, accent]
    tabs:
      - title: Headlines
        components:

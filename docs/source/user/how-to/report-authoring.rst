@@ -405,7 +405,8 @@ Two layout keys finish the look:
 * ``header_color`` — the header bar's background, named as a token
   the theme declares; never a color literal. Omitted means the
   theme's ``primary``. The bar's text color is picked automatically
-  for contrast, on any theme.
+  for contrast, on any theme. By default, the header is a solid color
+  (``header_variant: fill``).
 * ``logo`` — two vocabularies. A path addresses an image file next
   to the layout: raster formats embed as data, and an SVG file
   inlines as markup, so a logo authored with ``"currentColor"``
