@@ -37,8 +37,8 @@ from pydantic import (
     field_validator,
 )
 
-from .manifest import NonEmptyStr
-from .text import has_visible_text
+from ..manifest import NonEmptyStr
+from ..text import has_visible_text
 
 
 def _require_font_stack(value: str) -> str:
