@@ -357,7 +357,11 @@ class RenderedComponent:
             + figure.to_html(
                 full_html=False,
                 include_plotlyjs=False,
-                config={"responsive": True},
+                config={
+                    "responsive": True,
+                    "modeBarButtonsToRemove": ["sendDataToCloud"],
+                    "showSendToCloud": False,
+                },
             )
             + "</div>"
         )
