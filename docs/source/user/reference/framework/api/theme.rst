@@ -93,7 +93,4 @@ The individual defaults are loaded from the bundled ``default.yaml``
 and ``default-dark.yaml`` declarations. ``DEFAULT_THEME_PAIR`` is the
 shared pair used when a layout omits its theme selection.
 
-Light default palette
-~~~~~~~~~~~~~~~~~~~~~
-
-.. theme-colors::
+See :doc:`../../themes` for previews and palettes of all bundled declarations.

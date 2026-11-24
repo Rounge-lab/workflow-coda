@@ -14,10 +14,8 @@ that omission diagnostic.
 Selection
 ---------
 
-The framework ships these bundled themes:
-
-* ``default``: the light default theme.
-* ``default-dark``: its dark counterpart.
+See :doc:`../themes` for all bundled selection identifiers, previews,
+and palettes.
 
 A layout selects both members:
 
