@@ -231,6 +231,38 @@ outcome out."""
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class ThemeColorProperty:
+    """One placement-local CSS custom property with paired hex values.
+
+    The renderer supplies the placement scope. Plugins supply only
+    property names and resolved colors, never selectors or CSS text.
+    """
+
+    name: str
+    light: str
+    dark: str
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.name, str)
+            or re.fullmatch(r"--coda-[a-z][a-z0-9-]*", self.name) is None
+        ):
+            raise ValueError(
+                "a theme color property requires a --coda- prefixed "
+                "lowercase CSS custom-property name"
+            )
+        for mode, value in (("light", self.light), ("dark", self.dark)):
+            if (
+                not isinstance(value, str)
+                or re.fullmatch(r"#[0-9a-fA-F]{6}", value) is None
+            ):
+                raise ValueError(
+                    f"theme color property {self.name!r}: {mode} "
+                    "requires a six-digit hex color"
+                )
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class RenderedComponent:
     """The typed outcome of one component render call.
 
@@ -269,8 +301,32 @@ class RenderedComponent:
     text; the report builder merges them into the document's
     diagnostics as informational entries."""
 
+    theme_colors: tuple[ThemeColorProperty, ...] = ()
+    """Placement-local paired color properties, allowed only on OK outcomes.
+
+    The renderer applies these properties to this placement's wrapper
+    through generated scoped CSS. Component declaration CSS remains
+    deduplicated; these values are independently carried per placement.
+    """
+
     def __post_init__(self) -> None:
         """Enforce the status/field invariants."""
+        if not isinstance(self.theme_colors, tuple) or any(
+            not isinstance(item, ThemeColorProperty) for item in self.theme_colors
+        ):
+            raise ValueError(
+                "RenderedComponent theme_colors must be a tuple "
+                "of ThemeColorProperty instances"
+            )
+        names = [item.name for item in self.theme_colors]
+        if len(names) != len(set(names)):
+            raise ValueError(
+                "RenderedComponent theme_colors must have unique property names"
+            )
+        if self.theme_colors and self.status is not ComponentStatus.OK:
+            raise ValueError(
+                "RenderedComponent theme_colors are allowed on OK outcomes only"
+            )
         if not isinstance(self.status, ComponentStatus):
             raise ValueError(
                 f"RenderedComponent status must be a ComponentStatus member, "
@@ -343,9 +399,18 @@ class RenderedComponent:
             )
 
     @classmethod
-    def from_html(cls, html: str) -> Self:
-        """An ``OK`` component with hand-written HTML content."""
-        return cls(status=ComponentStatus.OK, html=html)
+    def from_html(
+        cls,
+        html: str,
+        *,
+        theme_colors: tuple[ThemeColorProperty, ...] = (),
+    ) -> Self:
+        """An OK component with HTML and optional paired local colors."""
+        return cls(
+            status=ComponentStatus.OK,
+            html=html,
+            theme_colors=theme_colors,
+        )
 
     @classmethod
     def from_figure(

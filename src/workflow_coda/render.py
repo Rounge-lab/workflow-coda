@@ -54,13 +54,19 @@ import importlib.metadata
 import importlib.resources
 import re
 from collections.abc import Iterator
+from dataclasses import dataclass, field
 from itertools import count
 from typing import Final, Literal
 
 from jinja2 import Environment, PackageLoader, StrictUndefined, TemplateNotFound
 from markupsafe import Markup, escape
 
-from .components import FIGURE_DIV_CLASS, ComponentChrome, ComponentStatus
+from .components import (
+    FIGURE_DIV_CLASS,
+    ComponentChrome,
+    ComponentStatus,
+    ThemeColorProperty,
+)
 from .errors import RenderError
 from .icons import IconLibrary, IconSource
 from .manifest import ArtifactStatus, ReportManifest
@@ -258,6 +264,67 @@ def _plotly_js() -> str:
         ) from e
 
 
+@dataclass
+class _PlacementColors:
+    """Paired rules accumulated during one HTML walk."""
+
+    properties: list[tuple[str, tuple[ThemeColorProperty, ...]]] = field(
+        default_factory=list
+    )
+
+    def scope(self, entry: ComponentEntry) -> str:
+        outcome = entry.outcome
+        if (
+            entry.kind is not EntryKind.RENDERED
+            or outcome is None
+            or outcome.status is not ComponentStatus.OK
+            or not outcome.theme_colors
+        ):
+            return ""
+
+        scope = f"coda-placement-{len(self.properties) + 1}"
+        self.properties.append((scope, outcome.theme_colors))
+        return f' data-coda-placement="{scope}"'
+
+    def css(self) -> str:
+        if not self.properties:
+            return ""
+
+        def rules(mode: str, prefix: str = "") -> str:
+            blocks = []
+            for scope, properties in self.properties:
+                selector = f'{prefix}[data-coda-placement="{scope}"]'
+                declarations = "\n".join(
+                    f"  {prop.name}: {getattr(prop, mode)};" for prop in properties
+                )
+                blocks.append(f"{selector} {{\n{declarations}\n}}")
+            return "\n\n".join(blocks)
+
+        def media(query: str, body: str) -> str:
+            indented = "\n".join(f"  {line}" for line in body.splitlines())
+            return f"@media {query} {{\n{indented}\n}}"
+
+        return "\n\n".join(
+            (
+                rules("light"),
+                media(
+                    "screen and (prefers-color-scheme: dark)",
+                    rules("dark", ":root:not([data-coda-theme]) "),
+                ),
+                media(
+                    "screen",
+                    "\n\n".join(
+                        (
+                            rules("light", ':root[data-coda-theme="light"] '),
+                            rules("dark", ':root[data-coda-theme="dark"] '),
+                        )
+                    ),
+                ),
+                media("print", rules("light")),
+            )
+        )
+
+
 # ---------------------------------------------------------------------------
 # Tree scans
 # ---------------------------------------------------------------------------
@@ -443,38 +510,36 @@ def _component_js(document: ReportDocument) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _component_entry_html(entry: ComponentEntry) -> str:
-    """One placed component — the honest visual grammar.
-
-    A skipped outcome renders nothing at all. A CARD component
-    renders in the framework's card vocabulary: the title, then the
-    plugin's body. A TILE component that rendered painted its own
-    card — title, plate, corners — and the framework contributes
-    only the ``data-component`` wrapper. Degradation is the
-    framework's own vocabulary in both modes: an unavailable or
-    failed render, tile or card, teaches in place — the plugin is
-    not rendering. Every framework text is escaped; the OK
-    outcome's plugin html is the walk's single raw point.
-    """
+def _component_entry_html(
+    entry: ComponentEntry,
+    placement_colors: _PlacementColors | None = None,
+) -> str:
+    """One placed component, with optional placement-local color scope."""
     component_id = escape(entry.component_id)
     title = escape(entry.title)
+    scope_attr = placement_colors.scope(entry) if placement_colors is not None else ""
+
     if entry.kind is EntryKind.RENDERED:
         outcome = entry.outcome
         assert outcome is not None  # the RENDERED pairing
+
         if outcome.status is ComponentStatus.OK:
             assert outcome.html is not None  # OK outcomes always carry html
             if entry.chrome is ComponentChrome.TILE:
                 return (
-                    f'<article class="coda-tile" data-component="{component_id}">'
+                    f'<article class="coda-tile" '
+                    f'data-component="{component_id}"{scope_attr}>'
                     f"{outcome.html}"
                     "</article>"
                 )
             return (
-                f'<article class="coda-card" data-component="{component_id}">'
+                f'<article class="coda-card" '
+                f'data-component="{component_id}"{scope_attr}>'
                 f"<h3>{title}</h3>"
                 f'<div class="coda-card-body">{outcome.html}</div>'
                 "</article>"
             )
+
         if outcome.status is ComponentStatus.UNAVAILABLE:
             return (
                 f'<article class="coda-card coda-card--notice" '
@@ -483,7 +548,9 @@ def _component_entry_html(entry: ComponentEntry) -> str:
                 f"<p>{escape(outcome.message)}</p>"
                 "</article>"
             )
-        return ""  # SKIPPED: no card; the surrounding flow shows where it sat
+
+        return ""  # SKIPPED
+
     assert entry.error is not None  # the FAILED pairing
     return (
         f'<article class="coda-card coda-card--failure" '
@@ -524,28 +591,30 @@ def _container_html(
     split: tuple[float, ...] | None,
     panel_html: str,
     state_ids: Iterator[int],
+    placement_colors: _PlacementColors,
 ) -> str:
-    """A ratio container (row or grid): the generated split class
-    carries the widths; the structural grid lives in the stylesheet."""
+    """A ratio container, carrying generated layout classes."""
     ratios = split if split is not None else (1.0,) * len(children)
-    inner = "".join(_node_html(child, panel_html, state_ids) for child in children)
+    inner = "".join(
+        _node_html(child, panel_html, state_ids, placement_colors) for child in children
+    )
     return f'<div class="{kind} {_split_class(ratios)}">{inner}</div>'
 
 
-def _states_html(entry: StatesEntry, panel_html: str, state_ids: Iterator[int]) -> str:
-    """Every expanded panel in axis order, with escaped raw labels.
-
-    Panel identities use the render call's shared counter, allocated
-    before descending into children. Dimensions and raw values are
-    separate addressing markers. The HTML ships complete; the
-    controller applies selection only as a read-time enhancement.
-    """
+def _states_html(
+    entry: StatesEntry,
+    panel_html: str,
+    state_ids: Iterator[int],
+    placement_colors: _PlacementColors,
+) -> str:
+    """Every expanded state panel, with escaped raw labels."""
     dimension = escape(entry.dimension)
     kind = escape(entry.kind)
     parts = [
         f'<div class="coda-states" data-states-dimension="{dimension}" '
         f'data-kind="{kind}">'
     ]
+
     for panel in entry.panels:
         panel_id = f"coda-state-{next(state_ids)}"
         value = escape(panel.value)
@@ -555,52 +624,93 @@ def _states_html(entry: StatesEntry, panel_html: str, state_ids: Iterator[int]) 
             f"<h3>{value}</h3>"
         )
         parts.extend(
-            _node_html(child, panel_html, state_ids) for child in panel.children
+            _node_html(child, panel_html, state_ids, placement_colors)
+            for child in panel.children
         )
         parts.append("</section>")
+
     parts.append("</div>")
     return "".join(parts)
 
 
-def _node_html(node: DocumentNode, panel_html: str, state_ids: Iterator[int]) -> str:
-    """One document node as html — the tree walk's dispatch."""
+def _node_html(
+    node: DocumentNode,
+    panel_html: str,
+    state_ids: Iterator[int],
+    placement_colors: _PlacementColors,
+) -> str:
+    """One document node as HTML."""
     if isinstance(node, ComponentEntry):
-        return _component_entry_html(node)
+        return _component_entry_html(node, placement_colors)
+
     if isinstance(node, DiagnosticsEntry):
         return panel_html
+
     if isinstance(node, StatesEntry):
-        return _states_html(node, panel_html, state_ids)
+        return _states_html(node, panel_html, state_ids, placement_colors)
+
     if isinstance(node, RowEntry):
         return _container_html(
-            "coda-row", node.children, node.split, panel_html, state_ids
+            "coda-row",
+            node.children,
+            node.split,
+            panel_html,
+            state_ids,
+            placement_colors,
         )
+
     if isinstance(node, GridEntry):
         return _container_html(
-            "coda-grid", node.children, node.split, panel_html, state_ids
+            "coda-grid",
+            node.children,
+            node.split,
+            panel_html,
+            state_ids,
+            placement_colors,
         )
+
     assert isinstance(node, CardEntry)
     title = f"<h3>{escape(node.title)}</h3>" if node.title is not None else ""
+
     if node.layout == "stack":
         inner = "".join(
-            _node_html(child, panel_html, state_ids) for child in node.children
+            _node_html(child, panel_html, state_ids, placement_colors)
+            for child in node.children
         )
     elif node.layout == "row":
         inner = _container_html(
-            "coda-row", node.children, node.split, panel_html, state_ids
+            "coda-row",
+            node.children,
+            node.split,
+            panel_html,
+            state_ids,
+            placement_colors,
         )
     else:
         inner = _container_html(
-            "coda-grid", node.children, node.split, panel_html, state_ids
+            "coda-grid",
+            node.children,
+            node.split,
+            panel_html,
+            state_ids,
+            placement_colors,
         )
+
     return f'<div class="coda-group">{title}{inner}</div>'
 
 
-def _tab_body(tab: DocumentTab, panel_html: str, state_ids: Iterator[int]) -> Markup:
-    """One tab's node tree as assembled body html: framework chrome
-    throughout, every framework text escaped by the walk, and exactly
-    one raw point inside each rendered component's plugin html."""
+def _tab_body(
+    tab: DocumentTab,
+    panel_html: str,
+    state_ids: Iterator[int],
+    placement_colors: _PlacementColors,
+) -> Markup:
+    """One tab's assembled body, preserving trusted plugin HTML."""
     return Markup(
-        "".join(_node_html(node, panel_html, state_ids) for node in tab.nodes)
+        "".join(
+            _node_html(node, panel_html, state_ids, placement_colors)
+            for node in tab.nodes
+        )
     )
 
 
@@ -643,30 +753,42 @@ def _attribution() -> str:
 
 
 def render_report(document: ReportDocument) -> str:
-    """Render *document* to one complete, self-contained HTML page.
+    """Render one document to a complete, self-contained HTML page.
 
-    Pure: the result is fully determined by the document and the
-    framework's shipped chrome. Callers own writing the string
-    wherever it goes. A fresh panel counter is local to this call;
-    rendering another report cannot change this report's panel ids.
-
-    Raises :class:`~workflow_coda.errors.RenderError` only on
-    environment failures; see the module docstring.
+    Panel ids and placement-color scopes are local to this render call.
     """
     problem_diagnostics = [d for d in document.diagnostics if d.kind.is_problem]
     informational_diagnostics = [
         d for d in document.diagnostics if not d.kind.is_problem
     ]
-    panel_html = _diagnostics_panel(problem_diagnostics, informational_diagnostics)
+    panel_html = _diagnostics_panel(
+        problem_diagnostics,
+        informational_diagnostics,
+    )
+
     state_ids = count(1)
+    placement_colors = _PlacementColors()
+
+    # Rendering the bodies also collects placement-local color rules.
     tabs = [
         (
             tab,
             f"{index}-{_slugify(tab.title)}",
-            _tab_body(tab, panel_html, state_ids),
+            _tab_body(tab, panel_html, state_ids, placement_colors),
         )
         for index, tab in enumerate(document.tabs, start=1)
     ]
+
+    # Collect CSS only after every tab body has been rendered.
+    css_layout = "\n\n".join(
+        css
+        for css in (
+            _splits_css(document),
+            placement_colors.css(),
+        )
+        if css
+    )
+
     has_tabs = len(document.tabs) > 1
     return _ENV.get_template("report.html.jinja").render(
         document=document,
@@ -678,7 +800,7 @@ def render_report(document: ReportDocument) -> str:
             document.header_variant,
         ),
         css_base=_chrome_file("style.css") + "\n" + _chrome_file("selection.css"),
-        css_layout=_splits_css(document),
+        css_layout=css_layout,
         component_css=_component_css(document),
         plotly_js=_plotly_js() if _has_figures(document) else None,
         dropdown_icon=_dropdown_icon(document),

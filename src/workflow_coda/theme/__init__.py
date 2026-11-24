@@ -12,6 +12,7 @@ from .bundled import (
     bundled_theme_names,
     load_bundled_theme,
 )
+from .css import color_css, plate_inks
 from .figure import FigureStyle, FigureTheme
 from .loader import load_theme
 from .model import (
@@ -49,6 +50,8 @@ __all__ = [
     "ThemePair",
     "ThemeToken",
     "bundled_theme_names",
+    "color_css",
     "load_bundled_theme",
     "load_theme",
+    "plate_inks",
 ]
