@@ -48,7 +48,7 @@ import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Final, Protocol, Self
+from typing import Any, Final, Protocol, Self, cast
 
 from .artifact_store import JsonValue
 from .context import RenderContext
@@ -70,6 +70,20 @@ FIGURE_DIV_CLASS: Final[str] = "coda-figure"
 figure in: the framework's figure marker.  The report renderer keys
 Plotly.js inlining on it — the only html marker the framework scans
 component content for."""
+
+_FIGURE_READY_SCRIPT: Final[str] = """
+(function () {
+  var graph = document.getElementById('{plot_id}');
+  var wrapper = graph && graph.closest('.coda-figure');
+  if (!wrapper) {
+    return;
+  }
+  wrapper.setAttribute('data-coda-figure-ready', 'true');
+  wrapper.dispatchEvent(new CustomEvent('coda:figure-ready', {
+    bubbles: true
+  }));
+})();
+""".strip()
 
 
 class ComponentStatus(Enum):
@@ -109,6 +123,23 @@ class SupportsToHtml(Protocol):
         full_html: bool,
         include_plotlyjs: bool,
         config: dict[str, Any] | None = None,
+    ) -> str: ...
+
+
+class SupportsThemedToHtml(Protocol):
+    """A Plotly-shaped figure supporting initialization completion.
+
+    Plotly runs post_script after its newPlot promise resolves and
+    substitutes {plot_id} with the generated graph element's id.
+    """
+
+    def to_html(
+        self,
+        *,
+        full_html: bool,
+        include_plotlyjs: bool,
+        config: dict[str, Any] | None = None,
+        post_script: str,
     ) -> str: ...
 
 
@@ -357,6 +388,12 @@ class RenderedComponent:
         It contains no duplicate figure data. The browser controller
         applies these updates only after figure initialization.
         Omission preserves the existing embedding exactly.
+
+        Themed figures must additionally support Plotly's post_script
+        argument. The completion script marks the framework wrapper
+        ready and dispatches coda:figure-ready after newPlot resolves.
+        An unsupported serializer fails at the plugin boundary rather
+        than silently producing a themed figure that cannot initialize.
         """
         if theme is not None and not isinstance(theme, FigureTheme):
             raise ValueError("figure theme must be a FigureTheme instance")
@@ -366,6 +403,24 @@ class RenderedComponent:
             if theme is not None
             else ""
         )
+        config: dict[str, Any] = {
+            "responsive": True,
+            "modeBarButtonsToRemove": ["sendDataToCloud"],
+            "showSendToCloud": False,
+        }
+        if theme is None:
+            figure_html = figure.to_html(
+                full_html=False,
+                include_plotlyjs=False,
+                config=config,
+            )
+        else:
+            figure_html = cast(SupportsThemedToHtml, figure).to_html(
+                full_html=False,
+                include_plotlyjs=False,
+                config=config,
+                post_script=_FIGURE_READY_SCRIPT,
+            )
         html_out = (
             f'<div class="{FIGURE_DIV_CLASS}"{theme_attr} '
             + (
@@ -373,15 +428,7 @@ class RenderedComponent:
                 if description is not None
                 else ">"
             )
-            + figure.to_html(
-                full_html=False,
-                include_plotlyjs=False,
-                config={
-                    "responsive": True,
-                    "modeBarButtonsToRemove": ["sendDataToCloud"],
-                    "showSendToCloud": False,
-                },
-            )
+            + figure_html
             + "</div>"
         )
         if description is not None and not has_visible_text(description):

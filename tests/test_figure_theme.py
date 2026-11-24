@@ -3,6 +3,7 @@
 import html
 import json
 import re
+from typing import Any
 
 import pytest
 
@@ -116,3 +117,70 @@ def test_embedding_carries_escaped_round_trippable_theme_json() -> None:
     assert json.loads(html.unescape(match.group(1))) == json.loads(theme.to_json())
     assert outcome.html.count("one figure") == 1
     assert 'aria-label="A chart"' in outcome.html
+
+
+class _RecordingFigure:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    def to_html(self, **kwargs: Any) -> str:
+        self.calls.append(kwargs)
+        return '<div class="plotly-graph-div">one figure</div>'
+
+
+def test_unthemed_embedding_does_not_require_post_script() -> None:
+    figure = _RecordingFigure()
+    RenderedComponent.from_figure(figure)
+
+    (call,) = figure.calls
+    assert set(call) == {"full_html", "include_plotlyjs", "config"}
+    assert call["full_html"] is False
+    assert call["include_plotlyjs"] is False
+
+
+def test_themed_embedding_requests_initialization_completion() -> None:
+    figure = _RecordingFigure()
+    RenderedComponent.from_figure(figure, theme=_theme())
+
+    (call,) = figure.calls
+    script = call["post_script"]
+    assert "document.getElementById('{plot_id}')" in script
+    assert "data-coda-figure-ready" in script
+    assert "coda:figure-ready" in script
+    assert "bubbles: true" in script
+    assert call["config"]["responsive"] is True
+
+
+class _LegacyFigure:
+    def to_html(
+        self,
+        *,
+        full_html: bool,
+        include_plotlyjs: bool,
+        config: dict[str, Any] | None = None,
+    ) -> str:
+        return "<div>legacy figure</div>"
+
+
+def test_legacy_serializer_remains_supported_without_theme() -> None:
+    outcome = RenderedComponent.from_figure(_LegacyFigure())
+    assert outcome.html is not None
+    assert "legacy figure" in outcome.html
+
+
+def test_themed_serializer_must_support_completion_hook() -> None:
+    with pytest.raises(TypeError, match="post_script"):
+        RenderedComponent.from_figure(_LegacyFigure(), theme=_theme())
+
+
+def test_real_plotly_embedding_contains_completion_hook() -> None:
+    go = pytest.importorskip("plotly.graph_objects")
+    figure = go.Figure(go.Scatter(x=[1, 2], y=[3, 4]))
+    outcome = RenderedComponent.from_figure(figure, theme=_theme())
+
+    assert outcome.html is not None
+    assert "Plotly.newPlot" in outcome.html
+    assert ".then(" in outcome.html
+    assert "data-coda-figure-ready" in outcome.html
+    assert "coda:figure-ready" in outcome.html
+    assert "{plot_id}" not in outcome.html
