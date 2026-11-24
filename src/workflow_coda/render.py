@@ -77,7 +77,7 @@ from .report import (
     RowEntry,
     StatesEntry,
 )
-from .theme import ColorHex, Theme, ThemeToken
+from .theme import ColorHex, Theme, ThemePair, ThemeToken
 
 _ENV: Final[Environment] = Environment(
     loader=PackageLoader("workflow_coda", "templates"),
@@ -166,6 +166,66 @@ def _css_tokens(
     lines.append(f"  --coda-font-heading: {theme.font_heading};")
     lines.append("}")
     return "\n".join(lines)
+
+
+def _css_theme_pair(
+    pair: ThemePair,
+    header_color: ThemeToken | tuple[ThemeToken, ThemeToken] | None,
+    header_variant: Literal["fill", "gradient"] = "fill",
+) -> str:
+    """Both modes' custom properties, with light-only printing.
+
+    Without JavaScript, screen styling follows the browser preference.
+    A read-time controller may explicitly select a mode through
+    data-coda-theme on the document element.
+
+    All declarations derive independently, including optional page
+    overrides, gradients, contrast-picked ink, series, and fonts.
+    """
+
+    def block(theme: Theme, selector: str, mode: str) -> str:
+        generated = _css_tokens(theme, header_color, header_variant)
+        generated = generated.replace(":root {", f"{selector} {{", 1)
+        return generated.replace("\n}", f"\n  color-scheme: {mode};\n}}", 1)
+
+    def inside_media(query: str, rule: str) -> str:
+        indented = "\n".join(f"  {line}" for line in rule.splitlines())
+        return f"@media {query} {{\n{indented}\n}}"
+
+    return "\n\n".join(
+        (
+            block(pair.light, ":root", "light"),
+            inside_media(
+                "screen and (prefers-color-scheme: dark)",
+                block(
+                    pair.dark,
+                    ":root:not([data-coda-theme])",
+                    "dark",
+                ),
+            ),
+            inside_media(
+                "screen",
+                "\n\n".join(
+                    (
+                        block(
+                            pair.light,
+                            ':root[data-coda-theme="light"]',
+                            "light",
+                        ),
+                        block(
+                            pair.dark,
+                            ':root[data-coda-theme="dark"]',
+                            "dark",
+                        ),
+                    )
+                ),
+            ),
+            inside_media(
+                "print",
+                block(pair.light, ":root", "light"),
+            ),
+        )
+    )
 
 
 def _chrome_file(name: str) -> str:

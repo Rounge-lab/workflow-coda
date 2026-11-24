@@ -594,6 +594,26 @@ class ReportTab(BaseModel):
     """The tab's composition, in declaration order."""
 
 
+class ThemeSelection(BaseModel):
+    """The layout's explicit light/dark theme selections.
+
+    Both entries are required. Each independently selects a bundled
+    name or a custom file path; resolution belongs to the builder.
+
+    Bare names address bundled themes. A dot or path separator
+    addresses a file relative to the layout. Unknown bundled names
+    never fall back to local files.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    light: VisibleText
+    """Bundled theme name or custom file path for light mode."""
+
+    dark: VisibleText
+    """Bundled theme name or custom file path for dark mode."""
+
+
 class ReportLayout(BaseModel):
     """The whole report layout: identity plus ordered tabs.
 
