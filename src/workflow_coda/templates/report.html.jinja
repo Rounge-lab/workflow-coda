@@ -88,6 +88,17 @@
           {% endfor %}
         </nav>
         {% endif %}
+        <button
+          type="button"
+          id="coda-theme-toggle"
+          class="coda-theme-toggle"
+          aria-label="Dark mode"
+          aria-pressed="false"
+          title="Switch to dark theme"
+          hidden
+        >
+          {% include "theme-toggle.svg" %}
+        </button>
       </div>
     </header>
     <div class="coda-page">

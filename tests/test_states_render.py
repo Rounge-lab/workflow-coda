@@ -135,7 +135,8 @@ def test_panels_render_in_axis_order_with_all_children_present() -> None:
     assert page.count("<script>") == 2
     assert "<select" not in page
     assert "<input" not in page
-    assert "<button" not in page
+    assert 'id="coda-theme-toggle"' in page
+    assert '<button type="button" class="coda-tab"' not in page
 
 
 def test_state_labels_escape_in_headings_and_attributes_without_normalization() -> None:

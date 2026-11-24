@@ -15,6 +15,28 @@
     : null;
   var records = [];
 
+  var button = document.getElementById("coda-theme-toggle");
+
+  function syncToggle(selected) {
+    var icon;
+    if (!button) {
+      return;
+    }
+
+    button.setAttribute("aria-pressed", String(selected === "dark"));
+    button.setAttribute(
+      "title",
+      selected === "dark"
+        ? "Switch to light theme"
+        : "Switch to dark theme"
+    );
+
+    icon = button.querySelector(".coda-theme-icon");
+    if (icon) {
+      icon.setAttribute("data-coda-theme", selected);
+    }
+  }
+
   function mode() {
     var explicit = root.getAttribute("data-coda-theme");
     if (explicit === "light" || explicit === "dark") {
@@ -89,6 +111,7 @@
 
   function request() {
     var selected = mode();
+    syncToggle(selected);
     records.forEach(function (record) {
       record.desired = selected;
       pump(record);
@@ -163,4 +186,12 @@
       request();
     }
   });
+
+  if (button) {
+    syncToggle(mode());
+    button.addEventListener("click", function () {
+      window.codaTheme.set(mode() === "dark" ? "light" : "dark");
+    });
+    button.hidden = false;
+  }
 })();

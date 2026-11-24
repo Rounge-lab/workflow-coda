@@ -112,7 +112,9 @@ def test_states_tutorial_builds_two_complete_batches(tmp_path: Path) -> None:
         "coda-state-2",
     ]
     assert all("aria-hidden" not in panel for panel in markup.panels)
-    assert markup.resources == []
+    assert [
+        resource for resource in markup.resources if not resource.startswith("#")
+    ] == []
 
     # Theme controller plus merged navigation, and a component block
     # exactly when the real declarations contribute JavaScript.

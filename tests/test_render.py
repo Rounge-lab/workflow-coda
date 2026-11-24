@@ -944,7 +944,10 @@ def test_the_report_is_self_contained() -> None:
     assert html.count("<script>") == 3
     collector = _UrlCollector()
     collector.feed(html)
-    assert collector.urls == [favicon.data_uri, logo.data_uri]
+    assert [url for url in collector.urls if not url.startswith("#")] == [
+        favicon.data_uri,
+        logo.data_uri,
+    ]
 
 
 def test_the_page_declares_its_content_security_policy() -> None:
@@ -1006,4 +1009,31 @@ def test_plugin_chrome_stays_within_the_containment_envelope() -> None:
     assert html.count("<script>") == 4
     collector = _UrlCollector()
     collector.feed(html)
-    assert collector.urls == [favicon.data_uri, logo.data_uri]
+    assert [url for url in collector.urls if not url.startswith("#")] == [
+        favicon.data_uri,
+        logo.data_uri,
+    ]
+
+
+def test_theme_toggle_inlines_framework_icon_and_starts_hidden() -> None:
+    html = render_report(make_document())
+
+    assert 'id="coda-theme-toggle"' in html
+    assert 'aria-label="Dark mode"' in html
+    assert 'class="coda-theme-icon"' in html
+    assert 'id="coda-theme-icon-star"' in html
+    assert 'href="#coda-theme-icon-star"' in html
+
+    parser = HTMLParser()
+    buttons: list[dict[str, str | None]] = []
+
+    def collect(tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attributes = dict(attrs)
+        if tag == "button" and attributes.get("id") == "coda-theme-toggle":
+            buttons.append(attributes)
+
+    parser.handle_starttag = collect  # type: ignore[method-assign]
+    parser.feed(html)
+
+    assert len(buttons) == 1
+    assert "hidden" in buttons[0]

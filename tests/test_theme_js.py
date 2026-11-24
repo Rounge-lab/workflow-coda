@@ -21,6 +21,30 @@ var calls = [];
 var pending = [];
 var errors = [];
 
+var toggle = null;
+
+function makeToggle() {
+  var attrs = {};
+  var iconAttrs = {};
+  var handlers = {};
+  toggle = {
+    hidden: true,
+    attrs: attrs,
+    iconAttrs: iconAttrs,
+    handlers: handlers,
+    setAttribute: function (name, value) { attrs[name] = value; },
+    querySelector: function () {
+      return {
+        setAttribute: function (name, value) { iconAttrs[name] = value; }
+      };
+    },
+    addEventListener: function (name, callback) {
+      handlers[name] = callback;
+    }
+  };
+  return toggle;
+}
+
 var root = {
   getAttribute: function (name) {
     return Object.prototype.hasOwnProperty.call(attributes, name)
@@ -42,6 +66,9 @@ var document = {
   querySelectorAll: function () { return wrappers; },
   addEventListener: function (name, callback) {
     listeners[name] = callback;
+  },
+  getElementById: function (id) {
+    return id === "coda-theme-toggle" ? toggle : null;
   }
 };
 
@@ -270,3 +297,115 @@ output(rejected);
 """,
     )
     assert result is True
+
+
+def test_toggle_initializes_from_browser_preference() -> None:
+    result = _execute(
+        "media.matches = true; makeToggle();",
+        """
+output({
+  hidden: toggle.hidden,
+  pressed: toggle.attrs["aria-pressed"],
+  title: toggle.attrs.title,
+  icon: toggle.iconAttrs["data-coda-theme"],
+  explicit: root.getAttribute("data-coda-theme")
+});
+""",
+    )
+    assert result == {
+        "hidden": False,
+        "pressed": "true",
+        "title": "Switch to light theme",
+        "icon": "dark",
+        "explicit": None,
+    }
+
+
+def test_toggle_follows_system_until_clicked() -> None:
+    result = _execute(
+        "makeToggle();",
+        """
+media.matches = true;
+mediaListeners.change();
+var followed = toggle.iconAttrs["data-coda-theme"];
+
+toggle.handlers.click();
+media.matches = false;
+mediaListeners.change();
+media.matches = true;
+mediaListeners.change();
+
+output({
+  followed: followed,
+  mode: window.codaTheme.mode(),
+  explicit: root.getAttribute("data-coda-theme"),
+  pressed: toggle.attrs["aria-pressed"],
+  icon: toggle.iconAttrs["data-coda-theme"]
+});
+""",
+    )
+    assert result == {
+        "followed": "dark",
+        "mode": "light",
+        "explicit": "light",
+        "pressed": "false",
+        "icon": "light",
+    }
+
+
+def test_toggle_cycles_between_explicit_modes() -> None:
+    result = _execute(
+        "makeToggle();",
+        """
+toggle.handlers.click();
+var first = window.codaTheme.mode();
+toggle.handlers.click();
+output({
+  first: first,
+  second: window.codaTheme.mode(),
+  title: toggle.attrs.title
+});
+""",
+    )
+    assert result == {
+        "first": "dark",
+        "second": "light",
+        "title": "Switch to dark theme",
+    }
+
+
+def test_clearing_explicit_selection_resynchronizes_toggle() -> None:
+    result = _execute(
+        "media.matches = true; makeToggle();",
+        """
+window.codaTheme.set("light");
+window.codaTheme.set(null);
+output({
+  explicit: root.getAttribute("data-coda-theme"),
+  pressed: toggle.attrs["aria-pressed"],
+  icon: toggle.iconAttrs["data-coda-theme"]
+});
+""",
+    )
+    assert result == {
+        "explicit": None,
+        "pressed": "true",
+        "icon": "dark",
+    }
+
+
+def test_fresh_page_does_not_restore_previous_explicit_selection() -> None:
+    _execute(
+        "makeToggle();",
+        "toggle.handlers.click(); output(window.codaTheme.mode());",
+    )
+    result = _execute(
+        "makeToggle();",
+        """
+output({
+  mode: window.codaTheme.mode(),
+  explicit: root.getAttribute("data-coda-theme")
+});
+""",
+    )
+    assert result == {"mode": "light", "explicit": None}

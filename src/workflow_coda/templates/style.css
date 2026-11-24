@@ -108,6 +108,11 @@ body {
   opacity: 0.85;
 }
 
+/* Without navigation, the toggle alone stays at the far right. */
+.coda-brand + .coda-theme-toggle {
+  margin-left: auto;
+}
+
 /* --- Tab navigation ----------------------------------------------------- */
 
 /* The tab bar is generated from the document's tabs: role=tablist
@@ -117,7 +122,9 @@ body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.15rem 0.35rem;
+  margin-left: auto;
 }
 
 .coda-tab {
@@ -411,4 +418,171 @@ body {
 
 .coda-attribution {
   margin: 0.75rem 0 0;
+}
+
+
+/* --- Reader theme toggle ----------------------------------------------- */
+
+.coda-theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0.5rem;
+  margin-left: 0;
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Author display rules must not override native hidden behavior. */
+.coda-theme-toggle[hidden] {
+  display: none;
+}
+
+.coda-theme-toggle:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.coda-theme-icon {
+  display: block;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+.coda-theme-icon-layer {
+  opacity: 0;
+  transform-box: view-box;
+  transform-origin: 12px 12px;
+  transition:
+    opacity 180ms ease,
+    transform 350ms ease;
+}
+
+.coda-theme-icon-moon {
+  transform: rotate(-25deg) scale(.85);
+}
+
+.coda-theme-icon-sun {
+  transform: rotate(25deg) scale(.85);
+}
+
+.coda-theme-icon[data-coda-theme="dark"] .coda-theme-icon-moon,
+.coda-theme-icon[data-coda-theme="light"] .coda-theme-icon-sun {
+  opacity: 1;
+  transform: rotate(0deg) scale(1);
+}
+
+.coda-theme-icon-crescent,
+.coda-theme-icon-star,
+.coda-theme-icon-disc,
+.coda-theme-icon-ray {
+  transition: transform 220ms ease;
+}
+
+.coda-theme-icon-crescent {
+  transform: matrix(1, 0, 0, 1, 0, 0);
+}
+
+.coda-theme-icon-star-a {
+  transform: translate(16px, 6px) scale(.75);
+}
+
+.coda-theme-icon-star-b {
+  transform: translate(19px, 12px) scale(.5);
+}
+
+.coda-theme-icon-disc {
+  transform-origin: 12px 12px;
+  transform: scale(1);
+}
+
+.coda-theme-icon-ray {
+  transform-box: view-box;
+  transform-origin: 12px 18px;
+  transform: translateY(0) scale(1);
+}
+
+.coda-theme-toggle:focus-visible .coda-theme-icon-crescent {
+  transform: matrix(.85, 0, 0, .85, 1.65, 1.95);
+}
+
+.coda-theme-toggle:focus-visible .coda-theme-icon-star-a {
+  transform: translate(16.1088px, 6.0968px) scale(.5272);
+}
+
+.coda-theme-toggle:focus-visible .coda-theme-icon-star-b {
+  transform: translate(19.1092px, 12.0968px) scale(.2772);
+}
+
+.coda-theme-toggle:focus-visible .coda-theme-icon-disc {
+  transform: scale(.8);
+}
+
+.coda-theme-toggle:focus-visible .coda-theme-icon-ray {
+  transform: translateY(-1px) scale(.8);
+}
+
+@media (hover: hover) {
+  .coda-theme-toggle:hover {
+    border-color: currentColor;
+  }
+
+  .coda-theme-toggle:hover .coda-theme-icon-crescent {
+    transform: matrix(.85, 0, 0, .85, 1.65, 1.95);
+  }
+
+  .coda-theme-toggle:hover .coda-theme-icon-star-a {
+    transform: translate(16.1088px, 6.0968px) scale(.5272);
+  }
+
+  .coda-theme-toggle:hover .coda-theme-icon-star-b {
+    transform: translate(19.1092px, 12.0968px) scale(.2772);
+  }
+
+  .coda-theme-toggle:hover .coda-theme-icon-disc {
+    transform: scale(.8);
+  }
+
+  .coda-theme-toggle:hover .coda-theme-icon-ray {
+    transform: translateY(-1px) scale(.8);
+  }
+}
+
+/* On narrow screens the brand takes the first row.
+   Tabs and the theme toggle share the next row. */
+@media (max-width: 48rem) {
+  .coda-brand {
+    flex: 1 1 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .coda-tabs {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coda-theme-icon-layer,
+  .coda-theme-icon-crescent,
+  .coda-theme-icon-star,
+  .coda-theme-icon-disc,
+  .coda-theme-icon-ray {
+    transition: none;
+  }
+}
+
+@media print {
+  .coda-theme-toggle {
+    display: none;
+  }
 }
