@@ -5,6 +5,8 @@ artifact and renders it as a Plotly waterfall chart through the
 framework's figure channel.
 """
 
+from typing import cast
+
 from workflow_coda.components import (
     ComponentParameters,
     PlacementInfo,
@@ -17,6 +19,7 @@ from workflow_coda.components import (
 from workflow_coda.context import RenderContext
 from workflow_coda.errors import ArtifactUnavailableError, RenderError
 from workflow_coda.plugins import ReportPlugin
+from workflow_coda.theme import FigureStyle, FigureTheme, Theme
 
 ACCEPTED_PARAMETERS = frozenset({"artifact", "unit"})
 """The component's closed parameter vocabulary."""
@@ -53,10 +56,38 @@ def _parse_steps(artifact_type: str, data: object) -> list[tuple[str, float]]:
     return steps
 
 
+def _waterfall_style(theme: Theme) -> FigureStyle:
+    """Resolve one theme mode's presentation without duplicating figure data."""
+    border = theme.colors["border"]
+    return FigureStyle(
+        layout={
+            "font.color": theme.text_on(theme.colors["surface"]),
+            "font.family": theme.font_body,
+            "paper_bgcolor": "rgba(0, 0, 0, 0)",
+            "plot_bgcolor": "rgba(0, 0, 0, 0)",
+            "xaxis.gridcolor": border,
+            "xaxis.zerolinecolor": border,
+            "yaxis.gridcolor": border,
+            "yaxis.zerolinecolor": border,
+        },
+        traces=(
+            {
+                "increasing.marker.color": theme.resolve_color(
+                    "waterfall.plot", "series-1"
+                ),
+                "decreasing.marker.color": theme.resolve_color(
+                    "waterfall.plot", "series-2"
+                ),
+                "connector.line.color": border,
+            },
+        ),
+    )
+
+
 def _waterfall_figure(
-    context: RenderContext, steps: list[tuple[str, float]], unit: str | None
+    theme: Theme, steps: list[tuple[str, float]], unit: str | None
 ) -> SupportsToHtml:
-    """The dressed figure: theme colors, transparent backgrounds."""
+    """Build one waterfall with initial light-mode presentation."""
     try:
         from plotly.graph_objects import Figure, Waterfall
     except ImportError as e:
@@ -64,27 +95,41 @@ def _waterfall_figure(
             "waterfall.plot needs the plotly package to draw its figure — "
             "install plotly and build the report again"
         ) from e
-    theme = context.theme.light
-    up = theme.resolve_color("waterfall.plot", "series-1")
-    down = theme.resolve_color("waterfall.plot", "series-2")
+
+    border = theme.colors["border"]
     figure = Figure(
         Waterfall(
             x=[label for label, _ in steps],
             y=[value for _, value in steps],
             measure=["absolute"] + ["relative"] * (len(steps) - 1),
-            increasing={"marker": {"color": up}},
-            decreasing={"marker": {"color": down}},
-            connector={"line": {"color": theme.colors["border"], "width": 1}},
+            increasing={
+                "marker": {"color": theme.resolve_color("waterfall.plot", "series-1")}
+            },
+            decreasing={
+                "marker": {"color": theme.resolve_color("waterfall.plot", "series-2")}
+            },
+            connector={"line": {"color": border, "width": 1}},
         )
     )
+    yaxis: dict[str, object] = {
+        "gridcolor": border,
+        "zerolinecolor": border,
+    }
+    if unit is not None:
+        yaxis["title"] = {"text": unit}
+
     figure.update_layout(
         paper_bgcolor="rgba(0, 0, 0, 0)",
         plot_bgcolor="rgba(0, 0, 0, 0)",
-        font={"color": theme.text_on(theme.colors["surface"])},
-        yaxis={"title": unit} if unit is not None else {},
+        font={
+            "family": theme.font_body,
+            "color": theme.text_on(theme.colors["surface"]),
+        },
+        xaxis={"gridcolor": border, "zerolinecolor": border},
+        yaxis=yaxis,
         showlegend=False,
     )
-    return figure
+    return cast(SupportsToHtml, figure)
 
 
 def render_waterfall(
@@ -110,9 +155,18 @@ def render_waterfall(
     except ArtifactUnavailableError as e:
         return RenderedComponent.unavailable(str(e))
     steps = _parse_steps(artifact_type, data)
-    figure = _waterfall_figure(context, steps, unit)
+    pair = context.theme
+    binding = FigureTheme(
+        light=_waterfall_style(pair.light),
+        dark=_waterfall_style(pair.dark),
+    )
+    figure = _waterfall_figure(pair.light, steps, unit)
     description = f"Waterfall chart: {info.title} across {len(steps)} steps"
-    return RenderedComponent.from_figure(figure, description=description)
+    return RenderedComponent.from_figure(
+        figure,
+        description=description,
+        theme=binding,
+    )
 
 
 def get_plugin() -> ReportPlugin:

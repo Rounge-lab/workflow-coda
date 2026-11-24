@@ -154,11 +154,37 @@ When constructing styling for one mode, use its individual theme:
 These values describe light-mode styling only. They do not
 automatically update when the reader switches modes.
 
-Plotly figures need styling bindings for both members, passed through
-the framework's figure channel. Build figure data once; theme
-bindings describe styling changes, not duplicate datasets. Follow the
-paired figure-binding contract in the
-:doc:`components API <../reference/framework/api/components>`.
+To make a Plotly figure follow theme mode changes through the framework's
+figure channel, pass paired updates to ``from_figure``:
+
+.. code-block:: python
+
+   from workflow_coda.theme import FigureTheme
+
+   binding = FigureTheme(
+       light=figure_style(context.theme.light),
+       dark=figure_style(context.theme.dark),
+   )
+   return RenderedComponent.from_figure(
+       figure,
+       description=description,
+       theme=binding,
+   )
+
+Here, ``figure_style`` is your own helper returning a ``FigureStyle``
+for one mode. Construct the initial figure once, then describe the
+updates separately. The waterfall tutorial demonstrates this pattern
+for a trace type that the core chart component does not provide.
+
+The framework does not choose your Plotly fields or presentation
+policy. Prefer appearance-only updates: avoid duplicating artifact
+data or resetting the reader's zoom when changing modes. Omitting
+the binding leaves the figure's initial presentation unchanged.
+
+See the :doc:`theme API <../reference/framework/api/theme>` for the
+update contracts and the
+:doc:`components API <../reference/framework/api/components>` for
+embedding and initialization requirements.
 
 A pair may declare extra tokens beyond the required core set.
 Declare the same extra tokens in both members and document those
@@ -300,7 +326,7 @@ to plugin packages:
   failed entry and a ``plugin_bug`` diagnostic, never a crash;
   ``KeyboardInterrupt`` must pass through.  If you add your own
   guards, pin both.
-* **Test theme both modes.**  Construct a real ``ThemePair``. Check CSS
+* **Test both theme modes.**  Construct a real ``ThemePair``. Check CSS
   references or both figure styling bindings, not hexadecimal
   occurrences across the entire generated HTML: paired metadata
   legitimately contains colors for both modes.
