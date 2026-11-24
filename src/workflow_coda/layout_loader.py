@@ -317,23 +317,26 @@ def load_layout(path: Path) -> ReportLayout:
         )
     declared_version = parsed.get("schema_version")
     if isinstance(declared_version, str) and declared_version != LAYOUT_SCHEMA_VERSION:
-        if declared_version == "0.1.0":
-            raise LayoutError(
-                f"{path}: this layout declares schema_version 0.1.0, but "
-                "this workflow-coda reads layout schema "
-                f"{LAYOUT_SCHEMA_VERSION} — migrate "
-                "the file: rename 'sections:' to 'tabs:', remove the "
-                "'toc:' key (tabs are the navigation), and set "
-                f'schema_version: "{LAYOUT_SCHEMA_VERSION}"'
+        if declared_version in {"0.1.0", "0.2.0", "0.3.0"}:
+            steps = []
+            if declared_version == "0.1.0":
+                steps.append(
+                    "rename 'sections:' to 'tabs:' and remove 'toc:' "
+                    "(tabs are the navigation)"
+                )
+            steps.append(
+                "if 'theme:' is declared, replace its scalar value "
+                "with a mapping containing both 'light:' and 'dark:' "
+                "(e.g. theme: {light: default, dark: default-dark}); "
+                "each selection may also name a custom theme file; "
+                "omit 'theme:' to use the built-in default pair"
             )
-        if declared_version == "0.2.0":
+            steps.append(f'set schema_version: "{LAYOUT_SCHEMA_VERSION}"')
             raise LayoutError(
-                f"{path}: this layout declares schema_version 0.2.0, but "
-                "this workflow-coda reads layout schema "
-                f"{LAYOUT_SCHEMA_VERSION} — version 0.3.0 adds the 'type: "
-                "states' composition node and changes nothing else: set "
-                f'schema_version: "{LAYOUT_SCHEMA_VERSION}" and the file '
-                "loads as-is"
+                f"{path}: this layout declares schema_version "
+                f"{declared_version}, but this workflow-coda reads "
+                f"layout schema {LAYOUT_SCHEMA_VERSION} — migrate "
+                f"the file: {'; '.join(steps)}"
             )
         raise LayoutError(
             f"{path}: the layout's schema_version must be "

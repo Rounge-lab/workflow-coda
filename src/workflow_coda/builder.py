@@ -18,13 +18,12 @@ one report document.
    an unrelated report. The library is assembled before the declared
    assets are prepared, because the logo's icon-name branch loads
    through it.
-4. Load the theme, validate the declared header_color token against it
-   (omitted carries None to the document — the renderer derives primary),
-   and embed the declared assets, both under the declared-then-strict
-   rule: omitted means the default theme and missing logo/favicon, each
-   recorded as an informational diagnostic (the header color excepted —
-   a styling default, not an omission); declared must load, or the
-   build fails.
+4. Resolve the light/dark theme pair and validate declared
+   header_color references against both members. Embed declared
+   assets under the declared-then-strict rule: omission uses the
+   default theme pair or omits logo/favicon, recording informational
+   diagnostics; declared selections and assets must load successfully.
+   Omitted header_color is a styling default, not a diagnostic.
 5. Walk every tab's composition: resolve each placement against the
    *gated* plugins and apply the ``on_missing`` policy (layout-level
    default, per-placement override); render the resolved ones; and
@@ -67,6 +66,7 @@ from .layout import (
     MissingPolicy,
     RowNode,
     StatesNode,
+    ThemeSelection,
     UnavailablePolicy,
 )
 from .layout_loader import load_layout
@@ -92,8 +92,9 @@ from .report import (
     StatesEntry,
 )
 from .theme import (
-    DEFAULT_THEME,
+    DEFAULT_THEME_PAIR,
     Theme,
+    ThemePair,
     ThemeToken,
     load_bundled_theme,
     load_theme,
@@ -120,11 +121,32 @@ def _resolve_theme(layout_path: Path, declared: str) -> Theme:
         raise LayoutError(f"{layout_path}: {e}") from e
 
 
+def _resolve_theme_pair(
+    layout_path: Path,
+    declared: ThemeSelection,
+) -> ThemePair:
+    """Resolve both selections, then enforce their compatibility."""
+    try:
+        light = _resolve_theme(layout_path, declared.light)
+    except LayoutError as e:
+        raise LayoutError(f"light theme: {e}") from e
+
+    try:
+        dark = _resolve_theme(layout_path, declared.dark)
+    except LayoutError as e:
+        raise LayoutError(f"dark theme: {e}") from e
+
+    try:
+        return ThemePair(light=light, dark=dark)
+    except ValueError as e:
+        raise LayoutError(f"{layout_path}: incompatible theme selections: {e}") from e
+
+
 def _resolve_header_color(
-    theme: Theme,
+    theme: ThemePair,
     declared: ThemeToken | tuple[ThemeToken, ThemeToken] | None,
 ) -> ThemeToken | tuple[ThemeToken, ThemeToken] | None:
-    """Validate each declared reference; omission stays omitted."""
+    """Validate declared header references in both themes."""
     if declared is None:
         return None
 
@@ -133,12 +155,11 @@ def _resolve_header_color(
         try:
             theme.resolve_color("the layout's header_color", reference)
         except ValueError as e:
-            available = ", ".join(sorted(theme.colors))
             raise LayoutError(
-                f"the layout declares header_color {reference!r}, but the "
-                f"report's theme cannot resolve it ({available}) — "
-                "declare the token in the theme, or name one it carries "
-                f"or a valid series entry; {e}"
+                f"the layout declares header_color {reference!r}, but "
+                f"the report's theme pair cannot resolve it — declare "
+                "the token in both themes, or name a shared token "
+                f"or valid series entry; {e}"
             ) from e
 
     return declared
@@ -869,22 +890,22 @@ def build_report(
     )
     diagnostics: list[Diagnostic] = []
     if layout.theme is None:
-        theme = DEFAULT_THEME
+        theme = DEFAULT_THEME_PAIR
         diagnostics.append(
             Diagnostic(
                 kind=DiagnosticKind.DEFAULT_THEME,
                 subject="theme",
                 message=(
                     "no theme declared in the layout — the report "
-                    "renders with the built-in default theme; add "
-                    "'theme: default' to select it explicitly, "
-                    "'theme: default-dark' for the bundled dark theme, "
-                    "or a 'theme:' file path to load a custom theme"
+                    "uses the built-in light/dark theme pair; add "
+                    "'theme: {light: default, dark: default-dark}' "
+                    "to select it explicitly, or give a custom "
+                    "theme file path for each mode"
                 ),
             )
         )
     else:
-        theme = _resolve_theme(layout_path, layout.theme)
+        theme = _resolve_theme_pair(layout_path, layout.theme)
     header_color = _resolve_header_color(theme, layout.header_color)
     logo = _prepare_logo(layout_path, layout.logo, library, diagnostics)
     favicon = _prepare_asset(

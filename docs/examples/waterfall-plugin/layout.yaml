@@ -1,6 +1,8 @@
-schema_version: "0.3.0"
+schema_version: "0.4.0"
 title: Run summary
-theme: theme.yaml
+theme:
+  light: theme.yaml
+  dark: theme.yaml
 logo: core-arrow-up
 header_color: accent
 tabs:

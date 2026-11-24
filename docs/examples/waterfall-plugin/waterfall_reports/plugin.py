@@ -64,7 +64,7 @@ def _waterfall_figure(
             "waterfall.plot needs the plotly package to draw its figure — "
             "install plotly and build the report again"
         ) from e
-    theme = context.theme
+    theme = context.theme.light
     up = theme.resolve_color("waterfall.plot", "series-1")
     down = theme.resolve_color("waterfall.plot", "series-2")
     figure = Figure(

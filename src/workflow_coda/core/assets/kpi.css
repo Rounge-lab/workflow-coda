@@ -1,8 +1,7 @@
-/* One headline number as its own card: the KPI is a TILE component,
-   so it paints everything — title, value, plate, corners — and
-   these rules are its paint.  The default is the surface card look;
-   fill and gradient variants override background and ink inline,
-   and their plate reaches every edge because the KPI *is* the card.
+/* One headline number as its own card: the KPI is a TILE component.
+   The default is the surface card look. Fill and gradient variants
+   use responsive CSS color references; contrast-picked plate ink
+   comes from framework-generated placement-local paired properties.
    Inlined after the framework stylesheet exactly when a KPI
    placement rendered. */
 .coda-kpi {

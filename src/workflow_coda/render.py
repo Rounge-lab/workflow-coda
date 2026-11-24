@@ -794,7 +794,7 @@ def render_report(document: ReportDocument) -> str:
         document=document,
         tabs=tabs,
         has_tabs=has_tabs,
-        css_tokens=_css_tokens(
+        css_tokens=_css_theme_pair(
             document.theme,
             document.header_color,
             document.header_variant,
@@ -804,6 +804,7 @@ def render_report(document: ReportDocument) -> str:
         component_css=_component_css(document),
         plotly_js=_plotly_js() if _has_figures(document) else None,
         dropdown_icon=_dropdown_icon(document),
+        theme_js=_chrome_file("theme.js"),
         report_js=_navigation_js(document),
         component_js=_component_js(document),
         provenance_lines=_provenance_lines(document.manifest),

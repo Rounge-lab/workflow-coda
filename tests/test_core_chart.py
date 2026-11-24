@@ -27,7 +27,7 @@ from workflow_coda.context import RenderContext
 from workflow_coda.core.chart import render_chart
 from workflow_coda.errors import ArtifactReadError, RenderError
 from workflow_coda.icons import IconLibrary
-from workflow_coda.theme import DEFAULT_THEME
+from workflow_coda.theme import DEFAULT_THEME, DEFAULT_THEME_PAIR
 
 _SAMPLES: Final[str] = (
     "sample_id\tdepth\tstatus\nS1\t9\tpassed\nS2\t100\tfailed\nS3\t10\tpassed\n"
@@ -63,6 +63,22 @@ pins that the format claim, never the extension, governs."""
 
 _STATS: Final[str] = '{"depth": 12.4}'
 """A JSON artifact — the format-claim teaching's trigger."""
+
+
+def _initial_figure(page: str) -> tuple[list[Any], dict[str, Any]]:
+    """Decode the initial Plotly data and layout, not theme metadata."""
+    start = page.index("Plotly.newPlot(")
+    arguments = page[page.index(",", start) + 1 :].lstrip()
+    decoder = json.JSONDecoder()
+
+    data, end = decoder.raw_decode(arguments)
+    arguments = arguments[end:].lstrip()
+    assert arguments.startswith(",")
+    layout, _ = decoder.raw_decode(arguments[1:].lstrip())
+
+    assert isinstance(data, list)
+    assert isinstance(layout, dict)
+    return data, layout
 
 
 def _groups_text() -> str:
@@ -136,7 +152,7 @@ def _context(bundle: Path) -> RenderContext:
     loads icons and the suite's subject stays the chart."""
     return RenderContext(
         store=ArtifactStore.from_manifest_file(bundle / "manifest.json"),
-        theme=DEFAULT_THEME,
+        theme=DEFAULT_THEME_PAIR,
         icons=IconLibrary(sources=()),
     )
 
@@ -536,7 +552,12 @@ def test_hue_wrap_cycles_and_notes_the_ledger(tmp_path: Path) -> None:
         "'series' if the report needs distinct colors",
     )
     assert outcome.html is not None
-    assert outcome.html.count(DEFAULT_THEME.series[0]) == 2  # traces 1 and last
+    traces, _ = _initial_figure(outcome.html)
+    colors = [trace["marker"]["color"] for trace in traces]
+    assert colors == [
+        DEFAULT_THEME.series[index % len(DEFAULT_THEME.series)]
+        for index in range(count)
+    ]
     assert (
         f'aria-label="Bar chart of depth by sample_id, {count} bars, '
         'colored by batch"' in outcome.html
@@ -560,18 +581,18 @@ def test_explicit_color_uses_the_theme_grammar(tmp_path: Path) -> None:
 
 
 def test_the_figure_wears_the_theme(tmp_path: Path) -> None:
-    # Transparent backgrounds so the card's surface shows through,
-    # the computed ink against that surface, the border-colored
-    # grid, and the theme's own font — the figure never invents
-    # its own palette.  The font stack's quoted family names ride
-    # the figure's JSON escaped, so the pin derives the escaped
-    # form — the exact bytes the page carries.
     context = _context(_write_bundle(tmp_path))
     page = _html(context, _BAR | {"chart": "scatter"})
-    assert page.count("rgba(0, 0, 0, 0)") == 2  # paper and plot
-    assert DEFAULT_THEME.text_on(DEFAULT_THEME.colors["surface"]) in page
-    assert DEFAULT_THEME.colors["border"] in page
-    assert json.dumps(DEFAULT_THEME.font_body)[1:-1] in page
+    _, layout = _initial_figure(page)
+    theme = DEFAULT_THEME_PAIR.light
+
+    assert layout["paper_bgcolor"] == "rgba(0, 0, 0, 0)"
+    assert layout["plot_bgcolor"] == "rgba(0, 0, 0, 0)"
+    assert layout["font"]["color"] == theme.text_on(theme.colors["surface"])
+    assert layout["font"]["family"] == theme.font_body
+    assert layout["xaxis"]["gridcolor"] == theme.colors["border"]
+    assert layout["yaxis"]["gridcolor"] == theme.colors["border"]
+    assert 'data-coda-figure-theme="' in page
 
 
 def test_grid_toggle(tmp_path: Path) -> None:

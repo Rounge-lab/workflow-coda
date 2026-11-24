@@ -14,6 +14,7 @@ from workflow_coda.layout import (
     MissingPolicy,
     ReportLayout,
     RowNode,
+    ThemeSelection,
     UnavailablePolicy,
 )
 from workflow_coda.layout_loader import load_layout
@@ -88,7 +89,9 @@ def test_optional_fields_and_policy_round_trip_through_file(
 schema_version: "{LAYOUT_SCHEMA_VERSION}"
 title: Metagenomic analysis
 subtitle: Optional one-liner
-theme: themes/ntnu.yaml
+theme:
+  light: themes/ntnu.yaml
+  dark: themes/ntnu-dark.yaml
 logo: assets/logo.png
 favicon: assets/favicon.ico
 header_color: accent
@@ -103,7 +106,10 @@ tabs:
 """
     layout = load_layout(write_layout(tmp_path, text))
     assert layout.subtitle == "Optional one-liner"
-    assert layout.theme == "themes/ntnu.yaml"
+    assert layout.theme == ThemeSelection(
+        light="themes/ntnu.yaml",
+        dark="themes/ntnu-dark.yaml",
+    )
     assert layout.logo == "assets/logo.png"
     assert layout.favicon == "assets/favicon.ico"
     assert layout.header_color == "accent"
@@ -205,17 +211,37 @@ def test_0_1_0_layout_is_taught_the_migration(tmp_path: Path) -> None:
         load_layout(write_layout(tmp_path, text))
 
 
-def test_0_2_0_layout_is_taught_the_migration(tmp_path: Path) -> None:
-    # This flip's own addition to the migration family: a 0.2.0 file
-    # is otherwise current, so the teaching says exactly that — set
-    # the version and the file loads as-is.
-    text = MINIMAL_YAML.replace(f'"{LAYOUT_SCHEMA_VERSION}"', '"0.2.0"')
-    with pytest.raises(
-        LayoutError,
-        match=re.escape("declares schema_version 0.2.0")
-        + ".*"
-        + re.escape("loads as-is"),
-    ):
+@pytest.mark.parametrize("version", ["0.2.0", "0.3.0"])
+def test_old_layout_is_taught_the_paired_theme_migration(
+    tmp_path: Path, version: str
+) -> None:
+    text = MINIMAL_YAML.replace(f'"{LAYOUT_SCHEMA_VERSION}"', f'"{version}"')
+    with pytest.raises(LayoutError) as excinfo:
+        load_layout(write_layout(tmp_path, text))
+
+    message = str(excinfo.value)
+    assert f"declares schema_version {version}" in message
+    assert "replace its scalar value" in message
+    assert "both 'light:' and 'dark:'" in message
+    assert f'set schema_version: "{LAYOUT_SCHEMA_VERSION}"' in message
+    assert "loads as-is" not in message
+
+
+def test_scalar_theme_is_rejected_through_file(tmp_path: Path) -> None:
+    text = minimal_yaml_with("theme: default")
+    with pytest.raises(LayoutError, match="theme"):
+        load_layout(write_layout(tmp_path, text))
+
+
+@pytest.mark.parametrize("mode", ["light", "dark"])
+def test_boolean_theme_member_teaches_the_yaml_trap(tmp_path: Path, mode: str) -> None:
+    other = "dark" if mode == "light" else "light"
+    text = minimal_yaml_with(
+        "theme:",
+        f"  {mode}: yes",
+        f"  {other}: default",
+    )
+    with pytest.raises(LayoutError, match="YAML parsed this as the boolean True"):
         load_layout(write_layout(tmp_path, text))
 
 

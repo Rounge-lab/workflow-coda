@@ -46,7 +46,6 @@ from ..components import (
     reject_unknown_parameters,
 )
 from ..context import RenderContext
-from ..theme import ColorHex
 from .markdown import _MD, _VARIABLE, _walk_block
 from .parameters import (
     _optional_bool,
@@ -124,7 +123,7 @@ def _parse_spec(parameters: ComponentParameters) -> _NoticeSpec:
 def _assemble_markup(
     spec: _NoticeSpec,
     title: str,
-    border: ColorHex | None,
+    border: str | None,
     body: str,
     dropdown_icon: str,
 ) -> str:
@@ -168,7 +167,7 @@ def render_notice(
     """
     spec = _parse_spec(parameters)
     border = (
-        context.theme.resolve_color("core.notice", spec.color_name)
+        context.theme.css_color("core.notice", spec.color_name)
         if spec.color_name is not None
         else None
     )

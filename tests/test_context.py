@@ -13,7 +13,7 @@ from helpers import assert_frozen_dataclass
 
 from workflow_coda.artifact_store import ArtifactStore
 from workflow_coda.context import RenderContext
-from workflow_coda.theme import DEFAULT_THEME, Theme
+from workflow_coda.theme import DEFAULT_THEME_PAIR, Theme, ThemePair
 
 
 @pytest.fixture
@@ -24,15 +24,38 @@ def store(tmp_path: Path) -> ArtifactStore:
 
 
 def test_context_bundles_store_and_theme(store: ArtifactStore) -> None:
-    theme = Theme.model_validate(make_theme_payload(name="test-theme"))
-    context = RenderContext(store=store, theme=theme)
+    light = Theme.model_validate(make_theme_payload(name="test-light"))
+    dark = Theme.model_validate(make_theme_payload(name="test-dark"))
+    pair = ThemePair(light=light, dark=dark)
+    context = RenderContext(store=store, theme=pair)
+
     assert context.store is store
-    assert context.theme is theme
+    assert context.theme is pair
+    assert context.theme.light is light
+    assert context.theme.dark is dark
 
 
-def test_context_defaults_to_the_default_theme(store: ArtifactStore) -> None:
+def test_context_defaults_to_the_default_theme_pair(
+    store: ArtifactStore,
+) -> None:
     context = RenderContext(store=store)
-    assert context.theme is DEFAULT_THEME
+    assert context.theme is DEFAULT_THEME_PAIR
+
+
+def test_context_equality_compares_fields(tmp_path: Path) -> None:
+    # Stores compare by identity; theme pairs compare by value.
+    manifest_path = write_manifest_file(tmp_path, make_manifest_payload())
+    first = ArtifactStore.from_manifest_file(manifest_path)
+    second = ArtifactStore.from_manifest_file(manifest_path)
+    theme = Theme.model_validate(make_theme_payload())
+    pair = ThemePair(light=theme, dark=theme)
+
+    assert RenderContext(store=first, theme=pair) == RenderContext(
+        store=first, theme=pair
+    )
+    assert RenderContext(store=first, theme=pair) != RenderContext(
+        store=second, theme=pair
+    )
 
 
 def test_context_serves_artifacts_through_the_store(tmp_path: Path) -> None:
@@ -56,18 +79,3 @@ def test_context_rejects_new_attributes(store: ArtifactStore) -> None:
     context = RenderContext(store=store)
     with pytest.raises(AttributeError):
         context.extra = "nope"  # type: ignore[attr-defined]
-
-
-def test_context_equality_compares_fields(tmp_path: Path) -> None:
-    # Stores compare by identity (no __eq__), themes by value; the context
-    # inherits exactly that from its fields.
-    manifest_path = write_manifest_file(tmp_path, make_manifest_payload())
-    first = ArtifactStore.from_manifest_file(manifest_path)
-    second = ArtifactStore.from_manifest_file(manifest_path)
-    theme = Theme.model_validate(make_theme_payload())
-    assert RenderContext(store=first, theme=theme) == RenderContext(
-        store=first, theme=theme
-    )
-    assert RenderContext(store=first, theme=theme) != RenderContext(
-        store=second, theme=theme
-    )

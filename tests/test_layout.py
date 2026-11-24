@@ -18,6 +18,7 @@ from workflow_coda.layout import (
     MissingPolicy,
     ReportLayout,
     RowNode,
+    ThemeSelection,
     UnavailablePolicy,
 )
 
@@ -65,14 +66,20 @@ def test_optional_identity_fields_round_trip() -> None:
     layout = ReportLayout.model_validate(
         make_layout_payload(
             subtitle="Optional one-liner",
-            theme="themes/ntnu.yaml",
+            theme={
+                "light": "themes/ntnu.yaml",
+                "dark": "themes/ntnu-dark.yaml",
+            },
             logo="assets/logo.png",
             favicon="assets/favicon.ico",
             header_color="accent",
         )
     )
     assert layout.subtitle == "Optional one-liner"
-    assert layout.theme == "themes/ntnu.yaml"
+    assert layout.theme == ThemeSelection(
+        light="themes/ntnu.yaml",
+        dark="themes/ntnu-dark.yaml",
+    )
     assert layout.logo == "assets/logo.png"
     assert layout.favicon == "assets/favicon.ico"
     assert layout.header_color == "accent"
@@ -433,7 +440,7 @@ def test_nodes_nest_through_every_level() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("field", ["title", "subtitle", "theme", "logo", "favicon"])
+@pytest.mark.parametrize("field", ["title", "subtitle", "logo", "favicon"])
 def test_identity_fields_require_visible_text(field: str) -> None:
     with pytest.raises(ValidationError, match="must contain visible text"):
         ReportLayout.model_validate(make_layout_payload(**{field: "   "}))
@@ -447,6 +454,22 @@ def test_empty_title_rejected() -> None:
 def test_tab_titles_require_visible_text() -> None:
     with pytest.raises(ValidationError, match="must contain visible text"):
         layout_with([{"title": "  ", "components": [{"id": "example_bio.qc"}]}])
+
+
+@pytest.mark.parametrize("mode", ["light", "dark"])
+def test_theme_selections_require_visible_text(mode: str) -> None:
+    selection: dict[str, JsonValue] = {
+        "light": "default",
+        "dark": "default-dark",
+    }
+    selection[mode] = "   "
+    with pytest.raises(ValidationError):
+        ReportLayout.model_validate(make_layout_payload(theme=selection))
+
+
+def test_scalar_theme_selection_is_rejected() -> None:
+    with pytest.raises(ValidationError):
+        ReportLayout.model_validate(make_layout_payload(theme="default"))
 
 
 # ---------------------------------------------------------------------------
@@ -466,20 +489,15 @@ def test_placements_require_component_id_shape(id: str) -> None:
 def test_schema_version_is_required_and_must_be_known() -> None:
     payload = make_layout_payload()
     del payload["schema_version"]
-    with pytest.raises(
-        ValidationError, match=f"Input should be '{LAYOUT_SCHEMA_VERSION}'"
-    ):
-        ReportLayout.model_validate(make_layout_payload(schema_version="9.9.9"))
-    # Old versions are rejected here too; the loader teaches each
-    # migration — 0.2.0 is this flip's own addition.
-    with pytest.raises(
-        ValidationError, match=f"Input should be '{LAYOUT_SCHEMA_VERSION}'"
-    ):
-        ReportLayout.model_validate(make_layout_payload(schema_version="0.2.0"))
-    with pytest.raises(
-        ValidationError, match=f"Input should be '{LAYOUT_SCHEMA_VERSION}'"
-    ):
-        ReportLayout.model_validate(make_layout_payload(schema_version="0.1.0"))
+    with pytest.raises(ValidationError, match="schema_version"):
+        ReportLayout.model_validate(payload)
+
+    for version in ("9.9.9", "0.3.0", "0.2.0", "0.1.0"):
+        with pytest.raises(
+            ValidationError,
+            match=f"Input should be '{LAYOUT_SCHEMA_VERSION}'",
+        ):
+            ReportLayout.model_validate(make_layout_payload(schema_version=version))
 
 
 # ---------------------------------------------------------------------------

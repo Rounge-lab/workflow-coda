@@ -41,7 +41,7 @@ from workflow_coda.core.table import render_table
 from workflow_coda.errors import ArtifactReadError
 from workflow_coda.icons import IconLibrary, IconSource
 from workflow_coda.manifest import MANIFEST_SCHEMA_VERSION
-from workflow_coda.theme import DEFAULT_THEME
+from workflow_coda.theme import DEFAULT_THEME_PAIR
 
 _TABLE_TYPE = "org.example.metrics"
 
@@ -120,7 +120,7 @@ def _context(store: ArtifactStore) -> RenderContext:
     builder wires."""
     return RenderContext(
         store=store,
-        theme=DEFAULT_THEME,
+        theme=DEFAULT_THEME_PAIR,
         icons=IconLibrary([IconSource.for_plugin("core", "workflow_coda.core")]),
     )
 
@@ -740,7 +740,7 @@ def test_unavailable_tables_never_load_their_icons(tmp_path: Path) -> None:
     # (the empty-library default) proves the icon door is never
     # consulted on the unavailable path.
     store = _write_bundle(tmp_path, status="failed")
-    context = RenderContext(store=store, theme=DEFAULT_THEME)
+    context = RenderContext(store=store, theme=DEFAULT_THEME_PAIR)
     message = _unavailable_message(context, _table())
     assert "declared with status 'failed'" in message
 
@@ -757,7 +757,7 @@ def test_healthy_tables_require_their_sort_icons(tmp_path: Path) -> None:
     # states before controls, first-offender fixtures for
     # first-offender teachings.
     store = _write_bundle(tmp_path)
-    context = RenderContext(store=store, theme=DEFAULT_THEME)
+    context = RenderContext(store=store, theme=DEFAULT_THEME_PAIR)
     with pytest.raises(ValueError, match="unknown icon 'core-table'"):
         _render(context, _table())
 
@@ -867,7 +867,7 @@ def test_column_width_shape_teaches_before_unavailable_data(
     tmp_path: Path, value: JsonValue, message: str
 ) -> None:
     store = _write_bundle(tmp_path, status="failed")
-    context = RenderContext(store=store, theme=DEFAULT_THEME)
+    context = RenderContext(store=store, theme=DEFAULT_THEME_PAIR)
     with pytest.raises(ValueError) as exc_info:
         _render(context, _table({"column_widths": value}))
     assert str(exc_info.value) == message
@@ -878,7 +878,7 @@ def test_row_limit_shape_teaches_before_unavailable_data(
     tmp_path: Path, value: JsonValue
 ) -> None:
     store = _write_bundle(tmp_path, status="failed")
-    context = RenderContext(store=store, theme=DEFAULT_THEME)
+    context = RenderContext(store=store, theme=DEFAULT_THEME_PAIR)
     with pytest.raises(ValueError) as exc_info:
         _render(context, _table({"max_visible_rows": value}))
     assert str(exc_info.value) == (
@@ -893,7 +893,7 @@ def test_copy_policy_shape_teaches_before_unavailable_data(
     tmp_path: Path, value: JsonValue
 ) -> None:
     store = _write_bundle(tmp_path, status="failed")
-    context = RenderContext(store=store, theme=DEFAULT_THEME)
+    context = RenderContext(store=store, theme=DEFAULT_THEME_PAIR)
     with pytest.raises(ValueError) as exc_info:
         _render(context, _table({"copy_rows": value}))
     assert str(exc_info.value) == (
@@ -1093,7 +1093,7 @@ def test_valid_enhancement_parameters_preserve_unavailable_outcomes(
     tmp_path: Path,
 ) -> None:
     store = _write_bundle(tmp_path, status="failed")
-    context = RenderContext(store=store, theme=DEFAULT_THEME)
+    context = RenderContext(store=store, theme=DEFAULT_THEME_PAIR)
     message = _unavailable_message(
         context,
         _table(

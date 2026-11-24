@@ -12,7 +12,7 @@ import pytest
 from factories import make_manifest_payload, stub_figure
 from markupsafe import escape
 
-from workflow_coda.components import RenderedComponent
+from workflow_coda.components import RenderedComponent, ThemeColorProperty
 from workflow_coda.errors import RenderError
 from workflow_coda.manifest import ReportManifest
 from workflow_coda.render import render_report
@@ -31,7 +31,7 @@ from workflow_coda.report import (
     StatePanel,
     StatesEntry,
 )
-from workflow_coda.theme import DEFAULT_THEME
+from workflow_coda.theme import DEFAULT_THEME_PAIR
 
 
 def _entry(html: str = "<p>Content.</p>") -> ComponentEntry:
@@ -70,7 +70,7 @@ def _document(
         subtitle=None,
         author=None,
         version=None,
-        theme=DEFAULT_THEME,
+        theme=DEFAULT_THEME_PAIR,
         logo=None,
         favicon=None,
         manifest=ReportManifest.model_validate(make_manifest_payload()),
@@ -132,7 +132,7 @@ def test_panels_render_in_axis_order_with_all_children_present() -> None:
     assert page.index("<h3>A</h3>") < page.index("<p>A content</p>")
     assert all("hidden" not in panel and "aria-hidden" not in panel for panel in panels)
     # Was zero scripts; now one merged codec/policy/controller block.
-    assert page.count("<script>") == 1
+    assert page.count("<script>") == 2
     assert "<select" not in page
     assert "<input" not in page
     assert "<button" not in page
@@ -272,7 +272,7 @@ def test_figures_inside_nested_states_inline_plotly_once() -> None:
     assert page.count(plotly_js) == 1
     # Was one Plotly script; now Plotly plus merged navigation.
     # Stub figures still carry no bootstrap scripts.
-    assert page.count("<script>") == 2
+    assert page.count("<script>") == 3
     assert len(_elements(page).with_class("coda-figure")) == 2
 
 
@@ -347,7 +347,7 @@ def test_states_style_is_progressive_and_print_keeps_panels_visible() -> None:
         for block in print_blocks
     )
     assert len(_elements(page).with_class("coda-state")) == 2
-    assert page.count("<script>") == 1
+    assert page.count("<script>") == 2
 
 
 def test_navigation_helpers_inline_once_in_dependency_order() -> None:
@@ -358,7 +358,7 @@ def test_navigation_helpers_inline_once_in_dependency_order() -> None:
             extra_tabs=(DocumentTab(title="Other", nodes=(_entry(),)),),
         )
     )
-    assert page.count("<script>") == 1
+    assert page.count("<script>") == 2
     assert page.count("window.codaSelectionURL = Object.freeze") == 1
     assert page.count("window.codaSelectionPolicy = Object.freeze") == 1
     assert page.index("window.codaSelectionURL = Object.freeze") < page.index(
@@ -373,3 +373,34 @@ def test_navigation_helpers_inline_once_in_dependency_order() -> None:
     assert "missing[index].textContent" in page
     assert ".removeChild(" not in page
     assert ".innerHTML" not in page
+
+
+def test_paired_placement_colors_reach_final_page_inside_states() -> None:
+    entry = ComponentEntry(
+        kind=EntryKind.RENDERED,
+        component_id="core.kpi",
+        title="Metric",
+        outcome=RenderedComponent.from_html(
+            "<p>Paired metric</p>",
+            theme_colors=(
+                ThemeColorProperty(
+                    name="--coda-kpi-ink",
+                    light="#123456",
+                    dark="#abcdef",
+                ),
+            ),
+        ),
+    )
+    page = render_report(_document(_states(_panel("A", entry), _panel("B", entry))))
+
+    cards = _elements(page).with_class("coda-card")
+    assert [card["data-coda-placement"] for card in cards] == [
+        "coda-placement-1",
+        "coda-placement-2",
+    ]
+    for scope in ("coda-placement-1", "coda-placement-2"):
+        assert f'[data-coda-placement="{scope}"]' in page
+
+    assert "--coda-kpi-ink: #123456;" in page
+    assert "--coda-kpi-ink: #abcdef;" in page
+    assert page.count("<p>Paired metric</p>") == 2

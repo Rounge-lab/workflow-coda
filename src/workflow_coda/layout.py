@@ -75,12 +75,17 @@ from .components import COMPONENT_ID_PATTERN
 from .text import DIMENSION_NAME_RE, has_visible_text
 from .theme import ThemeToken
 
-LayoutSchemaVersion = Literal["0.3.0"]
+LayoutSchemaVersion = Literal["0.4.0"]
 """The layout contract's own version.
 
 An axis entirely distinct from manifest schema versions: the manifest
 version gate plugins, the layout version versions the layout file
 format itself.  The two are never compared.
+
+Version 0.4.0 changes theme from a single selection to a light/dark
+mapping. Both selections are required when declared; omission uses
+the default pair. Report rendering now follows browser preference
+unless explicitly selected at read time.
 
 Version 0.3.0 added the ``states`` composition node — a dimension's
 family, its axis declared or derived from the manifest — and changed
@@ -91,7 +96,7 @@ row, grid, card, diagnostics, and states nodes).  The loader teaches
 the migration for 0.1.0 and 0.2.0 files.
 """
 
-LAYOUT_SCHEMA_VERSION: Final[str] = "0.3.0"
+LAYOUT_SCHEMA_VERSION: Final[str] = "0.4.0"
 """The layout contract version this framework reads — the axis's single
 source of truth.  The loader's version gate and the layout factories
 read this constant; ``LayoutSchemaVersion`` beside it is the
@@ -642,15 +647,12 @@ class ReportLayout(BaseModel):
     the title — "1.2.0", "v2", "draft", a date; whatever identifies
     this revision of the report."""
 
-    theme: VisibleText | None = None
-    """Optional bundled theme name or custom theme file path.
+    theme: ThemeSelection | None = None
+    """Optional explicit light/dark selections.
 
-    Bare names select bundled themes, such as ``default`` or
-    ``default-dark``. Values containing a dot or path separator
-    select files relative to the layout, such as ``theme.yaml``
-    or ``./my-theme``. Unknown bundled names never fall back to
-    local files. Omitted means the built-in default theme, with
-    an informational diagnostic.
+    Each member selects a bundled name or a layout-relative custom
+    theme file. Both members are required when theme is declared.
+    Omission selects the built-in default pair and records a diagnostic.
     """
 
     logo: VisibleText | None = None

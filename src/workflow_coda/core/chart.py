@@ -67,7 +67,7 @@ from ..components import (
 )
 from ..context import RenderContext
 from ..errors import ArtifactUnavailableError, RenderError
-from ..theme import Theme
+from ..theme import FigureStyle, FigureTheme, Theme, ThemePair
 from .parameters import (
     _optional_bool,
     _optional_text,
@@ -530,6 +530,59 @@ def _make_figure(
     return cast(SupportsToHtml, figure)
 
 
+def _figure_style(
+    theme: Theme,
+    spec: _ChartSpec,
+    trace_count: int,
+) -> FigureStyle:
+    """Styling-only updates for one mode; no data or axis policy."""
+    if spec.hue is not None:
+        colors = [
+            theme.series[index % len(theme.series)] for index in range(trace_count)
+        ]
+    else:
+        color = (
+            theme.series[0]
+            if spec.color is None
+            else theme.resolve_color("core.chart", spec.color)
+        )
+        colors = [color] * trace_count
+
+    trace_styles = []
+    for color in colors:
+        fields = {"marker.color": color}
+        if spec.chart in {"line", "box"}:
+            fields["line.color"] = color
+        trace_styles.append(fields)
+
+    border = theme.colors["border"]
+    return FigureStyle(
+        layout={
+            "font.color": theme.text_on(theme.colors["surface"]),
+            "font.family": theme.font_body,
+            "paper_bgcolor": "rgba(0, 0, 0, 0)",
+            "plot_bgcolor": "rgba(0, 0, 0, 0)",
+            "xaxis.gridcolor": border,
+            "xaxis.zerolinecolor": border,
+            "yaxis.gridcolor": border,
+            "yaxis.zerolinecolor": border,
+        },
+        traces=tuple(trace_styles),
+    )
+
+
+def _figure_theme(
+    pair: ThemePair,
+    spec: _ChartSpec,
+    trace_count: int,
+) -> FigureTheme:
+    """Resolve compatible styling bindings independently per mode."""
+    return FigureTheme(
+        light=_figure_style(pair.light, spec, trace_count),
+        dark=_figure_style(pair.dark, spec, trace_count),
+    )
+
+
 def _describe(spec: _ChartSpec, records: int) -> str:
     """The figure's accessibility label, inferred from the figure's
     own facts — chart type, subject, size, grouping — the
@@ -587,10 +640,14 @@ def render_chart(
             "header but no data rows — nothing to plot; a chart "
             "needs at least one row of data"
         )
-    traces, records, note = _chart_data(context.theme, spec, header, rows)
-    figure = _make_figure(context.theme, spec, traces)
+    pair = context.theme
+    traces, records, note = _chart_data(pair.light, spec, header, rows)
+    binding = _figure_theme(pair, spec, len(traces))
+    figure = _make_figure(pair.light, spec, traces)
     outcome = RenderedComponent.from_figure(
-        figure, description=_describe(spec, records)
+        figure,
+        description=_describe(spec, records),
+        theme=binding,
     )
     caption_html = (
         f'<p class="coda-chart__caption">{html.escape(spec.caption)}</p>'

@@ -156,7 +156,7 @@ def test_a_custom_color_pairs_with_the_note_level(tmp_path: Path) -> None:
     outcome = _render(_store(tmp_path), {"color": "accent", "text": "Hello."})
     assert outcome.status is ComponentStatus.OK
     assert outcome.html is not None
-    assert ' style="border-left-color: #' in outcome.html
+    assert ' style="border-left-color: var(--coda-accent);"' in outcome.html
 
 
 def test_a_custom_color_on_a_judgment_level_teaches(tmp_path: Path) -> None:

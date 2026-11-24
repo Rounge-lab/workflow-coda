@@ -114,10 +114,10 @@ def test_states_tutorial_builds_two_complete_batches(tmp_path: Path) -> None:
     assert all("aria-hidden" not in panel for panel in markup.panels)
     assert markup.resources == []
 
-    # One merged navigation block, plus a component script block
-    # exactly when the real core declarations contribute JavaScript.
+    # Theme controller plus merged navigation, and a component block
+    # exactly when the real declarations contribute JavaScript.
     component_scripts = int(any(item.js is not None for item in document.chrome))
-    assert page.count("<script>") == 1 + component_scripts
+    assert page.count("<script>") == 2 + component_scripts
     assert page.count("window.codaSelectionWidgets = Object.freeze") == 1
     assert 'button.setAttribute("role", "combobox")' in page
     assert 'list.setAttribute("role", "listbox")' in page
