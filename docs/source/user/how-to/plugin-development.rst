@@ -118,30 +118,78 @@ It does not appear in the page.  Write one for every figure you
 ship; for components shipped with ``workflow-coda`` itself it is
 required, and it costs one line.
 
-Colors: adopt the theme
------------------------
+Colors: adopt both theme modes
+------------------------------
 
-Two calls cover everything, and both teach when misused:
+``context.theme`` is a ``ThemePair``. Its ``light`` and ``dark``
+members are individual ``Theme`` values.
+
+For HTML-based components, use validated CSS references:
 
 .. code-block:: python
 
+   from workflow_coda.theme import color_css
+
+   bar = color_css(context.theme, "mine.plate", "series-3")
+
+The result is ``var(--coda-series-3)``. Both members are validated,
+and the browser resolves the reference against the active palette.
+Use the same approach for parameter-selected color tokens rather
+than embedding a hexadecimal value from one member.
+
+For fixed framework tokens, component CSS can refer directly to
+properties such as ``var(--coda-surface)`` and
+``var(--coda-text)``. For contrast-selected ink on colored plates,
+use the mode-aware ink helpers documented in the
+:doc:`theme API <../reference/framework/api/theme>`.
+
+When constructing styling for one mode, use its individual theme:
+
+.. code-block:: python
+
+   theme = context.theme.light
    ink = theme.text_on(theme.colors["surface"])
    bar = theme.resolve_color("mine.plate", "series-3")
 
-``text_on()`` picks the theme's light-or-dark ink for one
-background, by measured contrast.  ``resolve_color()`` resolves a
-theme token or a 1-based ``series-N`` palette entry, and its first
-argument is *your component id* — it rides every teaching the call
-raises, so a report author with a typo'd theme reads your
-component's name in the fix.
+These values describe light-mode styling only. They do not
+automatically update when the reader switches modes.
 
-A theme may declare extra tokens beyond the required core set;
-each becomes a CSS custom property on the page.  Your component
-can adopt one through ``resolve_color()`` — and if a report's
-theme lacks it, the failure card carries the teaching, naming your
-component and the theme's declared vocabulary.  Document the
-tokens your component expects; they are part of its contract.
-The grammar: :doc:`../reference/framework/api/theme`.
+To make a Plotly figure follow theme mode changes through the framework's
+figure channel, pass paired updates to ``from_figure``:
+
+.. code-block:: python
+
+   from workflow_coda.theme import FigureTheme
+
+   binding = FigureTheme(
+       light=figure_style(context.theme.light),
+       dark=figure_style(context.theme.dark),
+   )
+   return RenderedComponent.from_figure(
+       figure,
+       description=description,
+       theme=binding,
+   )
+
+Here, ``figure_style`` is your own helper returning a ``FigureStyle``
+for one mode. Construct the initial figure once, then describe the
+updates separately. The waterfall tutorial demonstrates this pattern
+for a trace type that the core chart component does not provide.
+
+The framework does not choose your Plotly fields or presentation
+policy. Prefer appearance-only updates: avoid duplicating artifact
+data or resetting the reader's zoom when changing modes. Omitting
+the binding leaves the figure's initial presentation unchanged.
+
+See the :doc:`theme API <../reference/framework/api/theme>` for the
+update contracts and the
+:doc:`components API <../reference/framework/api/components>` for
+embedding and initialization requirements.
+
+A pair may declare extra tokens beyond the required core set.
+Declare the same extra tokens in both members and document those
+your component expects. Validated resolution names your component
+and the offending mode when a reference cannot resolve.
 
 Page chrome: css and js
 -----------------------
@@ -278,6 +326,10 @@ to plugin packages:
   failed entry and a ``plugin_bug`` diagnostic, never a crash;
   ``KeyboardInterrupt`` must pass through.  If you add your own
   guards, pin both.
+* **Test both theme modes.**  Construct a real ``ThemePair``. Check CSS
+  references or both figure styling bindings, not hexadecimal
+  occurrences across the entire generated HTML: paired metadata
+  legitimately contains colors for both modes.
 
 Where next
 ----------

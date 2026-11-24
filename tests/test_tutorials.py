@@ -273,7 +273,7 @@ def test_the_waterfall_report_builds_as_documented(
     # and the core KPI's own enhancement script — the component page
     # chrome channel, which the chrome-less waterfall component does
     # not add to.
-    assert page.count("<script>") == 3
+    assert page.count("<script>") == 4
     # The look carried over: the tutorial's theme and its accent bar.
     assert "--coda-header-background: #acc6f5;" in page
     assert 'aria-label="Waterfall chart: Where the bases went across 4 steps"' in page

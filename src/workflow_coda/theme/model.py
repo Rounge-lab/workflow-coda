@@ -1,28 +1,29 @@
-"""Design-token theming for generated reports.
+"""Design-token declarations for generated reports.
 
-Every visual element of a report draws its colors from a single validated
-theme: a set of semantic tokens, decided at report build time, and it is
-injected in two places: as ``--coda-*`` CSS custom properties emitted by the
-report template, and as ``context.theme`` on the render context handed to
-plugins.
+Each ``Theme`` describes one palette and its font stacks. The report
+builder resolves the layout's light and dark selections into a
+``ThemePair``, supplied to plugins through ``RenderContext.theme``.
+The renderer emits both members as scoped ``--coda-*`` CSS custom
+properties; the active appearance determines which values apply.
 
-The token set is open in exactly one direction: themes may declare color
-tokens beyond the core set, which CSS and plugins may use
-opportunistically.  Plugins never declare tokens of their own and never
-hard-code colors, so a plugin renders correctly against any theme and a
-theme restyles any plugin's output.
+Themes may declare color tokens beyond the required core set.
+Components can use those additional tokens through CSS references
+or explicit resolution. Third-party plugins own their presentation
+choices; theme-derived colors and contrast-selected ink are
+recommended practices, not framework-enforced styling policy.
 
-The theme is also the home of the shared color grammar:
-:meth:`Theme.resolve_color` turns one color request — a token name
-or a ``series-N`` entry — into the theme's own hex, with the
-requester named in every teaching, so every component that asks for
-colors speaks one vocabulary.
+The theme owns the shared color-reference grammar:
+:meth:`Theme.resolve_color` resolves a token name or ``series-N``
+entry against one declaration, naming the requester in teaching
+errors. :meth:`Theme.text_on` selects between the declaration's
+candidate inks by comparing contrast against supplied backgrounds.
 
-Three page properties derive rather than declare — the body ink
-``--coda-text`` and the header pair ``--coda-header-background`` /
-``--coda-header-text``, the latter pair from the layout's
-``header_color`` token — each contrast-picked by the renderer; a
-theme that declares those tokens wins.
+Three report properties may be derived independently for each
+member: page ink ``--coda-text``, header background
+``--coda-header-background``, and header ink ``--coda-header-text``.
+The layout controls the derived header presentation. A theme's
+explicit declaration of the corresponding token overrides its
+derivation.
 """
 
 import re
@@ -37,8 +38,8 @@ from pydantic import (
     field_validator,
 )
 
-from .manifest import NonEmptyStr
-from .text import has_visible_text
+from ..manifest import NonEmptyStr
+from ..text import has_visible_text
 
 
 def _require_font_stack(value: str) -> str:
@@ -147,14 +148,16 @@ class Theme(BaseModel):
         return value
 
     def text_on(self, *backgrounds: ColorHex) -> ColorHex:
-        """The theme's light or dark text color, whichever reads on *backgrounds*.
+        """Select the candidate ink with stronger contrast on *backgrounds*.
 
-        Compares WCAG contrast ratios of ``text-light`` and ``text-dark``
-        against the mean relative luminance of the given backgrounds, and
-        returns the stronger — text over a filled or gradient surface, a
-        colored header, or any future colored background stays readable
-        without the author choosing.  A gradient passes both stops; a
-        solid color passes one.  Ties resolve to ``text-dark``.
+        Compare WCAG contrast ratios of ``text-light`` and ``text-dark``
+        against the mean relative luminance of the supplied backgrounds.
+        Return the stronger candidate; ties resolve to ``text-dark``.
+
+        Supply one background for a solid surface or both stops for a
+        gradient. Selection against mean luminance does not guarantee
+        sufficient contrast everywhere along a gradient, nor does it
+        guarantee that either candidate meets an accessibility threshold.
         """
         if not backgrounds:
             raise ValueError("text_on requires at least one background color")
@@ -204,47 +207,3 @@ class Theme(BaseModel):
             f"declares ({available}) or a series entry like 'series-1', "
             f"got {raw!r}"
         )
-
-
-#: The built-in ``default`` theme, used when no theme is explicitly
-#: selected at build time.
-DEFAULT_THEME: Final[Theme] = Theme.model_validate(
-    {
-        "name": "default",
-        "colors": {
-            "accent": "#6e91d2",
-            "background": "#f5f7fa",
-            "border": "#dee2e6",
-            "danger": "#d2574c",
-            "muted": "#6c757d",
-            "primary": "#3e65b9",
-            "success": "#75a941",
-            "surface": "#ffffff",
-            "text-dark": "#212529",
-            "text-light": "#ffffff",
-            "warning": "#ece860",
-        },
-        "series": [
-            "#6e91d2",
-            "#acc6f5",
-            "#f38d4d",
-            "#fcc29f",
-            "#75a941",
-            "#a9cd86",
-            "#d2574c",
-            "#e89c9a",
-            "#9560af",
-            "#c798dc",
-            "#7b533a",
-            "#ab9080",
-            "#d084b2",
-            "#dfaac9",
-            "#86c3c5",
-            "#bad9da",
-            "#ece860",
-            "#f8f6c2",
-            "#343131",
-            "#655f5f",
-        ],
-    }
-)

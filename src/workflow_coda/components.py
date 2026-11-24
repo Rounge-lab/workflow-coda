@@ -48,12 +48,13 @@ import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Final, Protocol, Self
+from typing import Any, Final, Protocol, Self, cast
 
 from .artifact_store import JsonValue
 from .context import RenderContext
 from .manifest import MANIFEST_SCHEMA_VERSION
 from .text import has_visible_text
+from .theme.figure import FigureTheme
 
 _PLUGIN_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z][a-z0-9_]*$")
 """Shape of a valid plugin id: lowercase snake_case."""
@@ -69,6 +70,20 @@ FIGURE_DIV_CLASS: Final[str] = "coda-figure"
 figure in: the framework's figure marker.  The report renderer keys
 Plotly.js inlining on it — the only html marker the framework scans
 component content for."""
+
+_FIGURE_READY_SCRIPT: Final[str] = """
+(function () {
+  var graph = document.getElementById('{plot_id}');
+  var wrapper = graph && graph.closest('.coda-figure');
+  if (!wrapper) {
+    return;
+  }
+  wrapper.setAttribute('data-coda-figure-ready', 'true');
+  wrapper.dispatchEvent(new CustomEvent('coda:figure-ready', {
+    bubbles: true
+  }));
+})();
+""".strip()
 
 
 class ComponentStatus(Enum):
@@ -108,6 +123,23 @@ class SupportsToHtml(Protocol):
         full_html: bool,
         include_plotlyjs: bool,
         config: dict[str, Any] | None = None,
+    ) -> str: ...
+
+
+class SupportsThemedToHtml(Protocol):
+    """A Plotly-shaped figure supporting initialization completion.
+
+    Plotly runs post_script after its newPlot promise resolves and
+    substitutes {plot_id} with the generated graph element's id.
+    """
+
+    def to_html(
+        self,
+        *,
+        full_html: bool,
+        include_plotlyjs: bool,
+        config: dict[str, Any] | None = None,
+        post_script: str,
     ) -> str: ...
 
 
@@ -199,6 +231,38 @@ outcome out."""
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class ThemeColorProperty:
+    """One placement-local CSS custom property with paired hex values.
+
+    The renderer supplies the placement scope. Plugins supply only
+    property names and resolved colors, never selectors or CSS text.
+    """
+
+    name: str
+    light: str
+    dark: str
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.name, str)
+            or re.fullmatch(r"--coda-[a-z][a-z0-9-]*", self.name) is None
+        ):
+            raise ValueError(
+                "a theme color property requires a --coda- prefixed "
+                "lowercase CSS custom-property name"
+            )
+        for mode, value in (("light", self.light), ("dark", self.dark)):
+            if (
+                not isinstance(value, str)
+                or re.fullmatch(r"#[0-9a-fA-F]{6}", value) is None
+            ):
+                raise ValueError(
+                    f"theme color property {self.name!r}: {mode} "
+                    "requires a six-digit hex color"
+                )
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class RenderedComponent:
     """The typed outcome of one component render call.
 
@@ -237,8 +301,32 @@ class RenderedComponent:
     text; the report builder merges them into the document's
     diagnostics as informational entries."""
 
+    theme_colors: tuple[ThemeColorProperty, ...] = ()
+    """Placement-local paired color properties, allowed only on OK outcomes.
+
+    The renderer applies these properties to this placement's wrapper
+    through generated scoped CSS. Component declaration CSS remains
+    deduplicated; these values are independently carried per placement.
+    """
+
     def __post_init__(self) -> None:
         """Enforce the status/field invariants."""
+        if not isinstance(self.theme_colors, tuple) or any(
+            not isinstance(item, ThemeColorProperty) for item in self.theme_colors
+        ):
+            raise ValueError(
+                "RenderedComponent theme_colors must be a tuple "
+                "of ThemeColorProperty instances"
+            )
+        names = [item.name for item in self.theme_colors]
+        if len(names) != len(set(names)):
+            raise ValueError(
+                "RenderedComponent theme_colors must have unique property names"
+            )
+        if self.theme_colors and self.status is not ComponentStatus.OK:
+            raise ValueError(
+                "RenderedComponent theme_colors are allowed on OK outcomes only"
+            )
         if not isinstance(self.status, ComponentStatus):
             raise ValueError(
                 f"RenderedComponent status must be a ComponentStatus member, "
@@ -311,13 +399,26 @@ class RenderedComponent:
             )
 
     @classmethod
-    def from_html(cls, html: str) -> Self:
-        """An ``OK`` component with hand-written HTML content."""
-        return cls(status=ComponentStatus.OK, html=html)
+    def from_html(
+        cls,
+        html: str,
+        *,
+        theme_colors: tuple[ThemeColorProperty, ...] = (),
+    ) -> Self:
+        """An OK component with HTML and optional paired local colors."""
+        return cls(
+            status=ComponentStatus.OK,
+            html=html,
+            theme_colors=theme_colors,
+        )
 
     @classmethod
     def from_figure(
-        cls, figure: SupportsToHtml, description: str | None = None
+        cls,
+        figure: SupportsToHtml,
+        description: str | None = None,
+        *,
+        theme: FigureTheme | None = None,
     ) -> Self:
         """An ``OK`` component embedding a Plotly-shaped figure.
 
@@ -346,23 +447,55 @@ class RenderedComponent:
         that is the accessibility bar for framework-owned content,
         stated in the documentation; third-party plugins are trusted
         to write one, or not.
+
+        *theme* optionally carries paired plugin-owned Plotly updates
+        beside the embedded figure, as escaped JSON on its framework
+        wrapper. Prefer styling updates rather than duplicating figure
+        data or resetting reader interaction state. The framework
+        validates JSON transport and paired structure, not update policy.
+        The browser controller applies these updates only after figure
+        initialization. Omission preserves the existing embedding exactly.
+
+        Themed figures must additionally support Plotly's post_script
+        argument. The completion script marks the framework wrapper
+        ready and dispatches coda:figure-ready after newPlot resolves.
+        An unsupported serializer fails at the plugin boundary rather
+        than silently producing a themed figure that cannot initialize.
         """
+        if theme is not None and not isinstance(theme, FigureTheme):
+            raise ValueError("figure theme must be a FigureTheme instance")
+
+        theme_attr = (
+            f' data-coda-figure-theme="{html.escape(theme.to_json(), quote=True)}"'
+            if theme is not None
+            else ""
+        )
+        config: dict[str, Any] = {
+            "responsive": True,
+            "modeBarButtonsToRemove": ["sendDataToCloud"],
+            "showSendToCloud": False,
+        }
+        if theme is None:
+            figure_html = figure.to_html(
+                full_html=False,
+                include_plotlyjs=False,
+                config=config,
+            )
+        else:
+            figure_html = cast(SupportsThemedToHtml, figure).to_html(
+                full_html=False,
+                include_plotlyjs=False,
+                config=config,
+                post_script=_FIGURE_READY_SCRIPT,
+            )
         html_out = (
-            f'<div class="{FIGURE_DIV_CLASS}" '
+            f'<div class="{FIGURE_DIV_CLASS}"{theme_attr} '
             + (
                 f'role="img" aria-label="{html.escape(description, quote=True)}">'
                 if description is not None
                 else ">"
             )
-            + figure.to_html(
-                full_html=False,
-                include_plotlyjs=False,
-                config={
-                    "responsive": True,
-                    "modeBarButtonsToRemove": ["sendDataToCloud"],
-                    "showSendToCloud": False,
-                },
-            )
+            + figure_html
             + "</div>"
         )
         if description is not None and not has_visible_text(description):

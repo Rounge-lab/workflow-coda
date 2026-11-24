@@ -62,13 +62,14 @@ from ..components import (
     ComponentParameters,
     PlacementInfo,
     RenderedComponent,
+    ThemeColorProperty,
     reject_unknown_parameters,
 )
 from ..context import RenderContext
 from ..errors import ArtifactUnavailableError
 from ..icons import Icon
 from ..manifest.artifact import ArtifactFormat
-from ..theme import ColorHex, Theme
+from ..theme import ThemePair
 from .parameters import _optional_one_of, _optional_text, _required_text
 
 _VARIANTS: Final[frozenset[str]] = frozenset({"text", "fill", "gradient"})
@@ -135,20 +136,6 @@ def _optional_int(parameters: ComponentParameters, name: str) -> int | None:
             f"core.kpi: parameter {name!r} must be 0 or greater, got {value!r}"
         )
     return value
-
-
-def _resolve_gradient_stops(theme: Theme, raw: JsonValue) -> tuple[ColorHex, ColorHex]:
-    """A gradient request — a two-entry list — to a pair of hexes."""
-    if not isinstance(raw, list) or len(raw) != 2:
-        raise ValueError(
-            "core.kpi: variant 'gradient' takes 'color' as a two-entry "
-            "list [from-color, to-color], e.g. ['primary', 'accent'], "
-            f"got {raw!r}"
-        )
-    return (
-        theme.resolve_color("core.kpi", raw[0]),
-        theme.resolve_color("core.kpi", raw[1]),
-    )
 
 
 def _bound(group: str, bounds: Mapping[str, JsonValue], name: str) -> float | None:
@@ -379,42 +366,72 @@ def _assign_status(
 
 @dataclass(frozen=True, slots=True)
 class _Palette:
-    """The resolved color story for one rendered KPI.
+    """Responsive CSS references and placement-local paired ink."""
 
-    At most one of *plate* and *stops* is set: ``fill`` paints a solid
-    plate, ``gradient`` a two-stop plate, ``text`` paints no plate at
-    all (its ink, when any, colors the value alone).
-    """
-
-    plate: ColorHex | None
-    stops: tuple[ColorHex, ColorHex] | None
-    ink: ColorHex | None
+    plate: str | None
+    stops: tuple[str, str] | None
+    ink: str | None
+    theme_colors: tuple[ThemeColorProperty, ...] = ()
 
 
 def _resolve_palette(
-    theme: Theme, spec: _KpiSpec, status: KpiStatus | None
+    theme: ThemePair,
+    spec: _KpiSpec,
+    status: KpiStatus | None,
 ) -> _Palette:
-    """Resolve the variant's colors from the theme, or inherit.
+    """Resolve shared plate references and independently picked ink."""
 
-    ``fill`` and ``gradient`` paint their plate and compute readable
-    ink (the theme's own light/dark text choice); ``text`` colors the
-    value's ink — explicitly when the author asked, from the
-    threshold status when a policy declared one, else not at all.
-    """
+    def plate_palette(
+        references: tuple[object, ...],
+    ) -> _Palette:
+        backgrounds = tuple(
+            theme.resolve_color("core.kpi", reference) for reference in references
+        )
+        css_references = tuple(
+            theme.css_color("core.kpi", reference) for reference in references
+        )
+        ink = theme.text_on(*backgrounds)
+        properties = (
+            ThemeColorProperty(
+                name="--coda-kpi-ink",
+                light=ink.light,
+                dark=ink.dark,
+            ),
+        )
+        if len(css_references) == 1:
+            return _Palette(
+                plate=css_references[0],
+                stops=None,
+                ink="var(--coda-kpi-ink)",
+                theme_colors=properties,
+            )
+        return _Palette(
+            plate=None,
+            stops=(css_references[0], css_references[1]),
+            ink="var(--coda-kpi-ink)",
+            theme_colors=properties,
+        )
+
     if spec.variant == "gradient":
-        assert spec.color is not None  # guaranteed by _parse_spec
-        stops = _resolve_gradient_stops(theme, spec.color)
-        return _Palette(plate=None, stops=stops, ink=theme.text_on(*stops))
-    if spec.color is not None:
-        color = theme.resolve_color("core.kpi", spec.color)
-    elif status is not None:
-        color = theme.colors[_STATUS_COLOR_TOKENS[status]]
-    else:
-        color = None
+        raw = spec.color
+        if not isinstance(raw, list) or len(raw) != 2:
+            raise ValueError(
+                "core.kpi: variant 'gradient' takes 'color' as a "
+                "two-entry list [from-color, to-color], e.g. "
+                f"['primary', 'accent'], got {raw!r}"
+            )
+        return plate_palette((raw[0], raw[1]))
+
+    reference: object = spec.color
+    if reference is None and status is not None:
+        reference = _STATUS_COLOR_TOKENS[status]
+
     if spec.variant == "fill":
-        assert color is not None  # guaranteed by _parse_spec
-        return _Palette(plate=color, stops=None, ink=theme.text_on(color))
-    return _Palette(plate=None, stops=None, ink=color)
+        assert reference is not None  # validated by _parse_spec
+        return plate_palette((reference,))
+
+    ink = theme.css_color("core.kpi", reference) if reference is not None else None
+    return _Palette(plate=None, stops=None, ink=ink)
 
 
 def _icon_html(icon: Icon | None, position: str) -> tuple[str, str]:
@@ -515,5 +532,6 @@ def render_kpi(
     status = _assign_status(value, spec.thresholds)
     palette = _resolve_palette(context.theme, spec, status)
     return RenderedComponent.from_html(
-        _assemble_markup(spec, info.title, icon, value, status, palette)
+        _assemble_markup(spec, info.title, icon, value, status, palette),
+        theme_colors=palette.theme_colors,
     )

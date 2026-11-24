@@ -99,7 +99,7 @@ def render_newick(
 ```
 
 - `context.store` is your only route to artifacts; `context.theme`
-  carries the design tokens.
+  is a `ThemePair` with individual `light` and `dark` themes.
 - `parameters` is the placement's `parameters:` mapping —
   JSON-shaped values, raw. You validate every key yourself.
 - Return `RenderedComponent.from_html(...)` for content,
@@ -185,8 +185,10 @@ it never silently adapts.
 - **Enhancement only**: the page must be complete without it.
   Never move content generation into script.
 - It runs **once**, after the framework's scripts, on an
-  established DOM. There is **no tab-shown event yet** — do not wait
-  for one; panels hide and show, nothing re-renders.
+  established DOM. If you need tab-activation feedback, subscribe
+  to `coda:tab-shown`, dispatched on the shown panel and bubbling
+  to document. Panels hide and show; render functions do not run
+  again.
 - The page's CSP blocks **all network**: no fetching, no CDNs. All
   your data must already be in the HTML — stamp what the script
   needs at **build time** (e.g. `data-*` attributes), and have the
@@ -202,24 +204,34 @@ it never silently adapts.
 
 ### If you ship css
 
-- Theme tokens only (`var(--coda-*)`); your own class vocabulary
-  (`coda-<id>__…`); never restyle framework classes.
+- Namespace your classes under `coda-<plugin_id>-…`; avoid
+  restyling framework classes. Prefer theme custom properties
+  (`var(--coda-*)`) so your component follows both modes.
+  Third-party plugins own their styling choices; theme adoption
+  is recommended, not a framework-enforced presentation policy.
 - Enhancement chrome is hidden until `coda-js`; anything hidden by
   script for viewing is restored under print.
 
-### Ink: text on colors
+### Recommended practice: colors and contrast in both modes
 
-Ink on a colored surface is chosen, never declared: call
-`context.theme.text_on(background)` — one background for a solid
-plate, both stops for a gradient — and interpolate the returned
-`#rrggbb` into your markup or css. The theme's light-or-dark pair
-resolves by WCAG contrast at build time; you never pick which.
-Direct token reads (`theme.colors[...]`) are for declared color
-roles — including your own custom tokens — and your css may
-reference any emitted property (`var(--coda-muted)`, your tokens,
-the derived `var(--coda-text)`). The `text` token is retired:
-`--coda-text` is now a derived page property — read it, but never
-assume it suits a colored surface; that is what `text_on` is for.
+`context.theme` is a `ThemePair`, not a single palette. For HTML
+and CSS, prefer validated `color_css(...)` references and the
+mode-aware ink helpers exposed by the theme API. CSS references
+follow the active mode without rerendering the component.
+
+For one mode's resolved values, use `context.theme.light` or
+`context.theme.dark`. Each individual theme provides
+`resolve_color(...)` and `text_on(...)`. A hexadecimal value
+resolved from one member is static unless you also provide its
+counterpart through paired CSS properties or figure updates.
+
+For a colored surface, derive ink against that surface rather than
+assuming the page's `--coda-text` is suitable. Resolve the
+corresponding surface and ink independently for both modes.
+
+Third-party plugins own their presentation choices. These helpers
+promote consistent appearance and contrast; they are not a
+framework mandate to use particular colors or fonts.
 
 ### Icons, if you ship them
 
@@ -247,16 +259,31 @@ that asks for one teaches honestly. When you do ship icons:
 
 ### Figures, if you chart
 
-Use the framework's figure constructor, `RenderedComponent.from_figure`: the
-renderer detects figures by the framework's own marker class and inlines
-Plotly.js exactly when the document contains figures. Do not inline chart
-libraries yourself. Import your charting library inside the render call — a
-chartless report builds on machines without it, and a missing library teaches
-as `RenderError` (the environment family) with the fix in the message. Return
-through `from_figure` with an inferred accessibility label — the figure's own
-facts (type, subject, size, grouping), never the author's — and ride
-informational messages on the notes channel: OK-only, merged into the report's
-diagnostics ledger.
+Use `RenderedComponent.from_figure` for Plotly-shaped figures.
+It supplies the framework marker, responsive embedding, and the
+report's once-per-page Plotly.js channel. Import Plotly inside the
+render path so chartless reports do not require it; an unavailable
+dependency raises `RenderError` with the installation fix.
+
+Provide a meaningful accessibility description. It is required for
+official components and recommended for third-party components.
+Keep it separate from a visible caption. Informational observations
+may ride the OK-only notes channel.
+
+To follow light/dark changes through the framework controller, pass
+a `FigureTheme` containing one `FigureStyle` per mode. The initial
+figure is embedded once. The serializer must support Plotly's
+`post_script` argument so updates wait for initialization.
+
+Plugins own the Plotly update fields and values. The framework
+validates JSON transport and matching paired structure, not
+presentation policy. Prefer appearance-only updates that preserve
+artifact data and reader interaction state. Omitting the binding
+retains static presentation.
+
+Test both modes, including changing modes before a figure's tab or
+state becomes visible. Check the serialized update mappings rather
+than searching the entire HTML for one palette's colors.
 
 ### Test the honest way
 
@@ -299,6 +326,10 @@ Everything above, plus:
 - css: tokens only; a **print block honoring the panels law**
   (controls removed, script-hidden rows restored); ARIA state
   (`aria-sort` and its kind).
+- Theme adoption is required at this tier: core components follow
+  both modes, use theme-derived colors and contrast-selected inks,
+  and bind figure presentation without duplicating artifact data
+  or changing axis policy.
 
 ### The channel contract
 

@@ -40,17 +40,20 @@ models check *shape*: ids look like component ids, tabs are
 non-empty, split ratios are positive numbers, and composition is
 consistent (a row's ratios match its child count, a stack takes no
 split).  Resolution questions — does the component exist, does
-the theme file exist — belong to the report builder, which has the live
-registry and the filesystem.
+the selected theme load — belong to the report builder, which has
+the live registry, bundled resources, and filesystem context.
 
-Three fields follow one rule: declared, then strict.  ``logo`` and
-``favicon`` must exist next to the layout file and be embeddable
-images, or the build fails; omitted, the report renders without them
-and the builder records a diagnostic explaining how to add one.
-``theme`` likewise: omitted means the built-in default theme (and
-a diagnostic); declared, the file must load.  Assets are embedded into
-the single-page report as data URIs at build time — the report file
-never references external files.
+Three fields follow one rule: declared, then strict.  ``logo``
+selects a bundled icon name or a custom image path; ``favicon``
+selects a custom image path.  Declared assets must load and be
+embeddable, or the build fails.  Omitted, the report renders without
+them and the builder records a diagnostic explaining how to add one.
+``theme`` selects a bundled theme name or a custom YAML path;
+omitted means the built-in default theme and a diagnostic.
+Unknown bundled names never fall back to local files.
+Assets are embedded into the single-page report as inline SVG or
+data URIs at build time — the report file never references external
+asset files.
 """
 
 from enum import Enum
@@ -72,12 +75,17 @@ from .components import COMPONENT_ID_PATTERN
 from .text import DIMENSION_NAME_RE, has_visible_text
 from .theme import ThemeToken
 
-LayoutSchemaVersion = Literal["0.3.0"]
+LayoutSchemaVersion = Literal["0.4.0"]
 """The layout contract's own version.
 
 An axis entirely distinct from manifest schema versions: the manifest
 version gate plugins, the layout version versions the layout file
 format itself.  The two are never compared.
+
+Version 0.4.0 changes theme from a single selection to a light/dark
+mapping. Both selections are required when declared; omission uses
+the default pair. Report rendering now follows browser preference
+unless explicitly selected at read time.
 
 Version 0.3.0 added the ``states`` composition node — a dimension's
 family, its axis declared or derived from the manifest — and changed
@@ -88,7 +96,7 @@ row, grid, card, diagnostics, and states nodes).  The loader teaches
 the migration for 0.1.0 and 0.2.0 files.
 """
 
-LAYOUT_SCHEMA_VERSION: Final[str] = "0.3.0"
+LAYOUT_SCHEMA_VERSION: Final[str] = "0.4.0"
 """The layout contract version this framework reads — the axis's single
 source of truth.  The loader's version gate and the layout factories
 read this constant; ``LayoutSchemaVersion`` beside it is the
@@ -591,6 +599,26 @@ class ReportTab(BaseModel):
     """The tab's composition, in declaration order."""
 
 
+class ThemeSelection(BaseModel):
+    """The layout's explicit light/dark theme selections.
+
+    Both entries are required. Each independently selects a bundled
+    name or a custom file path; resolution belongs to the builder.
+
+    Bare names address bundled themes. A dot or path separator
+    addresses a file relative to the layout. Unknown bundled names
+    never fall back to local files.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    light: VisibleText
+    """Bundled theme name or custom file path for light mode."""
+
+    dark: VisibleText
+    """Bundled theme name or custom file path for dark mode."""
+
+
 class ReportLayout(BaseModel):
     """The whole report layout: identity plus ordered tabs.
 
@@ -619,9 +647,13 @@ class ReportLayout(BaseModel):
     the title — "1.2.0", "v2", "draft", a date; whatever identifies
     this revision of the report."""
 
-    theme: VisibleText | None = None
-    """Optional path to a theme file, relative to the layout file.
-    Omitted means the built-in default theme."""
+    theme: ThemeSelection | None = None
+    """Optional explicit light/dark selections.
+
+    Each member selects a bundled name or a layout-relative custom
+    theme file. Both members are required when theme is declared.
+    Omission selects the built-in default pair and records a diagnostic.
+    """
 
     logo: VisibleText | None = None
     """Optional path to a logo image, relative to the layout file;

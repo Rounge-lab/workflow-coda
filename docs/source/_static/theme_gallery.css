@@ -1,0 +1,125 @@
+.coda-theme-gallery__preview {
+  overflow: hidden;
+  margin: 1rem 0;
+  border: 1px solid var(--coda-border);
+  border-radius: 0.5rem;
+  background: var(--coda-background);
+  color: var(--coda-text);
+  font-family: var(--coda-font-body);
+}
+
+.coda-theme-gallery__header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1rem;
+  background: var(--coda-header-background);
+  color: var(--coda-header-text);
+}
+
+.coda-theme-gallery__header strong,
+.coda-theme-gallery__heading {
+  font-family: var(--coda-font-heading);
+  font-size: 1.1rem;
+}
+
+.coda-theme-gallery__body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.coda-theme-gallery__card {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--coda-border);
+  border-radius: 0.35rem;
+  background: var(--coda-surface);
+}
+
+.coda-theme-gallery__card p {
+  margin: 0.75rem 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.coda-theme-gallery__metric {
+  margin: 1rem 0;
+  color: var(--coda-accent);
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.coda-theme-gallery__metric span {
+  display: block;
+  color: var(--coda-muted);
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.coda-theme-gallery__notices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.coda-theme-gallery__notice {
+  padding: 0.3rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.coda-theme-gallery__card svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 1rem;
+}
+
+.coda-theme-gallery__muted {
+  color: var(--coda-muted);
+}
+
+.coda-theme-gallery__swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: 0.5rem;
+  margin: 1rem 0 2rem;
+}
+
+.coda-theme-gallery__swatch {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.35rem;
+}
+
+.coda-theme-gallery__swatch code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.coda-theme-gallery__chip {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid currentColor;
+  border-radius: 0.25rem;
+}
+
+.coda-theme-gallery__value {
+  margin-left: auto;
+}
+
+@media print {
+  .coda-theme-gallery__preview {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .coda-theme-gallery__swatch {
+    break-inside: avoid;
+  }
+}

@@ -27,7 +27,7 @@ from workflow_coda.report import (
     StatePanel,
     StatesEntry,
 )
-from workflow_coda.theme import DEFAULT_THEME
+from workflow_coda.theme import DEFAULT_THEME_PAIR
 
 _DOM = r"""
 var window = {location: {hash: ""}};
@@ -516,7 +516,7 @@ def test_renderer_inlines_planner_once_before_controller(has_states: bool) -> No
         subtitle=None,
         author=None,
         version=None,
-        theme=DEFAULT_THEME,
+        theme=DEFAULT_THEME_PAIR,
         logo=None,
         favicon=None,
         manifest=ReportManifest.model_validate(make_manifest_payload()),
@@ -529,7 +529,7 @@ def test_renderer_inlines_planner_once_before_controller(has_states: bool) -> No
         assert 'class="coda-icon"' in page
     else:
         assert '<template id="coda-dropdown-icon">' not in page
-    assert page.count("<script>") == 1
+    assert page.count("<script>") == 2
     assert page.count("window.codaSelectionWidgets = Object.freeze") == 1
     assert (
         page.index("window.codaSelectionPolicy = Object.freeze")

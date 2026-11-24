@@ -163,7 +163,8 @@ def test_core_components_render_through_the_cli(tmp_path: Path) -> None:
     assert '<p class="coda-kpi__title">Mean depth</p>' in page
     assert ">12.4" in page
     success = DEFAULT_THEME.colors["success"]
-    assert f'style="color: {success};"' in page
+    assert 'style="color: var(--coda-success);"' in page
+    assert f"--coda-success: {success};" in page
     assert "coda-kpi--ok" in page
     assert 'class="coda-icon"' in page
     assert 'aria-hidden="true"' in page
@@ -259,7 +260,7 @@ def test_core_components_render_through_the_cli(tmp_path: Path) -> None:
     # so no Plotly.js — that was the census before charts shipped.
     assert page.count("<style>") == 2
     assert (
-        page.count("<script>") == 4
+        page.count("<script>") == 5
     )  # bare tags: tab, component block, Plotly.js, plus the figure's own bootstrap tag
     assert page.count("/* core.kpi */") == 1
     assert page.count("/* core.table */") == 1

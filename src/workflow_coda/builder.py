@@ -18,13 +18,12 @@ one report document.
    an unrelated report. The library is assembled before the declared
    assets are prepared, because the logo's icon-name branch loads
    through it.
-4. Load the theme, validate the declared header_color token against it
-   (omitted carries None to the document — the renderer derives primary),
-   and embed the declared assets, both under the declared-then-strict
-   rule: omitted means the default theme and missing logo/favicon, each
-   recorded as an informational diagnostic (the header color excepted —
-   a styling default, not an omission); declared must load, or the
-   build fails.
+4. Resolve the light/dark theme pair and validate declared
+   header_color references against both members. Embed declared
+   assets under the declared-then-strict rule: omission uses the
+   default theme pair or omits logo/favicon, recording informational
+   diagnostics; declared selections and assets must load successfully.
+   Omitted header_color is a styling default, not a diagnostic.
 5. Walk every tab's composition: resolve each placement against the
    *gated* plugins and apply the ``on_missing`` policy (layout-level
    default, per-placement override); render the resolved ones; and
@@ -51,9 +50,6 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-import yaml
-from pydantic import ValidationError
-
 from .artifact_store import ArtifactStore, JsonValue
 from .assets import embed_asset, embed_inline_svg
 from .components import ComponentStatus, PlacementInfo, ReportComponent
@@ -70,9 +66,10 @@ from .layout import (
     MissingPolicy,
     RowNode,
     StatesNode,
+    ThemeSelection,
     UnavailablePolicy,
 )
-from .layout_loader import UniqueKeySafeLoader, load_layout
+from .layout_loader import load_layout
 from .manifest import ManifestSchemaVersion
 from .plugins import ReportPlugin
 from .registry import PluginRegistry
@@ -94,56 +91,62 @@ from .report import (
     StatePanel,
     StatesEntry,
 )
-from .theme import DEFAULT_THEME, Theme, ThemeToken
+from .theme import (
+    DEFAULT_THEME_PAIR,
+    Theme,
+    ThemePair,
+    ThemeToken,
+    load_bundled_theme,
+    load_theme,
+)
 from .verification.expansion import expand_template, substitute_raw
 
 
-def _load_theme(layout_path: Path, declared: str) -> Theme:
-    """Load the theme file declared in the layout, strictly.
+def _resolve_theme(layout_path: Path, declared: str) -> Theme:
+    """Resolve a bundled name or a layout-relative custom path.
 
-    Teaching errors name the theme file and the layout that declared
-    it; duplicate keys are rejected through the shared loader, and
-    validation problems are condensed to one line per token.
+    A dot or path separator selects the file vocabulary. Bare names
+    select bundled themes. Neither branch falls back to the other.
     """
-    theme_path = layout_path.parent / declared
+    if any(mark in declared for mark in ("/", "\\", ".")):
+        theme_path = layout_path.parent / declared
+        try:
+            return load_theme(theme_path)
+        except LayoutError as e:
+            raise LayoutError(f"{layout_path}: declares theme {declared!r}: {e}") from e
+
     try:
-        text = theme_path.read_text(encoding="utf-8")
-    except OSError as e:
-        raise LayoutError(
-            f"cannot read the theme file {theme_path} declared in "
-            f"{layout_path.name!r}: {e.strerror or e}"
-        ) from e
+        return load_bundled_theme(declared)
+    except ValueError as e:
+        raise LayoutError(f"{layout_path}: {e}") from e
+
+
+def _resolve_theme_pair(
+    layout_path: Path,
+    declared: ThemeSelection,
+) -> ThemePair:
+    """Resolve both selections, then enforce their compatibility."""
     try:
-        parsed = yaml.load(text, Loader=UniqueKeySafeLoader)
-    except yaml.YAMLError as e:
-        detail = " ".join(str(e).split())
-        raise LayoutError(
-            f"{theme_path} (declared in the layout) is not valid YAML: {detail}"
-        ) from e
-    if not isinstance(parsed, dict):
-        found = (
-            "nothing (the file is empty)"
-            if parsed is None
-            else f"a single {type(parsed).__name__} value"
-        )
-        raise LayoutError(
-            f"{theme_path} (declared in the layout) must be a mapping "
-            f"of theme tokens, but contains {found}"
-        )
+        light = _resolve_theme(layout_path, declared.light)
+    except LayoutError as e:
+        raise LayoutError(f"light theme: {e}") from e
+
     try:
-        return Theme.model_validate(parsed)
-    except ValidationError as e:
-        detail = "; ".join(f"{error['loc']}: {error['msg']}" for error in e.errors())
-        raise LayoutError(
-            f"{theme_path} (declared in the layout) is not a valid theme: {detail}"
-        ) from e
+        dark = _resolve_theme(layout_path, declared.dark)
+    except LayoutError as e:
+        raise LayoutError(f"dark theme: {e}") from e
+
+    try:
+        return ThemePair(light=light, dark=dark)
+    except ValueError as e:
+        raise LayoutError(f"{layout_path}: incompatible theme selections: {e}") from e
 
 
 def _resolve_header_color(
-    theme: Theme,
+    theme: ThemePair,
     declared: ThemeToken | tuple[ThemeToken, ThemeToken] | None,
 ) -> ThemeToken | tuple[ThemeToken, ThemeToken] | None:
-    """Validate each declared reference; omission stays omitted."""
+    """Validate declared header references in both themes."""
     if declared is None:
         return None
 
@@ -152,12 +155,11 @@ def _resolve_header_color(
         try:
             theme.resolve_color("the layout's header_color", reference)
         except ValueError as e:
-            available = ", ".join(sorted(theme.colors))
             raise LayoutError(
-                f"the layout declares header_color {reference!r}, but the "
-                f"report's theme cannot resolve it ({available}) — "
-                "declare the token in the theme, or name one it carries "
-                f"or a valid series entry; {e}"
+                f"the layout declares header_color {reference!r}, but "
+                f"the report's theme pair cannot resolve it — declare "
+                "the token in both themes, or name a shared token "
+                f"or valid series entry; {e}"
             ) from e
 
     return declared
@@ -888,20 +890,22 @@ def build_report(
     )
     diagnostics: list[Diagnostic] = []
     if layout.theme is None:
-        theme = DEFAULT_THEME
+        theme = DEFAULT_THEME_PAIR
         diagnostics.append(
             Diagnostic(
                 kind=DiagnosticKind.DEFAULT_THEME,
                 subject="theme",
                 message=(
                     "no theme declared in the layout — the report "
-                    "renders with the built-in default theme; add a "
-                    "'theme:' path next to the layout file to load one"
+                    "uses the built-in light/dark theme pair; add "
+                    "'theme: {light: default, dark: default-dark}' "
+                    "to select it explicitly, or give a custom "
+                    "theme file path for each mode"
                 ),
             )
         )
     else:
-        theme = _load_theme(layout_path, layout.theme)
+        theme = _resolve_theme_pair(layout_path, layout.theme)
     header_color = _resolve_header_color(theme, layout.header_color)
     logo = _prepare_logo(layout_path, layout.logo, library, diagnostics)
     favicon = _prepare_asset(

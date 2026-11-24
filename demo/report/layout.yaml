@@ -1,9 +1,11 @@
-schema_version: "0.3.0"
+schema_version: "0.4.0"
 title: Workflow Coda visual inspection
 subtitle: A deliberately varied report for manual browser review
 author: Workflow Coda developers
 version: "Visual fixture 1"
-theme: theme.yaml
+theme:
+  light: default
+  dark: default-dark
 logo: core-coda
 favicon: favicon.svg
 header_variant: gradient

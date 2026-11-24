@@ -68,7 +68,7 @@ identity and its content, tab by tab. Start with one component on one tab:
 .. code-block:: yaml
    :caption: layout.yaml - first version
 
-   schema_version: "0.3.0"
+   schema_version: "0.4.0"
    title: Run summary
    tabs:
      - title: Headlines
@@ -121,7 +121,7 @@ marker to the ``Headlines`` tab, after the placement:
      - type: diagnostics
 
 Rebuild the report, and the page gains a *Diagnostics* panel.  It lists three
-notes, and each is honest: the report rendered with the default theme, without a
+notes, and each is honest: the report rendered with the default theme pair, without a
 logo, and without a favicon. Each note also explains how to add what is missing.
 None of them are errors; they are styling choices you have not made yet.  This
 panel is worth placing while you are constructing your report: it is where the
@@ -137,9 +137,11 @@ color in the layout:
 
 .. code-block:: yaml
 
-   schema_version: "0.3.0"
+   schema_version: "0.4.0"
    title: Run summary
-   theme: theme.yaml
+   theme:
+     light: default
+     dark: theme.yaml
    logo: core-arrow-up
    header_color: accent
    tabs:
@@ -152,8 +154,9 @@ color in the layout:
              key: depth
          - type: diagnostics
 
-And write the theme file next to the layout. The theme file defines a small
-vocabulary of color tokens, which are used by your report's components:
+And write the dark-mode theme file next to the layout. Light mode uses
+the bundled ``default`` declaration; the custom file defines the
+dark-mode palette:
 
 .. literalinclude:: ../../../examples/hello-report/theme.yaml
    :language: yaml
@@ -174,11 +177,19 @@ Three things to notice:
   will automatically use the color that produces the best contrast for
   readability.
 
-Rebuild your report.  The page is now dark, an arrow sits beside the title, and
-the header bar wears the theme's accent color. The component did not change by
-one character.  Colors belong to the theme; content belongs to the components.
-The diagnostics panel noticed too: two notes are gone, and the one that remains
-offers the favicon, which follows the same rule as the logo.
+Rebuild your report. The page follows your system's light or dark
+preference. Use the sun/moon button on the right of the header to
+inspect both modes: dark mode uses your custom palette, while light
+mode uses the bundled default. An arrow sits beside the title, and
+the header bar wears the active theme's accent color.
+
+The component did not change by one character. Colors belong to the
+theme declarations; content belongs to the components. Reloading
+returns to system preference.
+
+The diagnostics panel noticed too: two notes are gone, and the one
+that remains offers the favicon, which follows the same rule as the
+logo.
 
 The finished files
 ------------------
@@ -236,7 +247,7 @@ Open the new ``report.html`` with JavaScript enabled. You should see
 depth, ``42.7``. Choose ``b``: the card now shows ``18.3``. Reload the
 page; the URL keeps your batch selection.
 
-This example uses the default theme and needs no additional files.
+This example uses the default theme pair and needs no additional files.
 Both batches are already embedded in the HTML: selection fetches nothing.
 Without JavaScript, and when printing, both batches appear stacked.
 More states mean more embedded content, even when only one is visible.

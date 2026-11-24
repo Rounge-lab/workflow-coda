@@ -23,7 +23,7 @@ from dataclasses import dataclass
 
 from .artifact_store import ArtifactStore
 from .icons import IconLibrary
-from .theme import DEFAULT_THEME, Theme
+from .theme import DEFAULT_THEME_PAIR, ThemePair
 
 _EMPTY_ICONS = IconLibrary(())
 """The icon-free default: direct construction (tests, third-party
@@ -42,8 +42,8 @@ class RenderContext:
     store: ArtifactStore
     """The report's artifact store, the only gateway to artifact contents."""
 
-    theme: Theme = DEFAULT_THEME
-    """The report's design-token theme, defaulting to :data:`DEFAULT_THEME`."""
+    theme: ThemePair = DEFAULT_THEME_PAIR
+    """The report's resolved light/dark design-token pair."""
 
     icons: IconLibrary = _EMPTY_ICONS
     """The build's merged icon namespace: unknown names teach as

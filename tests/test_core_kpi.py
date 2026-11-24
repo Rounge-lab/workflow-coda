@@ -24,7 +24,7 @@ from workflow_coda.context import RenderContext
 from workflow_coda.core.kpi import render_kpi
 from workflow_coda.icons import IconLibrary, IconSource
 from workflow_coda.manifest import MANIFEST_SCHEMA_VERSION
-from workflow_coda.theme import DEFAULT_THEME
+from workflow_coda.theme import DEFAULT_THEME_PAIR
 
 _STATS_TYPE = "org.example.stats"
 
@@ -93,7 +93,7 @@ def _context(store: ArtifactStore) -> RenderContext:
     it: core's own declaration."""
     return RenderContext(
         store=store,
-        theme=DEFAULT_THEME,
+        theme=DEFAULT_THEME_PAIR,
         icons=IconLibrary((IconSource.for_plugin("core", "workflow_coda.core"),)),
     )
 
@@ -217,7 +217,7 @@ def test_color_must_be_theme_vocabulary(tmp_path: Path) -> None:
     # The series bound is the palette's own length — derived, so a
     # longer palette never silently invalidates the pin (the
     # hardcoded series-9 rotted exactly this way).
-    beyond = f"series-{len(DEFAULT_THEME.series) + 1}"
+    beyond = f"series-{len(DEFAULT_THEME_PAIR.light.series) + 1}"
     with pytest.raises(ValueError, match="this theme's series palette has"):
         render_kpi(context, _info(), _kpi({"color": beyond}))
 
@@ -339,102 +339,127 @@ def test_threshold_policy_orders_statuses(
 
 
 # ---------------------------------------------------------------------------
-# Variants and colors, against the default theme
+# Variants and responsive colors, against the default theme pair
 # ---------------------------------------------------------------------------
 
 
+def _assert_plate_ink(
+    outcome: RenderedComponent,
+    *references: str,
+) -> None:
+    """Plate contrast is computed independently for both modes."""
+    pair = DEFAULT_THEME_PAIR
+    assert len(outcome.theme_colors) == 1
+    (prop,) = outcome.theme_colors
+    assert prop.name == "--coda-kpi-ink"
+
+    for mode, theme in (("light", pair.light), ("dark", pair.dark)):
+        backgrounds = tuple(
+            theme.resolve_color("core.kpi", reference) for reference in references
+        )
+        assert getattr(prop, mode) == theme.text_on(*backgrounds)
+
+
 def test_text_variant_renders_plain_by_default(tmp_path: Path) -> None:
-    # No variant, no color, no policy: a neutral, uncolored card.
     context = _context(_write_bundle(tmp_path))
-    assert _html(context, _kpi()).startswith('<div class="coda-kpi">')
+    outcome = _render(context, _kpi())
+
+    assert outcome.html is not None
+    assert outcome.html.startswith('<div class="coda-kpi">')
+    assert outcome.theme_colors == ()
 
 
 def test_explicit_color_inks_the_value(tmp_path: Path) -> None:
-    # Palette values derive from the theme: a theme edit is never a
-    # test sweep.  The pin is the mapping — 'primary' inks the value.
     context = _context(_write_bundle(tmp_path))
-    html = _html(context, _kpi({"color": "primary"}))
-    primary = DEFAULT_THEME.colors["primary"]
-    assert f'<p class="coda-kpi__value" style="color: {primary};">' in html
+    outcome = _render(context, _kpi({"color": "primary"}))
+
+    assert outcome.html is not None
+    assert (
+        '<p class="coda-kpi__value" style="color: var(--coda-primary);">'
+    ) in outcome.html
+    assert outcome.theme_colors == ()
 
 
 def test_series_colors_resolve(tmp_path: Path) -> None:
     context = _context(_write_bundle(tmp_path))
     html = _html(context, _kpi({"color": "series-2"}))
-    # the palette's second entry
-    assert f'style="color: {DEFAULT_THEME.series[1]};"' in html
+    assert 'style="color: var(--coda-series-2);"' in html
 
 
 def test_status_supplies_the_ink_when_uncolored(tmp_path: Path) -> None:
-    # The threshold policy's vocabulary colors the value: a failing
-    # KPI wears danger ink without the author choosing it.
     context = _context(_write_bundle(tmp_path))
     html = _html(context, _kpi({"thresholds": {"ok": {"above": 100}}}))
-    danger = DEFAULT_THEME.colors["danger"]
-    assert f'style="color: {danger};"' in html
+
+    assert 'style="color: var(--coda-danger);"' in html
     assert "coda-kpi--failure" in html
 
 
 def test_explicit_color_overrides_status_ink(tmp_path: Path) -> None:
-    # One number, one ink: the author's color wins; the status class
-    # stays for semantics.
     context = _context(_write_bundle(tmp_path))
     html = _html(
         context,
         _kpi({"color": "primary", "thresholds": {"ok": {"above": 100}}}),
     )
-    primary = DEFAULT_THEME.colors["primary"]
-    assert f'style="color: {primary};"' in html
+
+    assert 'style="color: var(--coda-primary);"' in html
     assert "coda-kpi--failure" in html
 
 
-def test_fill_paints_the_plate_and_computes_readable_ink(tmp_path: Path) -> None:
-    # The plate is the theme's primary; the ink is the theme's own
-    # computed choice for that plate — text_on, never a chosen white.
-    # Mirroring text_on pins the contract (the component asks the
-    # theme), not the palette's bytes.
+def test_fill_paints_the_plate_and_computes_readable_ink(
+    tmp_path: Path,
+) -> None:
     context = _context(_write_bundle(tmp_path))
-    html = _html(context, _kpi({"variant": "fill", "color": "primary"}))
-    plate = DEFAULT_THEME.colors["primary"]
-    ink = DEFAULT_THEME.text_on(plate)
+    outcome = _render(context, _kpi({"variant": "fill", "color": "primary"}))
+
+    assert outcome.html is not None
     assert (
-        f'<div class="coda-kpi coda-kpi--fill" '
-        f'style="background: {plate}; color: {ink};">' in html
-    )
+        '<div class="coda-kpi coda-kpi--fill" '
+        'style="background: var(--coda-primary); '
+        'color: var(--coda-kpi-ink);">'
+    ) in outcome.html
+    _assert_plate_ink(outcome, "primary")
 
 
-def test_fill_on_warning_computes_dark_ink(tmp_path: Path) -> None:
-    # The picker is not a hardcoded white: whatever the theme's
-    # light-warning plate needs, text_on decides — and the component
-    # wears that, not a constant.
+def test_fill_on_warning_computes_each_modes_ink(tmp_path: Path) -> None:
     context = _context(_write_bundle(tmp_path))
-    html = _html(context, _kpi({"variant": "fill", "color": "warning"}))
-    plate = DEFAULT_THEME.colors["warning"]
-    ink = DEFAULT_THEME.text_on(plate)
-    assert f'style="background: {plate}; color: {ink};"' in html
+    outcome = _render(context, _kpi({"variant": "fill", "color": "warning"}))
+
+    assert outcome.html is not None
+    assert (
+        'style="background: var(--coda-warning); color: var(--coda-kpi-ink);"'
+    ) in outcome.html
+    _assert_plate_ink(outcome, "warning")
 
 
 def test_gradient_paints_both_stops(tmp_path: Path) -> None:
     context = _context(_write_bundle(tmp_path))
-    html = _html(context, _kpi({"variant": "gradient", "color": ["primary", "accent"]}))
-    first = DEFAULT_THEME.colors["primary"]
-    second = DEFAULT_THEME.colors["accent"]
-    ink = DEFAULT_THEME.text_on(first, second)
-    assert f"linear-gradient(135deg, {first}, {second}); color: {ink};" in html
-    assert "coda-kpi--gradient" in html
+    outcome = _render(
+        context,
+        _kpi({"variant": "gradient", "color": ["primary", "accent"]}),
+    )
+
+    assert outcome.html is not None
+    assert (
+        "linear-gradient(135deg, var(--coda-primary), "
+        "var(--coda-accent)); color: var(--coda-kpi-ink);"
+    ) in outcome.html
+    assert "coda-kpi--gradient" in outcome.html
+    _assert_plate_ink(outcome, "primary", "accent")
 
 
 def test_status_can_paint_the_fill(tmp_path: Path) -> None:
-    # A threshold policy supplies the plate too: failing, uncolored,
-    # filled — a solid danger plate with the theme's computed ink.
     context = _context(_write_bundle(tmp_path))
-    html = _html(
-        context, _kpi({"variant": "fill", "thresholds": {"ok": {"above": 100}}})
+    outcome = _render(
+        context,
+        _kpi({"variant": "fill", "thresholds": {"ok": {"above": 100}}}),
     )
-    plate = DEFAULT_THEME.colors["danger"]
+
+    assert outcome.html is not None
     assert (
-        f'style="background: {plate}; color: {DEFAULT_THEME.text_on(plate)};"' in html
-    )
+        'style="background: var(--coda-danger); color: var(--coda-kpi-ink);"'
+    ) in outcome.html
+    assert "coda-kpi--failure" in outcome.html
+    _assert_plate_ink(outcome, "danger")
 
 
 # ---------------------------------------------------------------------------

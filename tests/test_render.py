@@ -28,7 +28,13 @@ from workflow_coda.report import (
     ReportDocument,
     RowEntry,
 )
-from workflow_coda.theme import DEFAULT_THEME, Theme, ThemeToken
+from workflow_coda.theme import (
+    DEFAULT_THEME,
+    DEFAULT_THEME_PAIR,
+    Theme,
+    ThemePair,
+    ThemeToken,
+)
 
 
 class MetaParser(HTMLParser):
@@ -136,7 +142,7 @@ def make_document(
     version: str | None = None,
     logo: EmbeddedAsset | InlineLogo | None = None,
     favicon: EmbeddedAsset | None = None,
-    theme: Theme = DEFAULT_THEME,
+    theme: ThemePair = DEFAULT_THEME_PAIR,
     header_color: ThemeToken | None = None,
     manifest: ReportManifest | None = None,
     tabs: tuple[DocumentTab, ...] = (
@@ -268,12 +274,13 @@ def test_tab_bar_buttons_and_panels_pair_by_anchor() -> None:
     ) in html
 
 
-def test_single_tab_renders_no_bar_and_no_script() -> None:
+def test_no_figures_and_one_tab_ship_only_the_theme_controller() -> None:
     html = render_report(make_document())
     assert '<nav class="coda-tabs"' not in html
-    assert "<script" not in html
+    assert html.count("<script>") == 1
     assert '<section class="coda-tabpanel" id="1-quality-control">' in html
     assert "<h2>Quality control</h2>" in html
+    assert "window.codaSelectionURL = Object.freeze" not in html
 
 
 @pytest.mark.parametrize(
@@ -559,7 +566,7 @@ def test_component_js_inlines_after_the_framework_scripts() -> None:
     # After the framework's own script: the tab IIFE closes first.
     assert html.index("})();") < html.index("// example_bio.qc")
     # The census shifts knowingly: tab script plus component block.
-    assert html.count("<script>") == 2
+    assert html.count("<script>") == 3
 
 
 def test_css_only_and_js_only_contributions_emit_one_block_each() -> None:
@@ -568,12 +575,12 @@ def test_css_only_and_js_only_contributions_emit_one_block_each() -> None:
     # report still carries the component's script block.
     css_only = render_report(make_document(chrome=(contribution(js=None),)))
     assert css_only.count("<style>") == 2
-    assert "<script" not in css_only
+    assert css_only.count("<script") == 1
     js_only = render_report(
         make_document(chrome=(contribution(css=None, js="console.log('hi');"),))
     )
     assert js_only.count("<style>") == 1
-    assert js_only.count("<script>") == 1
+    assert js_only.count("<script>") == 2
 
 
 def test_chromeless_documents_inline_no_component_blocks() -> None:
@@ -670,7 +677,7 @@ def test_custom_theme_tokens_and_series_length() -> None:
     payload["series"] = ["#111111", "#222222"]
     payload["font_body"] = "Georgia, serif"
     theme = Theme.model_validate(payload)
-    html = render_report(make_document(theme=theme))
+    html = render_report(make_document(theme=ThemePair(light=theme, dark=theme)))
     assert "--coda-chart-grid: #112233;" in html
     assert "--coda-series-1: #111111;" in html
     assert "--coda-series-2: #222222;" in html
@@ -708,18 +715,24 @@ def test_declared_header_tokens_win_over_the_derivation() -> None:
     payload["colors"]["header-background"] = "#123456"
     payload["colors"]["header-text"] = "#654321"
     both = Theme.model_validate(payload)
-    html = render_report(make_document(theme=both, header_color="accent"))
+    html = render_report(
+        make_document(theme=ThemePair(light=both, dark=both), header_color="accent")
+    )
     assert "--coda-header-background: #123456;" in html
     assert "--coda-header-text: #654321;" in html
-    assert html.count("--coda-header-background:") == 1
-    assert html.count("--coda-header-text:") == 1
+    css = _css_tokens(both, "accent")
+    assert css.count("--coda-header-background:") == 1
+    assert css.count("--coda-header-text:") == 1
     payload = DEFAULT_THEME.model_dump()
     payload["colors"]["header-background"] = "#123456"
     background_only = Theme.model_validate(payload)
-    page = render_report(make_document(theme=background_only))
+    page = render_report(
+        make_document(theme=ThemePair(light=background_only, dark=background_only))
+    )
     assert "--coda-header-background: #123456;" in page
     assert f"--coda-header-text: {background_only.text_on('#123456')};" in page
-    assert page.count("--coda-header-background:") == 1
+    css = _css_tokens(background_only, None)
+    assert css.count("--coda-header-background:") == 1
 
 
 def test_default_header_css_remains_solid_primary() -> None:
@@ -790,7 +803,7 @@ def test_figures_inline_the_plotly_bundle_once() -> None:
     ).read_text(encoding="utf-8")
     html = render_report(make_document(tabs=(tab("Figures", (figure_entry(),)),)))
     assert plotly_js in html
-    assert html.count("<script>") == 1
+    assert html.count("<script>") == 2
     assert 'class="coda-figure"' in html
 
 
@@ -798,7 +811,7 @@ def test_tab_bar_inlines_the_navigation_script() -> None:
     html = render_report(
         make_document(tabs=(tab("QC", (ok_entry(),)), tab("Taxonomy", (ok_entry(),))))
     )
-    assert html.count("<script>") == 1
+    assert html.count("<script>") == 2
     assert 'document.documentElement.classList.add("coda-js")' in html
 
 
@@ -847,7 +860,7 @@ def test_tab_shown_event_resizes_plotly_figures() -> None:
 
 def test_no_figures_and_one_tab_mean_no_scripts() -> None:
     html = render_report(make_document())
-    assert "<script" not in html
+    assert html.count("<script>") == 1
 
 
 def test_missing_plotly_raises_the_render_error(
@@ -928,10 +941,13 @@ def test_the_report_is_self_contained() -> None:
         diagnostics=(bug_diagnostic(), note_diagnostic()),
     )
     html = render_report(document)
-    assert html.count("<script>") == 2  # Plotly.js and the tab script
+    assert html.count("<script>") == 3
     collector = _UrlCollector()
     collector.feed(html)
-    assert collector.urls == [favicon.data_uri, logo.data_uri]
+    assert [url for url in collector.urls if not url.startswith("#")] == [
+        favicon.data_uri,
+        logo.data_uri,
+    ]
 
 
 def test_the_page_declares_its_content_security_policy() -> None:
@@ -990,7 +1006,34 @@ def test_plugin_chrome_stays_within_the_containment_envelope() -> None:
     )
     html = render_report(document)
     assert html.count("<style>") == 2
-    assert html.count("<script>") == 3
+    assert html.count("<script>") == 4
     collector = _UrlCollector()
     collector.feed(html)
-    assert collector.urls == [favicon.data_uri, logo.data_uri]
+    assert [url for url in collector.urls if not url.startswith("#")] == [
+        favicon.data_uri,
+        logo.data_uri,
+    ]
+
+
+def test_theme_toggle_inlines_framework_icon_and_starts_hidden() -> None:
+    html = render_report(make_document())
+
+    assert 'id="coda-theme-toggle"' in html
+    assert 'aria-label="Dark mode"' in html
+    assert 'class="coda-theme-icon"' in html
+    assert 'id="coda-theme-icon-star"' in html
+    assert 'href="#coda-theme-icon-star"' in html
+
+    parser = HTMLParser()
+    buttons: list[dict[str, str | None]] = []
+
+    def collect(tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attributes = dict(attrs)
+        if tag == "button" and attributes.get("id") == "coda-theme-toggle":
+            buttons.append(attributes)
+
+    parser.handle_starttag = collect  # type: ignore[method-assign]
+    parser.feed(html)
+
+    assert len(buttons) == 1
+    assert "hidden" in buttons[0]

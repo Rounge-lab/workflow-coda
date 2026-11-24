@@ -88,6 +88,17 @@
           {% endfor %}
         </nav>
         {% endif %}
+        <button
+          type="button"
+          id="coda-theme-toggle"
+          class="coda-theme-toggle"
+          aria-label="Dark mode"
+          aria-pressed="false"
+          title="Switch to dark theme"
+          hidden
+        >
+          {% include "theme-toggle.svg" %}
+        </button>
       </div>
     </header>
     <div class="coda-page">
@@ -104,6 +115,7 @@
     {% if dropdown_icon %}
     <template id="coda-dropdown-icon">{{ dropdown_icon | safe }}</template>
     {% endif %}
+    <script>{{ theme_js | safe }}</script>
     {% if report_js %}
     <script>{{ report_js | safe }}</script>
     {% endif %}

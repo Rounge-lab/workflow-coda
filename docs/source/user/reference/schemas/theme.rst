@@ -2,9 +2,94 @@
 Theme file
 ==========
 
-A layout declares a theme using its ``theme`` key and a path relative
-to the layout. If omitted, the built-in theme is used and a diagnostic
-is recorded. If declared, the file must load.
+A theme file declares one complete palette and its fonts. A layout
+selects two such declarations through its ``theme`` key: one for
+light mode and one for dark mode.
+
+If ``theme`` is omitted, the bundled ``default`` and
+``default-dark`` pair is used and an informational diagnostic is
+recorded. Explicitly selecting the default pair does not produce
+that omission diagnostic.
+
+Selection
+---------
+
+See :doc:`../themes` for all bundled selection identifiers, previews,
+and palettes.
+
+A layout selects both members:
+
+.. code-block:: yaml
+
+   theme:
+     light: default
+     dark: default-dark
+
+Each member may instead select a custom theme file relative to the
+layout:
+
+.. code-block:: yaml
+
+   theme:
+     light: themes/daylight.yaml
+     dark: themes/midnight.yaml
+
+Bundled names and custom paths may be mixed:
+
+.. code-block:: yaml
+
+   theme:
+     light: default
+     dark: themes/midnight.yaml
+
+Selection follows an explicit shape rule for each member:
+
+* A value containing a dot or a path separator selects a custom file.
+* A bare name selects a bundled theme.
+* An unknown bundled name fails with the available names; it never
+  falls back to a local file.
+
+For an extensionless custom file, use an explicit path such as
+``dark: ./midnight``. A bare ``dark: midnight`` requests a bundled
+theme named ``midnight``.
+
+Both ``light`` and ``dark`` are required when ``theme`` is declared.
+A single name or path is not a paired selection.
+
+Bundled selection names come from YAML filename stems. The ``name``
+inside a theme declaration is a human-readable display name, not its
+selection identifier.
+
+Custom theme files remain complete, single-theme declarations.
+There is no theme inheritance or plugin-contributed theme namespace.
+
+Pair compatibility
+------------------
+
+The two declarations must have matching categorical palette lengths
+and matching color-token names. The optional derivation overrides
+``text``, ``header-background``, and ``header-text`` may be present
+independently in either member.
+
+Matching names let components use the same color reference in both
+modes. The values, font stacks, and selected inks may differ.
+
+Reader appearance
+-----------------
+
+On screen, the report follows the system or browser color preference
+until the reader explicitly changes it. The sun/moon button at the
+right of the header navigation switches between light and dark mode.
+It is also available in single-tab reports.
+
+The choice applies only to the current page. Reloading returns to
+system preference; the choice is not stored or added to selection
+URLs. Later system-preference changes affect the page only while no
+explicit mode is selected.
+
+The button is hidden without JavaScript and when printing. Without
+JavaScript, CSS-based report styling still follows system preference;
+interactive figure theme updates require JavaScript.
 
 Structure
 ---------
@@ -65,16 +150,22 @@ Color references
 
 Layouts and components reference theme colors by token name, such as
 ``primary``, or by categorical palette entry, such as ``series-2``.
-Series indices start at 1 and must be within the declared palette.
+Series indices start at 1 and must be within both members' palettes.
+References are validated against both members of the pair.
 Color literals belong in the theme file, not in layout color
 references.
 
 Each declared color is emitted as ``--coda-<token>``; series entries
-are emitted as ``--coda-series-N``, starting at 1.
+are emitted as ``--coda-series-N``, starting at 1. The active mode
+determines their values, so components using these properties follow
+theme changes without being rendered again.
 
 Derived ink and header properties
 ---------------------------------
 
+Derivations are performed independently for the light and dark
+members. A shared layout header configuration can therefore produce
+different backgrounds and inks in each mode.
 Ink is selected from ``text-light`` and ``text-dark`` by comparing
 their contrast against the relevant surface. The renderer derives
 ``--coda-text`` against the page's ``background`` color.
@@ -115,25 +206,39 @@ CSS gradient expression; gradients are declared through the layout.
 Layout color references are still validated against the theme when
 an override is present.
 
-Each declared color is emitted as ``--coda-<token>``; series entries
-are emitted as ``--coda-series-N``, starting at 1. If the theme itself
-declares ``text``, ``header-background``, or ``header-text``, its
-declared value is retained instead of the corresponding derivation.
+If the theme itself declares ``text``, ``header-background``, or
+``header-text``, its declared value is retained instead of the
+corresponding derivation.
 
 Loading rules
 -------------
 
-The theme is UTF-8 YAML, parsed with the strict layout loader.
-Duplicate keys and unknown top-level keys are rejected. Token names are
-lowercase kebab-case. Colors contain exactly six hexadecimal digits
-after ``#``; quote them in YAML because ``#`` starts a comment.
+Themes are UTF-8 YAML. Bundled and custom declarations pass through
+the same parsing and model-validation boundary. Duplicate mapping
+keys and unknown top-level keys are rejected.
 
-Missing core tokens are reported together. Loading errors identify the
-theme and the layout that declared it. See the
-:doc:`theme API <../framework/api/theme>`.
+Token names are lowercase kebab-case. Colors contain exactly six
+hexadecimal digits after ``#``; quote them in YAML because ``#``
+starts a comment. Missing core tokens are reported together.
 
-Example
--------
+An unreadable or invalid custom theme is an authoring failure:
+correct the file and build again. When selected through a layout,
+the error names both the theme file and the layout that declared it.
+
+A missing, unreadable, or invalid bundled theme is a framework
+installation failure, not a layout mistake; reinstall workflow-coda.
+An unknown bundled selection is instead an authoring error and lists
+the available names.
+
+See the :doc:`theme API <../framework/api/theme>` for discovery and
+loading functions.
+
+Example theme file
+------------------
+
+This is one complete dark theme declaration, not a layout selection.
+Save it as ``themes/midnight.yaml`` and select it as the layout's
+``theme.dark`` member.
 
 .. code-block:: yaml
 

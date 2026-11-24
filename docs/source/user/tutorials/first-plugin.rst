@@ -47,15 +47,17 @@ placement's *parameters*, from the layout configuration, and returns one
 your component.
 
 The context carries the report's data: ``context.store`` is where
-``workflow-coda`` lets you get the verified data contained in artifacts
-declared in ``manifest.json``, and ``context.theme`` is the report's theme,
-declared in ``layout.yaml``. It is recommended to use colors declared in the
-theme exclusively in your plugin, that way the whole report will have a cohesive
-look, and it will be easy to adjust theming options later. The ``info``
-parameter carries the placement's resolved title ``info.title``. In this
-example, the title is "Where the bases went".  The parameters are your
-component's configuration, exactly as written in ``layout.yaml``.  The framework
-interprets none of them, so the component has to validate its own parameters.
+``workflow-coda`` lets you get the verified data contained in artifacts declared
+in ``manifest.json``, and ``context.theme``, declared in ``layout.yaml``, is the
+report's resolved light/dark ``ThemePair``.  Its individual members provide the
+palettes and fonts used to construct styling for each mode. Use those declared
+colors rather than literals so the component fits bundled and custom themes,
+that way the whole report will have a cohesive look, and it will be easy to
+adjust theming options later. The ``info`` parameter carries the placement's
+resolved title ``info.title``. In this example, the title is "Where the bases
+went".  The parameters are your component's configuration, exactly as written in
+``layout.yaml``.  The framework interprets none of them, so the component has to
+validate its own parameters.
 
 The return value carries a ``status`` that says what happened, so
 ``workflow-coda`` can render it honestly.  Three outcomes exist:
@@ -121,14 +123,25 @@ other hand, a missing ``plotly`` install becomes a clear instruction from
 ``workflow-coda`` ("install plotly and build the report again") rather than a
 crash.
 
-*Take colors from the theme, never from literals.*  The bars use
-``theme.resolve_color("waterfall.plot", "series-1")`` and ``"series-2"`` (the
-first two colors of the themes ``series`` list) and the text color is picked for
-optimal contrast against the card surface by ``theme.text_on(...)``.
-This way, your figure reads correctly on every theme, including custom themes
-defined by report authors. ``resolve_color`` automatically handles errors and
-lets ``workflow-coda`` show teaching messages to report authors in case a
-required token is missing from ``theme.yaml``.
+*Resolve presentation for both theme modes.* ``context.theme`` is a
+``ThemePair``. ``_waterfall_figure`` builds one figure using its
+light member for initial presentation. ``_waterfall_style`` resolves
+the corresponding updates independently for light and dark mode.
+
+The bars use ``series-1`` and ``series-2``; connectors and axis lines
+use ``border``. Each member supplies its body font and
+contrast-selected ink against the card surface.
+
+The return passes these updates as a ``FigureTheme`` to
+``RenderedComponent.from_figure``. After initialization, the browser
+applies the effective mode and updates presentation when the reader
+switches modes. The artifact values and step measures are embedded
+only once.
+
+This is recommended practice, not a restriction on which Plotly
+fields third-party plugins may update. The
+:doc:`theme API <../reference/framework/api/theme>` documents the
+public binding contracts.
 
 The return goes through ``RenderedComponent.from_figure``.  This way,
 ``workflow-coda`` guarantees the whole figure pipeline: the plot is embedded
@@ -189,6 +202,9 @@ Rebuild, and open the report in a browser:
 * The tab bar has appeared with a second tab.
 * The Composition tab holds your waterfall plot, dressed in the theme's colors:
   the up-steps wear the first series color, the down-steps the second.
+* Switch light and dark mode using the header's sun/moon button.
+  The waterfall's bars, connectors, axes, and text change
+  presentation without changing its data.
 * The page is still one self-contained HTML file.
 
 Break it on purpose

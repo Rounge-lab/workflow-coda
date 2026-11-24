@@ -23,7 +23,7 @@ from workflow_coda.report import (
     ReportDocument,
     RowEntry,
 )
-from workflow_coda.theme import DEFAULT_THEME
+from workflow_coda.theme import DEFAULT_THEME_PAIR
 
 
 def rendered_entry(component_id: str = "example_bio.qc") -> ComponentEntry:
@@ -64,7 +64,7 @@ def make_document(chrome: tuple[ChromeContribution, ...] = ()) -> ReportDocument
         author=None,
         version=None,
         subtitle=None,
-        theme=DEFAULT_THEME,
+        theme=DEFAULT_THEME_PAIR,
         logo=None,
         favicon=None,
         manifest=ReportManifest.model_validate(make_manifest_payload()),
@@ -72,8 +72,11 @@ def make_document(chrome: tuple[ChromeContribution, ...] = ()) -> ReportDocument
         diagnostics=(
             Diagnostic(
                 kind=DiagnosticKind.DEFAULT_THEME,
-                subject=DEFAULT_THEME.name,
-                message="no theme file declared — rendered with the default",
+                subject="theme",
+                message=(
+                    "no theme declared — rendered with the "
+                    "built-in light/dark theme pair"
+                ),
             ),
         ),
         chrome=chrome,
@@ -500,7 +503,7 @@ def test_document_round_trip() -> None:
     assert document.subtitle is None
     assert document.author is None
     assert document.version is None
-    assert document.theme is DEFAULT_THEME
+    assert document.theme is DEFAULT_THEME_PAIR
     assert document.logo is None
     assert document.favicon is None
     assert document.manifest == ReportManifest.model_validate(make_manifest_payload())
@@ -573,7 +576,7 @@ def test_document_header_styling_defaults() -> None:
         subtitle=None,
         author=None,
         version=None,
-        theme=DEFAULT_THEME,
+        theme=DEFAULT_THEME_PAIR,
         logo=None,
         favicon=None,
         manifest=ReportManifest.model_validate(make_manifest_payload()),
@@ -591,7 +594,7 @@ def test_document_carries_gradient_header_styling() -> None:
         subtitle=None,
         author=None,
         version=None,
-        theme=DEFAULT_THEME,
+        theme=DEFAULT_THEME_PAIR,
         logo=None,
         favicon=None,
         manifest=ReportManifest.model_validate(make_manifest_payload()),

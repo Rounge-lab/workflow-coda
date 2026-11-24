@@ -56,7 +56,7 @@ from .components import ComponentChrome, RenderedComponent
 from .layout import CardLayoutKind, StatesKind
 from .manifest import ReportManifest
 from .text import has_visible_text
-from .theme import Theme, ThemeToken
+from .theme import ThemePair, ThemeToken
 
 
 class EntryKind(Enum):
@@ -479,8 +479,8 @@ class ReportDocument:
     version: str | None
     """The optional report version, from the layout."""
 
-    theme: Theme
-    """The loaded theme the report is rendered with."""
+    theme: ThemePair
+    """The resolved light/dark themes used by the report."""
 
     logo: EmbeddedAsset | InlineLogo | None
     """The report's logo, or ``None`` when the layout declared none:

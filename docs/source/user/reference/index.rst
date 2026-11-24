@@ -18,4 +18,5 @@ grammar.
    framework/index
    core/index
    schemas/index
+   themes
    cli

@@ -31,7 +31,7 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx_rtd_dark_mode",
     "sphinx_copybutton",
-    "coda_theme_swatches",
+    "coda_theme_gallery",
 ]
 
 templates_path = ["_templates"]
@@ -55,6 +55,7 @@ html_static_path = ["_static"]
 
 html_css_files = [
     "docs_theme.css",
+    "theme_gallery.css",
 ]
 
 # -- Autodoc

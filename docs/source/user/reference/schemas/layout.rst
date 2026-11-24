@@ -33,8 +33,10 @@ Identity
      - Visible report revision displayed in the header.
    * - ``theme``
      - no
-     - Path to a :doc:`theme <theme>` file, relative to the layout.
-       Omission uses the built-in theme and records a diagnostic.
+     - Mapping with required ``light`` and ``dark`` selections.
+       Each selects a bundled theme name or a custom
+       :doc:`theme <theme>` file relative to the layout.
+       Omission uses the bundled default pair and records a diagnostic.
    * - ``logo``
      - no
      - Relative image path or bundled icon name. Omission renders
@@ -52,7 +54,7 @@ Identity
      - For ``fill``, a theme color token or ``series-N`` entry;
        omission uses ``primary``. For ``gradient``, a required
        two-entry list of color references. Declared references must
-       resolve against the report's theme.
+       resolve against both members of the report's theme pair.
    * - ``on_missing``
      - no
      - ``fail`` (default), ``notice``, or ``skip``: the layout-wide
@@ -73,12 +75,15 @@ is selected for contrast against the header background.
 Header styling
 --------------
 
-The header uses a token declared in the report's :doc:`theme <theme>`,
-such as ``primary`` or ``accent``, or a categorical palette entry
-such as ``series-1``. Series indices start at 1 and must be within the
-theme's palette. Color literals are not accepted in the layout;
-declare them in the theme and reference their tokens.
+The header uses a token declared in both members of the report's
+:doc:`theme pair <theme>`, such as ``primary`` or ``accent``, or a
+categorical palette entry such as ``series-1``. Series indices start
+at 1 and must be within both palettes. Color literals are not
+accepted in the layout; declare them in the theme files and reference
+their tokens.
 
+Header backgrounds and contrast-selected inks are derived
+independently for each mode.
 By default, the header has a solid ``primary`` background. To choose
 another solid color:
 
@@ -272,10 +277,25 @@ YAML authoring and loading
 * Theme, logo, and favicon paths are resolution strings, not states
   templates.
 
-Layouts at versions ``0.1.0`` and ``0.2.0`` are not read. To migrate
-``0.1.0``, rename ``sections`` to ``tabs`` and remove ``toc``.
-Version ``0.2.0`` is otherwise current: set ``schema_version`` to
-``"0.3.0"``. See the
+Layouts at versions ``0.1.0``, ``0.2.0``, and ``0.3.0`` are not read.
+
+To migrate ``0.1.0``, rename ``sections`` to ``tabs`` and remove
+``toc``. For all earlier versions, set ``schema_version`` to
+``"0.4.0"`` and replace any scalar theme selection with a pair:
+
+.. code-block:: yaml
+
+   theme:
+     light: default
+     dark: themes/midnight.yaml
+
+Choose complete light and dark declarations with matching color-token
+names and categorical palette lengths. Theme files themselves remain
+single-theme declarations. If the layout omits ``theme``, it can
+continue to omit it and use the bundled default pair.
+
+The manifest version remains ``"0.3.0"``; layout and manifest versions
+are independent. See the
 :doc:`layout loader API <../framework/api/layout_loader>`.
 
 Example
@@ -283,8 +303,11 @@ Example
 
 .. code-block:: yaml
 
-   schema_version: "0.3.0"
+   schema_version: "0.4.0"
    title: Run summary
+   theme:
+     light: default
+     dark: default-dark
    header_variant: gradient
    header_color: [primary, accent]
    tabs:

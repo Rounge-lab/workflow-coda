@@ -127,6 +127,15 @@ class RenderError(WorkflowCodaError):
     """
 
 
+class FrameworkAssetError(WorkflowCodaError):
+    """A framework-owned bundled asset is missing, unreadable, or invalid.
+
+    An installation failure, not an authoring error. Messages name
+    the asset and instruct the user to reinstall workflow-coda;
+    underlying exceptions are attached as ``__cause__``.
+    """
+
+
 class PluginAssetError(WorkflowCodaError):
     """A plugin's shipped asset is missing or unreadable — a broken
     installation, not an authoring failure.  Raised at import, where
