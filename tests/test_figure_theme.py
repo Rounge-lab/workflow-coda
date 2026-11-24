@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+from workflow_coda.artifact_store import JsonValue
 from workflow_coda.components import RenderedComponent
 from workflow_coda.theme import FigureStyle, FigureTheme
 
@@ -34,31 +35,137 @@ def test_theme_serializes_both_modes_without_figure_data() -> None:
     assert set(payload["light"]) == {"layout", "traces"}
 
 
+# Was a core-chart field allowlist with string-only values; now
+# arbitrary JSON updates. Plugins own Plotly policy; the framework
+# validates transport only.
+
+
 @pytest.mark.parametrize(
     "field",
     ["x", "y", "visible", "marker.size", "name"],
 )
-def test_trace_updates_reject_non_owned_fields(field: str) -> None:
-    with pytest.raises(ValueError, match="unsupported styling field"):
-        FigureStyle(layout={}, traces=({field: "value"},))
+def test_trace_updates_accept_plugin_owned_fields(field: str) -> None:
+    style = FigureStyle(layout={}, traces=({field: "value"},))
+
+    assert style.traces == ({field: "value"},)
 
 
 @pytest.mark.parametrize(
     "field",
     ["xaxis.type", "xaxis.range", "title.text", "showlegend", "uirevision"],
 )
-def test_layout_updates_reject_non_owned_fields(field: str) -> None:
-    with pytest.raises(ValueError, match="unsupported styling field"):
-        FigureStyle(layout={field: "value"}, traces=())
+def test_layout_updates_accept_plugin_owned_fields(field: str) -> None:
+    style = FigureStyle(layout={field: "value"}, traces=())
+
+    assert style.layout == {field: "value"}
 
 
-@pytest.mark.parametrize("value", ["", "   ", None, 5])
-def test_style_values_require_non_empty_strings(value: object) -> None:
-    with pytest.raises(ValueError, match="non-empty string"):
-        FigureStyle(
-            layout={"font.color": value},  # type: ignore[dict-item]
-            traces=(),
-        )
+@pytest.mark.parametrize(
+    "value",
+    [
+        "",
+        "   ",
+        None,
+        True,
+        5,
+        0.75,
+        [1, 2, 3],
+        [[0, "#123456"], [1, "#abcdef"]],
+        {"color": "#123456", "size": 5},
+    ],
+)
+def test_style_values_accept_json_values(value: JsonValue) -> None:
+    style = FigureStyle(
+        layout={"plugin.field": value},
+        traces=({"plugin.field": value},),
+    )
+    theme = FigureTheme(light=style, dark=style)
+    payload = json.loads(theme.to_json())
+
+    assert payload["light"]["layout"]["plugin.field"] == value
+    assert payload["dark"]["traces"][0]["plugin.field"] == value
+
+
+@pytest.mark.parametrize("key", ["", "   ", None, 5])
+@pytest.mark.parametrize("subject", ["layout", "trace"])
+def test_update_keys_require_non_empty_strings(key: Any, subject: str) -> None:
+    fields: dict[str, JsonValue] = {key: "value"}
+    with pytest.raises(ValueError, match="must be a non-empty string"):
+        if subject == "layout":
+            FigureStyle(layout=fields, traces=())
+        else:
+            FigureStyle(layout={}, traces=(fields,))
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        (1, 2),
+        {1, 2},
+        object(),
+        {"nested": (1, 2)},
+    ],
+)
+def test_style_values_reject_non_json_types(value: Any) -> None:
+    with pytest.raises(ValueError, match="JSON-compatible"):
+        FigureStyle(layout={"plugin.field": value}, traces=())
+
+
+def test_nested_mapping_keys_require_strings() -> None:
+    value: Any = {"nested": {5: "value"}}
+
+    with pytest.raises(ValueError, match="mapping key 5 must be a string"):
+        FigureStyle(layout={"plugin.field": value}, traces=())
+
+
+@pytest.mark.parametrize(
+    "value",
+    [float("nan"), float("inf"), float("-inf")],
+)
+def test_style_values_reject_non_finite_numbers(value: float) -> None:
+    with pytest.raises(ValueError, match="use finite JSON-compatible values") as exc:
+        FigureStyle(layout={"plugin.field": value}, traces=())
+
+    assert isinstance(exc.value.__cause__, ValueError)
+
+
+def test_style_values_reject_circular_references() -> None:
+    value: list[Any] = []
+    value.append(value)
+
+    with pytest.raises(ValueError, match="circular references") as exc:
+        FigureStyle(layout={"plugin.field": value}, traces=())
+
+    assert isinstance(exc.value.__cause__, ValueError)
+
+
+def test_theme_serialization_revalidates_nested_mutations() -> None:
+    values: list[JsonValue] = [1, 2]
+    style = FigureStyle(layout={}, traces=({"marker.size": values},))
+    theme = FigureTheme(light=style, dark=style)
+    values.append(float("nan"))
+
+    with pytest.raises(ValueError, match="use finite JSON-compatible values"):
+        theme.to_json()
+
+
+def test_updates_preserve_array_values_and_declaration_order() -> None:
+    style = FigureStyle(
+        layout={"showlegend": False, "xaxis.range": [0, 10]},
+        traces=(
+            {
+                "marker.size": [4, 8],
+                "marker.colorscale": [[0, "#123456"], [1, "#abcdef"]],
+            },
+        ),
+    )
+    payload = json.loads(FigureTheme(light=style, dark=style).to_json())
+
+    assert list(payload["light"]["layout"]) == ["showlegend", "xaxis.range"]
+    trace = payload["light"]["traces"][0]
+    assert list(trace) == ["marker.size", "marker.colorscale"]
+    assert trace["marker.size"] == [4, 8]
+    assert trace["marker.colorscale"] == [[0, "#123456"], [1, "#abcdef"]]
 
 
 def test_modes_require_matching_layout_fields() -> None:
@@ -78,7 +185,7 @@ def test_modes_require_matching_trace_counts() -> None:
 
 
 def test_modes_require_matching_trace_fields() -> None:
-    with pytest.raises(ValueError, match="matching styling fields"):
+    with pytest.raises(ValueError, match="matching fields"):
         FigureTheme(
             light=FigureStyle(layout={}, traces=({"marker.color": "#123456"},)),
             dark=FigureStyle(layout={}, traces=({"line.color": "#abcdef"},)),

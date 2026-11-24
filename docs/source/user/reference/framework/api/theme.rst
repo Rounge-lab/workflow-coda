@@ -71,6 +71,15 @@ embedding one member's hexadecimal value:
 
 .. autofunction:: workflow_coda.theme.plate_inks
 
+Figure update bindings
+----------------------
+
+.. autoclass:: workflow_coda.theme.FigureStyle
+   :members:
+
+.. autoclass:: workflow_coda.theme.FigureTheme
+   :members:
+
 Default themes
 --------------
 

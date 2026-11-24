@@ -548,9 +548,9 @@ def _figure_style(
         )
         colors = [color] * trace_count
 
-    trace_styles = []
+    trace_styles: list[dict[str, JsonValue]] = []
     for color in colors:
-        fields = {"marker.color": color}
+        fields: dict[str, JsonValue] = {"marker.color": color}
         if spec.chart in {"line", "box"}:
             fields["line.color"] = color
         trace_styles.append(fields)

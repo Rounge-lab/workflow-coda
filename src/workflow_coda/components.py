@@ -448,11 +448,13 @@ class RenderedComponent:
         stated in the documentation; third-party plugins are trusted
         to write one, or not.
 
-        *theme* optionally carries paired styling updates beside the
-        embedded figure, as escaped JSON on its framework wrapper.
-        It contains no duplicate figure data. The browser controller
-        applies these updates only after figure initialization.
-        Omission preserves the existing embedding exactly.
+        *theme* optionally carries paired plugin-owned Plotly updates
+        beside the embedded figure, as escaped JSON on its framework
+        wrapper. Prefer styling updates rather than duplicating figure
+        data or resetting reader interaction state. The framework
+        validates JSON transport and paired structure, not update policy.
+        The browser controller applies these updates only after figure
+        initialization. Omission preserves the existing embedding exactly.
 
         Themed figures must additionally support Plotly's post_script
         argument. The completion script marks the framework wrapper
