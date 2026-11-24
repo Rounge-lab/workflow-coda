@@ -2,13 +2,14 @@
 Theme file
 ==========
 
-A layout selects a theme using its ``theme`` key. The value is either
-a bundled theme name or a custom theme file path relative to the
-layout.
+A theme file declares one complete palette and its fonts. A layout
+selects two such declarations through its ``theme`` key: one for
+light mode and one for dark mode.
 
-If omitted, the bundled ``default`` theme is used and an informational
-diagnostic is recorded. An explicit selection, including
-``theme: default``, does not produce that omission diagnostic.
+If ``theme`` is omitted, the bundled ``default`` and
+``default-dark`` pair is used and an informational diagnostic is
+recorded. Explicitly selecting the default pair does not produce
+that omission diagnostic.
 
 Selection
 ---------
@@ -18,17 +19,32 @@ The framework ships these bundled themes:
 * ``default``: the light default theme.
 * ``default-dark``: its dark counterpart.
 
-.. code-block:: yaml
-
-   theme: default-dark
-
-Custom themes use a file path:
+A layout selects both members:
 
 .. code-block:: yaml
 
-   theme: themes/midnight.yaml
+   theme:
+     light: default
+     dark: default-dark
 
-Selection follows an explicit shape rule:
+Each member may instead select a custom theme file relative to the
+layout:
+
+.. code-block:: yaml
+
+   theme:
+     light: themes/daylight.yaml
+     dark: themes/midnight.yaml
+
+Bundled names and custom paths may be mixed:
+
+.. code-block:: yaml
+
+   theme:
+     light: default
+     dark: themes/midnight.yaml
+
+Selection follows an explicit shape rule for each member:
 
 * A value containing a dot or a path separator selects a custom file.
 * A bare name selects a bundled theme.
@@ -36,16 +52,46 @@ Selection follows an explicit shape rule:
   falls back to a local file.
 
 For an extensionless custom file, use an explicit path such as
-``theme: ./midnight``. A bare ``theme: midnight`` requests a bundled
+``dark: ./midnight``. A bare ``dark: midnight`` requests a bundled
 theme named ``midnight``.
+
+Both ``light`` and ``dark`` are required when ``theme`` is declared.
+A single name or path is not a paired selection.
 
 Bundled selection names come from YAML filename stems. The ``name``
 inside a theme declaration is a human-readable display name, not its
 selection identifier.
 
-Custom theme files are complete declarations and can be shared
-independently of plugins. There is no theme inheritance or
-plugin-contributed theme namespace.
+Custom theme files remain complete, single-theme declarations.
+There is no theme inheritance or plugin-contributed theme namespace.
+
+Pair compatibility
+------------------
+
+The two declarations must have matching categorical palette lengths
+and matching color-token names. The optional derivation overrides
+``text``, ``header-background``, and ``header-text`` may be present
+independently in either member.
+
+Matching names let components use the same color reference in both
+modes. The values, font stacks, and selected inks may differ.
+
+Reader appearance
+-----------------
+
+On screen, the report follows the system or browser color preference
+until the reader explicitly changes it. The sun/moon button at the
+right of the header navigation switches between light and dark mode.
+It is also available in single-tab reports.
+
+The choice applies only to the current page. Reloading returns to
+system preference; the choice is not stored or added to selection
+URLs. Later system-preference changes affect the page only while no
+explicit mode is selected.
+
+The button is hidden without JavaScript and when printing. Without
+JavaScript, CSS-based report styling still follows system preference;
+interactive figure theme updates require JavaScript.
 
 Structure
 ---------
@@ -106,16 +152,22 @@ Color references
 
 Layouts and components reference theme colors by token name, such as
 ``primary``, or by categorical palette entry, such as ``series-2``.
-Series indices start at 1 and must be within the declared palette.
+Series indices start at 1 and must be within both members' palettes.
+References are validated against both members of the pair.
 Color literals belong in the theme file, not in layout color
 references.
 
 Each declared color is emitted as ``--coda-<token>``; series entries
-are emitted as ``--coda-series-N``, starting at 1.
+are emitted as ``--coda-series-N``, starting at 1. The active mode
+determines their values, so components using these properties follow
+theme changes without being rendered again.
 
 Derived ink and header properties
 ---------------------------------
 
+Derivations are performed independently for the light and dark
+members. A shared layout header configuration can therefore produce
+different backgrounds and inks in each mode.
 Ink is selected from ``text-light`` and ``text-dark`` by comparing
 their contrast against the relevant surface. The renderer derives
 ``--coda-text`` against the page's ``background`` color.
@@ -183,8 +235,12 @@ the available names.
 See the :doc:`theme API <../framework/api/theme>` for discovery and
 loading functions.
 
-Example
--------
+Example theme file
+------------------
+
+This is one complete dark theme declaration, not a layout selection.
+Save it as ``themes/midnight.yaml`` and select it as the layout's
+``theme.dark`` member.
 
 .. code-block:: yaml
 

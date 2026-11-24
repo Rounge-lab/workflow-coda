@@ -47,12 +47,44 @@ resolution and the choice between bundled names and custom paths
 belong to the report builder; see the
 :doc:`theme schema <../../schemas/theme>`.
 
-Default theme
--------------
+Resolved pairs and mode-aware colors
+------------------------------------
+
+The report builder resolves the layout's two selections into a
+``ThemePair``. ``RenderContext.theme`` carries this pair, not a
+single ``Theme``.
+
+.. autoclass:: workflow_coda.theme.ThemeColors
+   :members:
+
+.. autoclass:: workflow_coda.theme.ThemePair
+   :members:
+
+Use ``pair.light`` or ``pair.dark`` when constructing styling for one
+specific mode. Pair-level color resolution returns the two resolved
+values together.
+
+For HTML and CSS, prefer validated CSS references rather than
+embedding one member's hexadecimal value:
+
+.. autofunction:: workflow_coda.theme.color_css
+
+.. autofunction:: workflow_coda.theme.plate_inks
+
+Default themes
+--------------
 
 .. autodata:: workflow_coda.theme.DEFAULT_THEME
 
-The default is loaded from the bundled ``default.yaml`` declaration.
-It remains the shared default used when no theme is selected.
+.. autodata:: workflow_coda.theme.DEFAULT_DARK_THEME
+
+.. autodata:: workflow_coda.theme.DEFAULT_THEME_PAIR
+
+The individual defaults are loaded from the bundled ``default.yaml``
+and ``default-dark.yaml`` declarations. ``DEFAULT_THEME_PAIR`` is the
+shared pair used when a layout omits its theme selection.
+
+Light default palette
+~~~~~~~~~~~~~~~~~~~~~
 
 .. theme-colors::

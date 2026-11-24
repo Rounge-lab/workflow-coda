@@ -1,7 +1,7 @@
 schema_version: "0.4.0"
 title: Run summary
 theme:
-  light: theme.yaml
+  light: default
   dark: theme.yaml
 logo: core-arrow-up
 header_color: accent

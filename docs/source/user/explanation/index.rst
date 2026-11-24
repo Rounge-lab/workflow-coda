@@ -19,7 +19,7 @@ owned by someone with different knowledge:
   artifacts and the manifest — a claim list of what exists and
   where.  It knows nothing about reports.
 * **The report author** knows what the report should say.  They
-  write the layout, and optionally the theme: which content, in
+  write the layout, and optionally the theme declarations: which content, in
   what order, under what titles, in which colors.  They know
   nothing about how components are implemented.
 * **The plugin author** knows how to turn one kind of artifact
@@ -46,7 +46,7 @@ steps fail, data is missing, deadlines pass.  The framework's
 first commitment is that the report never pretends otherwise.
 Every omission is either visible in the page or recorded in the
 diagnostics ledger, and most are both.  Nothing is dropped
-silently — not the default theme, not an omitted logo, not a
+silently — not the default theme pair, not an omitted logo, not a
 component excluded over schema versions.
 
 Honesty requires telling two failure families apart:
@@ -101,14 +101,13 @@ message on stderr — never a traceback.
 One file, no dependencies
 -------------------------
 
-The finished report is a single HTML page, and everything it
-references is embedded at build time: the theme becomes generated
-CSS on the page; the logo and favicon become data URIs (an SVG
-logo inlines as markup, which is also why a logo authored with
-``"currentColor"`` follows the header's text color — markup
-inherits, an image cannot); figures embed with Plotly.js inlined
-exactly once; component css and js ride inline in their
-namespaced blocks.  The page loads no fonts and fetches nothing.
+The finished report is a single HTML page, and everything it references is
+embedded at build time: the theme pair becomes generated mode-aware CSS on the
+page; the logo and favicon become data URIs (an SVG logo inlines as markup,
+which is also why a logo authored with ``"currentColor"`` follows the header's
+text color — markup inherits, an image cannot); figures embed with Plotly.js
+inlined exactly once; component css and js ride inline in their namespaced
+blocks.  The page loads no fonts and fetches nothing.
 
 Self-containment is enforced, not just practiced: the page
 declares a Content-Security-Policy that blocks every network

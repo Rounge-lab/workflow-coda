@@ -47,15 +47,17 @@ placement's *parameters*, from the layout configuration, and returns one
 your component.
 
 The context carries the report's data: ``context.store`` is where
-``workflow-coda`` lets you get the verified data contained in artifacts
-declared in ``manifest.json``, and ``context.theme`` is the report's theme,
-declared in ``layout.yaml``. It is recommended to use colors declared in the
-theme exclusively in your plugin, that way the whole report will have a cohesive
-look, and it will be easy to adjust theming options later. The ``info``
-parameter carries the placement's resolved title ``info.title``. In this
-example, the title is "Where the bases went".  The parameters are your
-component's configuration, exactly as written in ``layout.yaml``.  The framework
-interprets none of them, so the component has to validate its own parameters.
+``workflow-coda`` lets you get the verified data contained in artifacts declared
+in ``manifest.json``, and ``context.theme``, declared in ``layout.yaml``, is the
+report's resolved light/dark ``ThemePair``.  Its individual members provide the
+palettes and fonts used to construct styling for each mode. Use those declared
+colors rather than literals so the component fits bundled and custom themes,
+that way the whole report will have a cohesive look, and it will be easy to
+adjust theming options later. The ``info`` parameter carries the placement's
+resolved title ``info.title``. In this example, the title is "Where the bases
+went".  The parameters are your component's configuration, exactly as written in
+``layout.yaml``.  The framework interprets none of them, so the component has to
+validate its own parameters.
 
 The return value carries a ``status`` that says what happened, so
 ``workflow-coda`` can render it honestly.  Three outcomes exist:

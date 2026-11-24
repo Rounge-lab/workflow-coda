@@ -13,7 +13,8 @@ own; every exact shape links into the
 The two files and the command
 ------------------------------
 
-A report is two authored files plus one the pipeline writes:
+A report combines a manifest written by the pipeline, a layout written
+by the report author, and optional custom theme files:
 
 * ``manifest.json`` — the pipeline's claim list of what a run
   produced. You do not usually write it, but you read it: every
@@ -21,7 +22,9 @@ A report is two authored files plus one the pipeline writes:
   it declares.
 * ``layout.yaml`` — yours: the report's identity and its content,
   tab by tab.
-* ``theme.yaml`` — optional: the report's colors and fonts.
+* Custom theme files — optional complete declarations of colors and
+  fonts, selected separately for light and dark mode. Bundled themes
+  need no additional files.
 
 .. code-block:: console
 
@@ -386,23 +389,31 @@ rewrite the manifest or add build diagnostics.
 Giving the report a look
 ------------------------
 
-Theme tokens and fonts live in the selected theme declaration. The
-layout selects a bundled theme by name or a custom theme by file path;
-it also controls presentation choices such as the header variant.
-See the :doc:`theme reference <../reference/schemas/theme>` for
-selection and custom-file loading rules.
-A theme is a small vocabulary — the required core color tokens, a
-categorical ``series`` palette for figures, and two font stacks —
-with its shapes documented in the schemas page. Three authoring
-facts matter here:
+Theme tokens and fonts live in two selected theme declarations. The
+layout chooses one for light mode and one for dark mode:
 
-* Colors are quoted ``#rrggbb`` — in YAML a bare ``#`` starts a
-  comment.
-* Fonts are family names only: ``url(...)`` fetches are refused.
-  The report loads nothing from the network, on any page, ever.
-* Extra tokens are yours to declare: each becomes a CSS custom
-  property on the page, and components can adopt them — a
-  component's documentation says which tokens it understands.
+.. code-block:: yaml
+
+   theme:
+     light: default
+     dark: default-dark
+
+Use custom file paths for either or both members:
+
+.. code-block:: yaml
+
+   theme:
+     light: themes/daylight.yaml
+     dark: themes/midnight.yaml
+
+Each custom file is a complete declaration, not an override of the
+other member. Both must declare matching token names and categorical
+palette lengths, apart from the independently optional derivation
+overrides documented in the
+:doc:`theme reference <../reference/schemas/theme>`.
+
+A theme is a small vocabulary: the required core color tokens, a
+categorical ``series`` palette for figures, and two font stacks.
 
 Two layout keys finish the look:
 
