@@ -54,6 +54,7 @@ from .artifact_store import JsonValue
 from .context import RenderContext
 from .manifest import MANIFEST_SCHEMA_VERSION
 from .text import has_visible_text
+from .theme.figure import FigureTheme
 
 _PLUGIN_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z][a-z0-9_]*$")
 """Shape of a valid plugin id: lowercase snake_case."""
@@ -317,7 +318,11 @@ class RenderedComponent:
 
     @classmethod
     def from_figure(
-        cls, figure: SupportsToHtml, description: str | None = None
+        cls,
+        figure: SupportsToHtml,
+        description: str | None = None,
+        *,
+        theme: FigureTheme | None = None,
     ) -> Self:
         """An ``OK`` component embedding a Plotly-shaped figure.
 
@@ -346,9 +351,23 @@ class RenderedComponent:
         that is the accessibility bar for framework-owned content,
         stated in the documentation; third-party plugins are trusted
         to write one, or not.
+
+        *theme* optionally carries paired styling updates beside the
+        embedded figure, as escaped JSON on its framework wrapper.
+        It contains no duplicate figure data. The browser controller
+        applies these updates only after figure initialization.
+        Omission preserves the existing embedding exactly.
         """
+        if theme is not None and not isinstance(theme, FigureTheme):
+            raise ValueError("figure theme must be a FigureTheme instance")
+
+        theme_attr = (
+            f' data-coda-figure-theme="{html.escape(theme.to_json(), quote=True)}"'
+            if theme is not None
+            else ""
+        )
         html_out = (
-            f'<div class="{FIGURE_DIV_CLASS}" '
+            f'<div class="{FIGURE_DIV_CLASS}"{theme_attr} '
             + (
                 f'role="img" aria-label="{html.escape(description, quote=True)}">'
                 if description is not None

@@ -12,6 +12,7 @@ from .bundled import (
     bundled_theme_names,
     load_bundled_theme,
 )
+from .figure import FigureStyle, FigureTheme
 from .loader import load_theme
 from .model import (
     CORE_COLOR_TOKENS,
@@ -40,6 +41,8 @@ __all__ = [
     "DEFAULT_DARK_THEME",
     "DEFAULT_THEME",
     "DEFAULT_THEME_PAIR",
+    "FigureStyle",
+    "FigureTheme",
     "FontStack",
     "Theme",
     "ThemeColors",
