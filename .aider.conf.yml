@@ -1,8 +1,0 @@
-read:
-  - .skills/framework-development.md
-  - .aider/design/states.md   # the active feature's design record
-
-test-cmd: "pixi run test"
-lint-cmd: "pixi run lint"
-auto-lint: false
-auto-test: false
