@@ -1,0 +1,30 @@
+name: "Catppuchin Frappé"
+colors:
+  accent: "#babbf1" # Lavender
+  background: "#232634" # Crust
+  border: "#414559" # Surface 0
+  danger: "#e78284" # Red
+  muted: "#737994" # Overlay 0
+  primary: "#8caaee" # Blue
+  success: "#a6d189" # Green
+  surface: "#303446" # Base
+  text-dark: "#c6d0f5" # Text
+  text-light: "#303446" # Base
+  warning: "#e5c890" # Yellow
+  header-text: "#303446" # Base
+
+series:
+  - "#f2d5cf" # Rosewater
+  - "#eebebe" # Flamingo
+  - "#f4b8e4" # Pink
+  - "#ca9ee6" # Mauve
+  - "#e78284" # Red
+  - "#ea999c" # Maroon
+  - "#ef9f76" # Peach
+  - "#e5c890" # Yellow
+  - "#a6d189" # Green
+  - "#81c8be" # Teal
+  - "#99d1db" # Sky
+  - "#85c1dc" # Sapphire
+  - "#8caaee" # Blue
+  - "#babbf1" # Lavender

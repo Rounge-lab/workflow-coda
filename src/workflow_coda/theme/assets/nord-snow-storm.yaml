@@ -1,0 +1,22 @@
+name: "Nord Snow Storm"
+colors:
+  accent: "#88c0d0"
+  background: "#e5e9f0"
+  border: "#d8dee9"
+  danger: "#bf616a"
+  muted: "#4c566a"
+  primary: "#8fbcbb"
+  success: "#a3be8c"
+  surface: "#eceff4"
+  text-dark: "#2e3440"
+  text-light: "#eceff4"
+  warning: "#ebcb8b"
+
+series:
+  - "#81a1c1"
+  - "#5e81ac"
+  - "#bf616a"
+  - "#d08770"
+  - "#ebcb8b"
+  - "#a3be8c"
+  - "#b48ead"

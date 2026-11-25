@@ -1,0 +1,30 @@
+name: "Catppuchin Macchiato"
+colors:
+  accent: "#b7bdf8" # Lavender
+  background: "#181926" # Crust
+  border: "#363a4f" # Surface 0
+  danger: "#ed8796" # Red
+  muted: "#6e738d" # Overlay 0
+  primary: "#8aadf4" # Blue
+  success: "#a6da95" # Green
+  surface: "#24273a" # Base
+  text-dark: "#cad3f5" # Text
+  text-light: "#24273a" # Base
+  warning: "#eed49f" # Yellow
+  header-text: "#24273a" # Base
+
+series:
+  - "#f4dbd6" # Rosewater
+  - "#f0c6c6" # Flamingo
+  - "#f5bde6" # Pink
+  - "#c6a0f6" # Mauve
+  - "#ed8796" # Red
+  - "#ee99a0" # Maroon
+  - "#f5a97f" # Peach
+  - "#eed49f" # Yellow
+  - "#a6da95" # Green
+  - "#8bd5ca" # Teal
+  - "#91d7e3" # Sky
+  - "#7dc4e4" # Sapphire
+  - "#8aadf4" # Blue
+  - "#b7bdf8" # Lavender

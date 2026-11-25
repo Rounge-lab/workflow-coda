@@ -1,0 +1,29 @@
+name: "Catppuchin Mocha"
+colors:
+  accent: "#b4befe" # Lavender
+  background: "#11111b" # Crust
+  border: "#313244" # Surface 0
+  danger: "#f38ba8" # Red
+  muted: "#6c7086" # Overlay 0
+  primary: "#89b4fa" # Blue
+  success: "#a6e3a1" # Green
+  surface: "#1e1e2e" # Base
+  text-dark: "#cdd6f4" # Text
+  text-light: "#1e1e2e" # Base
+  warning: "#df8e1d" # Yellow
+
+series:
+  - "#f5e0dc" # Rosewater
+  - "#f2cdcd" # Flamingo
+  - "#f5c2e7" # Pink
+  - "#cba6f7" # Mauve
+  - "#f38ba8" # Red
+  - "#eba0ac" # Maroon
+  - "#fab387" # Peach
+  - "#f9e2af" # Yellow
+  - "#a6e3a1" # Green
+  - "#94e2d5" # Teal
+  - "#89dceb" # Sky
+  - "#74c7ec" # Sapphire
+  - "#89b4fa" # Blue
+  - "#b4befe" # Lavender

@@ -1,0 +1,22 @@
+name: "Nord Polar Night"
+colors:
+  accent: "#88c0d0"
+  background: "#2e3440"
+  border: "#434c5e"
+  danger: "#bf616a"
+  muted: "#d8dee9"
+  primary: "#8fbcbb"
+  success: "#a3be8c"
+  surface: "#3b4252"
+  text-dark: "#eceff4"
+  text-light: "#2e3440"
+  warning: "#ebcb8b"
+
+series:
+  - "#81a1c1"
+  - "#5e81ac"
+  - "#bf616a"
+  - "#d08770"
+  - "#ebcb8b"
+  - "#a3be8c"
+  - "#b48ead"
