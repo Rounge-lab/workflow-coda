@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "workflow-coda"
-version = "0.2.0"
+version = "0.3.0"
 authors = [
     {name = "Sverre Branders", email = "sverrbra@uio.no"},
 ]
-readme = { file = "README.rst", content-type = "text/x-rst" }
+readme = "README.md"
 license = "GPL-3.0-or-later"
 license-files = ["COPYING"]
 requires-python = ">=3.14"
@@ -22,8 +22,8 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/sverre-branders/workflow-coda"
-Issues = "https://github.com/sverre-branders/workflow-coda/issues"
+Repository = "https://github.com/Rounge-lab/workflow-coda"
+Issues = "https://github.com/Rounge-lab/workflow-coda/issues"
 
 [project.optional-dependencies]
 dev = [
@@ -36,13 +36,14 @@ dev = [
     "types-pyyaml",
 ]
 docs = [
-    "build",
     "autodoc-pydantic",
+    "build",
+    "crcbiome-sphinx-theme @ git+https://github.com/Rounge-lab/crcbiome-sphinx-theme.git@v0.1.0",
+    "grip",
     "sphinx",
     "sphinx-copybutton",
     "sphinx-rtd-dark-mode",
     "sphinx-rtd-theme",
-    "crcbiome-sphinx-theme @ git+https://github.com/Rounge-lab/crcbiome-sphinx-theme.git@v0.1.0"
 ]
 
 [project.scripts]
