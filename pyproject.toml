@@ -42,6 +42,7 @@ docs = [
     "sphinx-copybutton",
     "sphinx-rtd-dark-mode",
     "sphinx-rtd-theme",
+    "crcbiome-sphinx-theme @ git+https://github.com/Rounge-lab/crcbiome-sphinx-theme.git@v0.1.0"
 ]
 
 [project.scripts]

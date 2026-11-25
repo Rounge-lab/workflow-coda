@@ -29,8 +29,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "_ext"))
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.viewcode",
-    "sphinx_rtd_dark_mode",
     "sphinx_copybutton",
+    # "crcbiome_sphinx_theme",
     "coda_theme_gallery",
 ]
 
@@ -46,15 +46,16 @@ copybutton_prompt_text = r">>> |\$ "
 copybutton_prompt_is_regexp = True
 
 # -- Styling
+html_theme = "crcbiome"
+html_static_path = ["_static"]
+html_logo = "_static/coda-emblem.svg"
+html_favicon = "_static/favicon.svg"
+
 html_theme_options = {
     "logo_only": False,
 }
 
-html_theme = "sphinx_rtd_theme"
-html_static_path = ["_static"]
-
 html_css_files = [
-    "docs_theme.css",
     "theme_gallery.css",
 ]
 
