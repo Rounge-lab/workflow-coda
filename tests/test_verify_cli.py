@@ -1605,3 +1605,202 @@ artifacts:
         assert manifest.read_bytes() == before
     else:
         assert not manifest.exists()
+
+
+# ---------------------------------------------------------------------------
+# Expansion and discovery: CLI refusal boundaries
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("on_failure", ["fail", "write"])
+@pytest.mark.parametrize("existing", [False, True])
+@pytest.mark.parametrize(
+    ("case", "teaching"),
+    [
+        ("criteria-collision", "both expand to 's1'"),
+        ("plain-key-placeholder", "declares no for_each"),
+        ("blank-glob-capture", "blank capture"),
+        ("directory-only-glob", "matches no files beside the spec"),
+    ],
+)
+def test_spec_expansion_and_discovery_refuse_before_verification(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    on_failure: str,
+    existing: bool,
+    case: str,
+    teaching: str,
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    stats = _stats_json(tmp_path)
+    before: bytes | None = None
+    if existing:
+        assert (
+            _verify(
+                manifest,
+                stats,
+                *_identity("stats", "org.example.stats", "json"),
+                *_PRODUCER_FLAGS,
+            )
+            == 0
+        )
+        capsys.readouterr()
+        before = manifest.read_bytes()
+
+    if case == "criteria-collision":
+        invalid_block = """\
+  - for_each:
+      dimension: sample
+      values: [s1]
+    file: stats.json
+    id: family-{sample}
+    type: org.example.family-{sample}
+    format: json
+    schema_version: "1"
+    criteria:
+      nested:
+        - "{sample}": 1
+          s1: 1
+"""
+    elif case == "plain-key-placeholder":
+        invalid_block = """\
+  - file: stats.json
+    id: plain
+    type: org.example.plain
+    format: json
+    schema_version: "1"
+    criteria:
+      nested:
+        - "{sample}": literal
+"""
+    else:
+        discovered = tmp_path / "discovered"
+        discovered.mkdir()
+        if case == "blank-glob-capture":
+            (discovered / "prefix-.json").write_text("{}", encoding="utf-8")
+            (discovered / "prefix-valid.json").write_text("{}", encoding="utf-8")
+        else:
+            (discovered / "prefix-directory.json").mkdir()
+        invalid_block = """\
+  - for_each:
+      dimension: sample
+      glob: "discovered/prefix-{sample}.json"
+    id: family-{sample}
+    type: org.example.family-{sample}
+    format: json
+    schema_version: "1"
+"""
+
+    spec = _write_spec(
+        tmp_path,
+        """\
+producer:
+  name: fungifunk-pipeline
+  version: "1.3"
+artifacts:
+  - file: stats.json
+    id: stats
+    type: org.example.stats
+    format: json
+    schema_version: "1"
+"""
+        + invalid_block,
+    )
+
+    def unexpected_verification(*args: object, **kwargs: object) -> None:
+        pytest.fail("invalid spec reached artifact verification")
+
+    monkeypatch.setattr(
+        "workflow_coda.verification.drivers.verify_artifact_file",
+        unexpected_verification,
+    )
+
+    assert _verify(manifest, "--spec", spec, "--on-failure", on_failure) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert str(spec) in captured.err
+    assert teaching in captured.err
+    if existing:
+        assert manifest.read_bytes() == before
+    else:
+        assert not manifest.exists()
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_spec_glob_natural_ties_preserve_order_in_written_manifest(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    reverse: bool,
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    outputs = tmp_path / "outputs"
+    outputs.mkdir()
+    matches = [
+        "outputs/s1.json",
+        "outputs/s10.json",
+        "outputs/s01.json",
+        "outputs/s2.json",
+    ]
+    for relative in matches:
+        (tmp_path / relative).write_text('{"depth": 12}', encoding="utf-8")
+    if reverse:
+        matches.reverse()
+
+    def discover(*args: object, **kwargs: object) -> list[str]:
+        return matches
+
+    monkeypatch.setattr(
+        "workflow_coda.verification.sources.glob.glob",
+        discover,
+    )
+    spec = _write_spec(
+        tmp_path,
+        """\
+producer:
+  name: fungifunk-pipeline
+  version: "1.3"
+artifacts:
+  - for_each:
+      dimension: sample
+      glob: "outputs/{sample}.json"
+    id: stats-{sample}
+    type: org.example.stats-{sample}
+    format: json
+    schema_version: "1"
+    criteria:
+      keys: [depth]
+""",
+    )
+
+    assert _verify(manifest, "--spec", spec) == 0
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert captured.out == (
+        f"created {manifest} (producer fungifunk-pipeline 1.3) "
+        "— verified 4 artifacts — appended 4, updated 0\n"
+    )
+
+    loaded = load_manifest(manifest)
+    expected = ["s01", "s1", "s2", "s10"]
+    assert [artifact.id for artifact in loaded.artifacts] == [
+        f"stats-{raw}" for raw in expected
+    ]
+    assert [artifact.type for artifact in loaded.artifacts] == [
+        f"org.example.stats-{raw}" for raw in expected
+    ]
+    assert [artifact.path for artifact in loaded.artifacts] == [
+        f"outputs/{raw}.json" for raw in expected
+    ]
+    for artifact in loaded.artifacts:
+        assert artifact.status is ArtifactStatus.COMPLETE
+        assert (
+            artifact.sha256
+            == hashlib.sha256((tmp_path / artifact.path).read_bytes()).hexdigest()
+        )
+        assert artifact.verification == {
+            "format": "json",
+            "status": "ok",
+            "keys_checked": ["depth"],
+        }
