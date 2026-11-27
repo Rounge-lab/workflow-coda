@@ -60,11 +60,15 @@ def _version() -> str:
     return f"workflow-coda v{version}"
 
 
-def _destination_refused(output: Path, error: OSError) -> int:
-    """One reporting shape for destination failures — the pre-flight's
-    early warning and the write's own refusal read identically."""
+def _destination_refused(
+    output: Path,
+    error: OSError,
+    *,
+    kind: str = "report",
+) -> int:
+    """Report a destination refusal for the command's output."""
     print(
-        f"could not write the report to '{output}': {error}",
+        f"could not write the {kind} to '{output}': {error}",
         file=sys.stderr,
     )
     return 1
@@ -106,7 +110,7 @@ def _verify_report(args: argparse.Namespace) -> int:
     try:
         check_writable_destination(args.manifest)
     except OSError as error:
-        return _destination_refused(args.manifest, error)
+        return _destination_refused(args.manifest, error, kind="manifest")
     try:
         outcome = run_verify(
             file=args.file,
@@ -121,9 +125,10 @@ def _verify_report(args: argparse.Namespace) -> int:
             run_id=args.run_id,
             criteria_pairs=args.criteria or (),
             on_failure=args.on_failure,
+            module_id=args.module_id,
         )
     except OSError as error:
-        return _destination_refused(args.manifest, error)
+        return _destination_refused(args.manifest, error, kind="manifest")
     print(outcome.out, end="")
     for warning in outcome.warnings:
         print(warning, file=sys.stderr)
@@ -240,9 +245,20 @@ def _build_parser() -> CliParser:
         help="The producing pipeline's version (required when creating a manifest).",
     )
     verify.add_argument(
+        "--module-id",
+        metavar="MODULE",
+        help=(
+            "The producing module for the artifact, or all spec artifacts; "
+            "must agree with explicit artifact module declarations."
+        ),
+    )
+    verify.add_argument(
         "--run-id",
         metavar="RUN",
-        help="The producing run's identifier (recorded when creating a manifest).",
+        help=(
+            "The invocation's run identifier, in either mode; recorded "
+            "when creating a manifest and checked when updating one."
+        ),
     )
     verify.add_argument(
         "--criteria",

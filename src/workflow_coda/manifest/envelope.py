@@ -1,15 +1,13 @@
 """The report manifest envelope.
 
-The manifest envelope declares the manifest schema version, identifies the producer, and
-lists the artifact declarations.
+The envelope identifies the producing workflow and run, and lists artifact
+declarations. Module attribution belongs to each artifact, allowing outputs
+from several workflow modules to share one manifest.
 
-The envelope's schema version is gated strictly: a manifest written for an unknown
-version fails validation because an unrecognized envelope cannot be validated or
-consumed correctly.  The supported version is enumerated by ``ManifestSchemaVersion``
-— today, exactly ``0.3.0``, which added the optional artifact ``verification``
-record (the verifier's account of what was checked, opaque transport to the
-framework); the pre-record ``0.2.0`` envelope is not read — regenerate such
-manifests with ``workflow-coda verify``.
+The supported manifest schema version is exactly ``0.4.0``. This version
+moves ``module_id`` from producer metadata to artifact declarations.
+Earlier envelopes are not read: regenerate them with
+``workflow-coda verify``.
 """
 
 from collections import Counter
@@ -21,9 +19,9 @@ from .artifact import ArtifactDeclaration
 from .types import NonEmptyStr
 
 # Manifest envelope contract versions accepted by the report framework
-type ManifestSchemaVersion = Literal["0.3.0"]
+type ManifestSchemaVersion = Literal["0.4.0"]
 
-MANIFEST_SCHEMA_VERSION: Final[ManifestSchemaVersion] = "0.3.0"
+MANIFEST_SCHEMA_VERSION: Final[ManifestSchemaVersion] = "0.4.0"
 """The manifest envelope contract version this framework reads and
 writes — the axis's single source of truth.  The loader's version
 pre-check, the core plugin's declared support, the manifest
@@ -48,9 +46,6 @@ class ProducerMetadata(BaseModel):
 
     version: NonEmptyStr
     """Version of the producer, e.g. a release number."""
-
-    module_id: NonEmptyStr | None = None
-    """Optional identifier of the specific workflow module that produced the artifacts."""
 
     run_id: NonEmptyStr | None = None
     """Optional identifier of the specific run that produced the artifacts."""

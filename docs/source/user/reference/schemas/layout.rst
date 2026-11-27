@@ -294,8 +294,7 @@ names and categorical palette lengths. Theme files themselves remain
 single-theme declarations. If the layout omits ``theme``, it can
 continue to omit it and use the bundled default pair.
 
-The manifest version remains ``"0.3.0"``; layout and manifest versions
-are independent. See the
+Layout and manifest versions are independent. See the
 :doc:`layout loader API <../framework/api/layout_loader>`.
 
 Example

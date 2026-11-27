@@ -22,16 +22,19 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from pydantic import TypeAdapter, ValidationError
+
 from ..errors import VerificationError, VerifyError
 from ..manifest import (
     MANIFEST_SCHEMA_VERSION,
-    ArtifactFormat,
     JsonValue,
-    NamespacedArtifactFormat,
+    NonEmptyStr,
 )
 from ..plugins import ArtifactVerifier
 from ..registry import PluginRegistry
 from .declarations import (
+    _manifest_relative_path,
+    _validate_producer_claims,
     apply_artifact_declaration,
     build_failed_declaration,
     build_verified_declaration,
@@ -40,7 +43,7 @@ from .declarations import (
     write_manifest_atomically,
 )
 from .engine import _format_key, _require_verifier, verify_artifact_file
-from .spec import load_verify_spec
+from .spec import SpecArtifact, load_verify_spec
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,6 +118,100 @@ def _verifier_index() -> dict[str, ArtifactVerifier]:
     }
 
 
+_MODULE_ID_CHECK: TypeAdapter[NonEmptyStr] = TypeAdapter(NonEmptyStr)
+
+
+def _validate_module_id(module_id: str | None) -> str | None:
+    """Validate CLI/API module attribution before reading artifacts."""
+    if module_id is None:
+        return None
+    try:
+        return _MODULE_ID_CHECK.validate_python(module_id)
+    except ValidationError as e:
+        raise VerifyError(
+            "--module-id must be a non-empty string identifying the "
+            "producing workflow module"
+        ) from e
+
+
+def _resolve_spec_producer_claim(
+    *,
+    flag: str,
+    declared: str | None,
+    specified: str | None,
+) -> str | None:
+    """Merge one CLI/spec claim; duplication must agree."""
+    if declared is not None and specified is not None and declared != specified:
+        raise VerifyError(
+            f"{flag} declares {declared!r}, but the verification spec "
+            f"declares {specified!r} — CLI and spec producer declarations "
+            "must agree; omit the flag, or use the same value"
+        )
+    return declared if declared is not None else specified
+
+
+def _resolve_spec_module_id(
+    *,
+    artifact_id: str,
+    declared: str | None,
+    specified: str | None,
+) -> str | None:
+    """Resolve an invocation-wide module claim against an artifact claim."""
+    if declared is not None and specified is not None and declared != specified:
+        raise VerifyError(
+            f"--module-id declares {declared!r}, but spec artifact "
+            f"{artifact_id!r} declares module {specified!r} — CLI and "
+            "spec module declarations must agree; omit the flag for "
+            "a multi-module spec"
+        )
+    return declared if declared is not None else specified
+
+
+def _validate_flags_artifact(
+    *,
+    file: Path,
+    id: str,
+    type: str,
+    fmt: str,
+    schema_version: str,
+    module_id: str | None,
+) -> SpecArtifact:
+    """Validate flags through the same declaration fields as spec mode.
+
+    This does not expand templates or read artifact bytes. Criteria
+    remain flag transport, parsed separately by the driver.
+    """
+    try:
+        return SpecArtifact(
+            file=str(file),
+            id=id,
+            type=type,
+            format=fmt,
+            schema_version=schema_version,
+            module_id=module_id,
+        )
+    except ValidationError as e:
+        flags = {
+            "file": "FILE",
+            "id": "--id",
+            "type": "--type",
+            "format": "--format",
+            "schema_version": "--schema-version",
+            "module_id": "--module-id",
+        }
+        findings: list[str] = []
+        for error in e.errors():
+            field = str(error["loc"][0])
+            flag = flags.get(field, field)
+            finding = f"  - {flag}: {error['msg']}"
+            if finding not in findings:
+                findings.append(finding)
+        raise VerifyError(
+            "invalid flags-mode artifact declaration — use the same "
+            "field grammars as a verification spec:\n" + "\n".join(findings)
+        ) from e
+
+
 def run_flags_verify(
     *,
     file: Path,
@@ -128,6 +225,7 @@ def run_flags_verify(
     run_id: str | None,
     criteria_pairs: Sequence[str],
     on_failure: Literal["fail", "write"],
+    module_id: str | None = None,
 ) -> VerifyOutcome:
     """Flags mode: verify one artifact, place its declaration, write.
 
@@ -151,6 +249,10 @@ def run_flags_verify(
     manifest's tree, an unavailable verifier, a manifest conflict —
     aborts regardless of the toggle: those are the invocation's or
     the environment's facts, not the artifact's.
+
+    Supplied identity fields validate through the spec artifact model
+    before verifier lookup or artifact reads. Recordable path geometry
+    is checked before loading or initializing the manifest.
     """
     if id is None or type is None or fmt is None or schema_version is None:
         raise VerifyError(
@@ -158,13 +260,24 @@ def run_flags_verify(
             "--type, --format, and --schema-version; a spec file declares "
             "these per artifact, but flags mode has no spec"
         )
+    module_id = _validate_module_id(module_id)
+    artifact = _validate_flags_artifact(
+        file=file,
+        id=id,
+        type=type,
+        fmt=fmt,
+        schema_version=schema_version,
+        module_id=module_id,
+    )
+    _validate_producer_claims(producer_name, producer_version, run_id)
+    id = artifact.id
+    type = artifact.type
+    schema_version = artifact.schema_version
+    fmt_value = artifact.format
     criteria = parse_criteria(criteria_pairs)
-    try:
-        fmt_value: ArtifactFormat | NamespacedArtifactFormat = ArtifactFormat(fmt)
-    except ValueError:
-        fmt_value = fmt
     verifiers = _verifier_index()
     _require_verifier(verifiers, _format_key(fmt_value))
+    _manifest_relative_path(file, manifest_path)
     manifest, created = load_or_init_manifest(
         manifest_path,
         producer_name=producer_name,
@@ -194,6 +307,7 @@ def run_flags_verify(
             file=file,
             manifest=manifest_path,
             message=str(e),
+            module_id=module_id,
         )
         manifest, _ = apply_artifact_declaration(manifest, declaration)
         write_manifest_atomically(manifest, manifest_path)
@@ -215,6 +329,7 @@ def run_flags_verify(
         manifest=manifest_path,
         record=record,
         sha256=sha256,
+        module_id=module_id,
     )
     manifest, placement = apply_artifact_declaration(manifest, declaration)
     write_manifest_atomically(manifest, manifest_path)
@@ -232,16 +347,24 @@ def run_spec_verify(
     spec_path: Path,
     manifest_path: Path,
     on_failure: Literal["fail", "write"],
+    producer_name: str | None = None,
+    producer_version: str | None = None,
+    run_id: str | None = None,
+    module_id: str | None = None,
 ) -> VerifyOutcome:
     """Spec mode: verify every artifact the spec declares, place,
     write once.
 
-    The spec's producer initializes a create and must match an
-    existing manifest — one manifest, one producer; the spec has no
-    run id, so the run check rides flags mode alone.  Each artifact
-    file resolves against the spec's own directory, and declarations
-    land in declaration order, in memory — the manifest is written
-    once, atomically, after every artifact has been placed.
+    CLI and spec producer claims merge field by field; duplicate claims
+    must agree. Creating requires a resolved name and version. Updating
+    may omit either claim, retaining the resident producer; supplied
+    claims must match it. The invocation's run ID initializes a create
+    or must match the recorded run.
+
+    Module attribution belongs to each artifact: a CLI module claim
+    supplies omitted values and must agree with explicit spec values.
+    Each file resolves against the spec directory, and the manifest is
+    written once, atomically, after placement succeeds.
 
     Under ``fail``, every artifact is attempted even after a
     failure, and the failures are raised together — one line each,
@@ -252,24 +375,59 @@ def run_spec_verify(
     geometry abort in both modes: a missing verifier or an artifact
     outside the manifest's tree is not the artifact's fact, and the
     toggle does not reach it.
+
+    All concrete artifact paths undergo geometry preflight before
+    loading or initializing the manifest and before verifying any
+    artifact. A late out-of-tree path cannot trigger earlier artifact
+    reads, even under ``--on-failure fail``.
     """
+    module_id = _validate_module_id(module_id)
+    _validate_producer_claims(producer_name, producer_version, run_id)
     spec = load_verify_spec(spec_path)
+    producer_name = _resolve_spec_producer_claim(
+        flag="--producer-name",
+        declared=producer_name,
+        specified=spec.producer.name,
+    )
+    producer_version = _resolve_spec_producer_claim(
+        flag="--producer-version",
+        declared=producer_version,
+        specified=spec.producer.version,
+    )
+    module_ids = tuple(
+        _resolve_spec_module_id(
+            artifact_id=block.id,
+            declared=module_id,
+            specified=block.module_id,
+        )
+        for block in spec.artifacts
+    )
+    verifiers = _verifier_index()
+    for block in spec.artifacts:
+        _require_verifier(verifiers, _format_key(block.format))
+    files = tuple(spec_path.parent / block.file for block in spec.artifacts)
+    for file in files:
+        _manifest_relative_path(file, manifest_path)
     manifest, created = load_or_init_manifest(
         manifest_path,
-        producer_name=spec.producer.name,
-        producer_version=spec.producer.version,
-        run_id=None,
+        producer_name=producer_name,
+        producer_version=producer_version,
+        run_id=run_id,
     )
-    check_producer_agreement(manifest, spec.producer.name, spec.producer.version, None)
-    verifiers = _verifier_index()
-    base = spec_path.parent
+    check_producer_agreement(
+        manifest,
+        producer_name,
+        producer_version,
+        run_id,
+    )
     successes = 0
     appended = 0
     updated = 0
     warnings: list[str] = []
     failures: list[tuple[str, str]] = []
-    for block in spec.artifacts:
-        file = base / block.file
+    for block, resolved_module_id, file in zip(
+        spec.artifacts, module_ids, files, strict=True
+    ):
         try:
             record, sha256 = verify_artifact_file(
                 verifiers, file, block.format, block.criteria
@@ -286,6 +444,7 @@ def run_spec_verify(
                 file=file,
                 manifest=manifest_path,
                 message=str(e),
+                module_id=resolved_module_id,
             )
             manifest, _ = apply_artifact_declaration(manifest, declaration)
             warnings.append(f"artifact {block.id} recorded as failed: {e}")
@@ -299,6 +458,7 @@ def run_spec_verify(
             manifest=manifest_path,
             record=record,
             sha256=sha256,
+            module_id=resolved_module_id,
         )
         manifest, placement = apply_artifact_declaration(manifest, declaration)
         if placement == "appended":
@@ -323,9 +483,14 @@ def run_spec_verify(
     if recorded:
         out = f"{core}, {recorded} recorded as failed in {manifest_path}\n"
     elif created:
+        run_clause = (
+            f", run {manifest.producer.run_id}"
+            if manifest.producer.run_id is not None
+            else ""
+        )
         out = (
             f"created {manifest_path} (producer {manifest.producer.name} "
-            f"{manifest.producer.version}) — {core}\n"
+            f"{manifest.producer.version}{run_clause}) — {core}\n"
         )
     else:
         out = f"{core} in {manifest_path}\n"
@@ -346,6 +511,7 @@ def run_verify(
     run_id: str | None,
     criteria_pairs: Sequence[str],
     on_failure: Literal["fail", "write"],
+    module_id: str | None = None,
 ) -> VerifyOutcome:
     """The verify command's library door: one invocation, one mode.
 
@@ -363,8 +529,33 @@ def run_verify(
                 "verifies the one FILE, spec mode verifies every "
                 "artifact the spec declares"
             )
+        artifact_flags = [
+            flag
+            for flag, value in (
+                ("--id", id),
+                ("--type", type),
+                ("--format", fmt),
+                ("--schema-version", schema_version),
+            )
+            if value is not None
+        ]
+
+        if criteria_pairs:
+            artifact_flags.append("--criteria")
+        if artifact_flags:
+            raise VerifyError(
+                f"spec mode does not accept {', '.join(artifact_flags)} — "
+                "declare artifact identity and criteria in the spec; "
+                "CLI artifact flags belong to flags mode"
+            )
         return run_spec_verify(
-            spec_path=spec_path, manifest_path=manifest_path, on_failure=on_failure
+            spec_path=spec_path,
+            manifest_path=manifest_path,
+            on_failure=on_failure,
+            producer_name=producer_name,
+            producer_version=producer_version,
+            run_id=run_id,
+            module_id=module_id,
         )
     if file is None:
         raise VerifyError(
@@ -384,4 +575,5 @@ def run_verify(
         run_id=run_id,
         criteria_pairs=criteria_pairs,
         on_failure=on_failure,
+        module_id=module_id,
     )

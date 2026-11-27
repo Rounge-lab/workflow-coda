@@ -41,11 +41,10 @@ and the manifest it wrote:
 .. code-block:: json
 
    {
-     "schema_version": "0.3.0",
+     "schema_version": "0.4.0",
      "producer": {
        "name": "seq-pipeline",
        "version": "1.4.0",
-       "module_id": null,
        "run_id": null
      },
      "artifacts": [
@@ -56,6 +55,7 @@ and the manifest it wrote:
          "path": "outputs/sample_metrics.json",
          "format": "json",
          "status": "complete",
+         "module_id": "qc-module",
          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
          "verification": {
            "format": "json",
@@ -64,6 +64,13 @@ and the manifest it wrote:
        }
      ]
    }
+
+The producer identifies the pipeline and optionally its run. Module
+attribution belongs to individual artifact declarations: several modules
+may contribute to one manifest, and several artifacts may share a
+``module_id``. With ``workflow-coda verify``, ``--module-id`` supplies that
+attribution for the artifact being verified, or for spec artifacts that
+omit it. Explicit CLI and spec module declarations must agree.
 
 Two details worth noticing.  The checksum is of exactly the bytes the verifier
 checked, computed by the command.  The writer emits every field: optional

@@ -365,16 +365,31 @@ def values_from_glob(
     except (OSError, ValueError) as e:
         raise SpecError(f"{path}: the glob {pattern!r} does not scan: {e}") from e
     raws: list[str] = []
+    problems: list[str] = []
     prefix_len = len(prefix)
     suffix_len = len(suffix)
-    for matched in matches:
+    for matched in sorted(matches):
+        if not (spec_dir / matched).is_file():
+            continue
         relative = matched.replace(os.sep, "/")
-        raws.append(relative[prefix_len : len(relative) - suffix_len])
+        raw = relative[prefix_len : len(relative) - suffix_len]
+        if not raw.strip():
+            problems.append(
+                f"  - {relative!r}: a blank capture — "
+                "a dimension value must be a non-blank name"
+            )
+        else:
+            raws.append(raw)
+    if problems:
+        raise SpecError(
+            f"{path}: the glob {pattern!r} has invalid captures "
+            f"for dimension {dimension!r}:\n" + "\n".join(problems)
+        )
     if not raws:
         raise _no_values(
             dimension,
             f"the glob {pattern!r} matches no files beside the spec",
             path=path,
         )
-    raws.sort(key=natural_key)
+    raws.sort(key=lambda raw: (natural_key(raw), raw))
     return tuple(raws)

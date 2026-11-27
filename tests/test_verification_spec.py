@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+import yaml
 
 from workflow_coda.errors import SpecError
 from workflow_coda.verification.spec import load_verify_spec
@@ -496,21 +497,69 @@ def test_load_verify_spec_rejects_empty_file(tmp_path: Path) -> None:
         load_verify_spec(spec)
 
 
-def test_load_verify_spec_requires_producer_block(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("producer", "name", "version"),
+    [
+        ("", None, None),
+        ("producer: {}\n", None, None),
+        ("producer:\n  name: pipeline\n", "pipeline", None),
+        ('producer:\n  version: "1"\n', None, "1"),
+        ("producer:\n  name: null\n  version: null\n", None, None),
+    ],
+)
+def test_load_verify_spec_accepts_optional_producer_claims(
+    tmp_path: Path,
+    producer: str,
+    name: str | None,
+    version: str | None,
+) -> None:
     spec = write_spec(
         tmp_path,
-        """\
+        producer
+        + """\
 artifacts:
-  - file: output/stats.json
+  - file: missing.json
     id: stats
     type: org.example.stats
     format: json
-    schema_version: "1.0.0"
+    schema_version: "1"
 """,
     )
+    loaded = load_verify_spec(spec)
+    assert loaded.producer.name == name
+    assert loaded.producer.version == version
 
-    with pytest.raises(SpecError, match="requires a producer block"):
+
+@pytest.mark.parametrize(
+    "producer",
+    [
+        "producer: null\n",
+        "producer: []\n",
+        "producer:\n  name: ''\n",
+        "producer:\n  version: 1\n",
+        "producer:\n  name: true\n",
+        "producer:\n  run_id: run7\n",
+    ],
+)
+def test_load_verify_spec_rejects_malformed_producer_claims(
+    tmp_path: Path,
+    producer: str,
+) -> None:
+    spec = write_spec(
+        tmp_path,
+        producer
+        + """\
+artifacts:
+  - file: missing.json
+    id: stats
+    type: org.example.stats
+    format: json
+    schema_version: "1"
+""",
+    )
+    with pytest.raises(SpecError) as excinfo:
         load_verify_spec(spec)
+    assert str(spec) in str(excinfo.value)
 
 
 def test_load_verify_spec_requires_artifacts(tmp_path: Path) -> None:
@@ -569,3 +618,241 @@ def test_load_verify_spec_rejects_unreadable_file(tmp_path: Path) -> None:
 
     with pytest.raises(SpecError, match="could not read the spec file"):
         load_verify_spec(spec)
+
+
+def test_module_id_family_templates_use_raw_values(tmp_path: Path) -> None:
+    path = write_spec(
+        tmp_path,
+        """\
+producer:
+  name: pipeline
+  version: "1"
+artifacts:
+  - for_each:
+      dimension: sample
+      values: ["Sample A"]
+    sanitize: true
+    file: "outputs/{sample}.json"
+    id: "sample-{sample}"
+    type: "org.example.sample-{sample}"
+    module_id: "module/{sample}"
+    format: json
+    schema_version: "1"
+""",
+    )
+    artifact = load_verify_spec(path).artifacts[0]
+    assert artifact.id == "sample-sample-a"
+    assert artifact.module_id == "module/Sample A"
+
+
+def _unique_test_block(
+    id_: str,
+    type_: str,
+    *,
+    family: bool = False,
+) -> dict[str, object]:
+    block: dict[str, object] = {
+        "file": "missing.json",
+        "id": id_,
+        "type": type_,
+        "format": "json",
+        "schema_version": "1",
+        "module_id": "shared-module",
+    }
+    if family:
+        block["file"] = "missing-{sample}.json"
+        block["for_each"] = {
+            "dimension": "sample",
+            "values": ["s1", "s2"],
+        }
+    return block
+
+
+def _write_identity_test_spec(
+    tmp_path: Path,
+    blocks: list[dict[str, object]],
+) -> Path:
+    return write_spec(
+        tmp_path,
+        yaml.safe_dump(
+            {
+                "producer": {"name": "pipeline", "version": "1"},
+                "artifacts": blocks,
+            },
+            sort_keys=False,
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    ("left_family", "right_family"),
+    [(False, False), (False, True), (True, False), (True, True)],
+)
+@pytest.mark.parametrize("kind", ["id", "type", "both"])
+def test_whole_spec_rejects_cross_block_identity_collisions(
+    tmp_path: Path,
+    left_family: bool,
+    right_family: bool,
+    kind: str,
+) -> None:
+    left_id = "stats-{sample}" if left_family else "stats-s1"
+    left_type = "org.example.stats-{sample}" if left_family else "org.example.stats-s1"
+    right_id = (
+        ("stats-{sample}" if right_family else "stats-s1")
+        if kind in ("id", "both")
+        else ("other-{sample}" if right_family else "other-s1")
+    )
+    right_type = (
+        ("org.example.stats-{sample}" if right_family else "org.example.stats-s1")
+        if kind in ("type", "both")
+        else ("org.example.other-{sample}" if right_family else "org.example.other-s1")
+    )
+    path = _write_identity_test_spec(
+        tmp_path,
+        [
+            _unique_test_block(left_id, left_type, family=left_family),
+            _unique_test_block(right_id, right_type, family=right_family),
+        ],
+    )
+
+    with pytest.raises(SpecError) as excinfo:
+        load_verify_spec(path)
+
+    message = str(excinfo.value)
+    assert str(path) in message
+    assert "whole spec after family expansion" in message
+    if kind in ("id", "both"):
+        assert "duplicate artifact id 'stats-s1'" in message
+    else:
+        assert "duplicate artifact id " not in message
+    if kind in ("type", "both"):
+        assert "duplicate artifact type 'org.example.stats-s1'" in message
+    else:
+        assert "duplicate artifact type " not in message
+    right_position = 3 if left_family else 2
+    assert f"expanded blocks 1, {right_position}" in message
+
+
+def test_whole_spec_collects_all_collisions_in_deterministic_order(
+    tmp_path: Path,
+) -> None:
+    path = _write_identity_test_spec(
+        tmp_path,
+        [
+            _unique_test_block("alpha", "org.example.first"),
+            _unique_test_block("beta", "org.example.second"),
+            _unique_test_block("alpha", "org.example.second"),
+            _unique_test_block("beta", "org.example.first"),
+            _unique_test_block("alpha", "org.example.third"),
+        ],
+    )
+
+    with pytest.raises(SpecError) as excinfo:
+        load_verify_spec(path)
+
+    message = str(excinfo.value)
+    findings = [
+        "duplicate artifact id 'alpha' in expanded blocks 1, 3, 5",
+        "duplicate artifact id 'beta' in expanded blocks 2, 4",
+        "duplicate artifact type 'org.example.first' in expanded blocks 1, 4",
+        "duplicate artifact type 'org.example.second' in expanded blocks 2, 3",
+    ]
+    positions = [message.index(finding) for finding in findings]
+    assert positions == sorted(positions)
+
+
+def test_unique_spec_preserves_order_and_allows_shared_module(
+    tmp_path: Path,
+) -> None:
+    path = _write_identity_test_spec(
+        tmp_path,
+        [
+            _unique_test_block(
+                "stats-{sample}",
+                "org.example.stats-{sample}",
+                family=True,
+            ),
+            _unique_test_block("summary", "org.example.summary"),
+        ],
+    )
+
+    loaded = load_verify_spec(path)
+    assert [artifact.id for artifact in loaded.artifacts] == [
+        "stats-s1",
+        "stats-s2",
+        "summary",
+    ]
+    assert [artifact.module_id for artifact in loaded.artifacts] == [
+        "shared-module",
+        "shared-module",
+        "shared-module",
+    ]
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_spec_rejects_expanded_criteria_key_collisions(
+    tmp_path: Path,
+    nested: bool,
+) -> None:
+    criteria: dict[str, object] = {"{sample}": 1, "s1": 1}
+    if nested:
+        criteria = {"nested": [criteria]}
+    path = write_spec(
+        tmp_path,
+        yaml.safe_dump(
+            {
+                "artifacts": [
+                    {
+                        "file": "{sample}.json",
+                        "id": "stats-{sample}",
+                        "type": "org.example.stats-{sample}",
+                        "format": "json",
+                        "schema_version": "1",
+                        "criteria": criteria,
+                        "for_each": {
+                            "dimension": "sample",
+                            "values": ["s1"],
+                        },
+                    }
+                ]
+            },
+            sort_keys=False,
+        ),
+    )
+
+    with pytest.raises(SpecError) as excinfo:
+        load_verify_spec(path)
+    message = str(excinfo.value)
+    assert str(path) in message
+    assert "mapping keys '{sample}' and 's1'" in message
+    assert "both expand to 's1'" in message
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_plain_spec_rejects_placeholders_in_criteria_keys(
+    tmp_path: Path,
+    nested: bool,
+) -> None:
+    criteria: dict[str, object] = {"{sample}": "literal"}
+    if nested:
+        criteria = {"nested": [criteria]}
+    path = write_spec(
+        tmp_path,
+        yaml.safe_dump(
+            {
+                "artifacts": [
+                    {
+                        "file": "stats.json",
+                        "id": "stats",
+                        "type": "org.example.stats",
+                        "format": "json",
+                        "schema_version": "1",
+                        "criteria": criteria,
+                    }
+                ]
+            }
+        ),
+    )
+
+    with pytest.raises(SpecError, match="declares no for_each"):
+        load_verify_spec(path)

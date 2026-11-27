@@ -85,8 +85,8 @@ usage error: exit ``1``, the modes named.
      - required
      - Path of the manifest to create or update.  The file name
        must end in ``.json``; an existing manifest is updated in
-       place, a missing one is created — and creating requires the
-       producer flags.
+       place, a missing one is created — and creating requires a complete
+       producer identity resolved from CLI and/or spec declarations.
    * - ``FILE``
      - optional
      - Flags mode: the artifact file to verify.  Must exist and be
@@ -94,9 +94,8 @@ usage error: exit ``1``, the modes named.
        ``--format``, not the file name.
    * - ``--spec SPEC``
      - optional
-     - Spec mode: a YAML file declaring the run's producer and
-       every artifact to verify.  ``.yaml`` or ``.yml``; must exist
-       and be readable.
+     - Spec mode: a YAML file declaring artifacts and optional producer claims.
+       ``.yaml`` or ``.yml``; must exist and be readable.
    * - ``--id``
      - —
      - The artifact's id within the manifest (flags mode).
@@ -114,10 +113,11 @@ usage error: exit ``1``, the modes named.
        (flags mode).
    * - ``--producer-name``, ``--producer-version``
      - —
-     - The producing pipeline's identity.  Required when the
-       manifest is created — a teaching names both flags when
-       either is missing; on update, omission is agreement with
-       the recorded producer, and a mismatch is a teaching.
+     - Optional producer claims. In spec mode these merge field by
+       field with the spec; matching duplication is accepted and
+       conflicts are rejected. Creating requires a resolved name
+       and version. Updating may omit either field; supplied claims
+       must match the recorded producer.
    * - ``--run-id``
      - —
      - The producing run's identifier, recorded on creation; on
@@ -141,6 +141,12 @@ usage error: exit ``1``, the modes named.
        in its verification record, no checksum — prints one
        warning line per failed artifact on stderr, and exits
        ``0``: the recording is the command's success.
+
+Supplied producer names, versions, and run IDs must be non-empty
+strings. Invalid claims abort before artifact verification, under
+either failure policy. Omitting ``--run-id`` on update retains the
+recorded run; supplying it must match, including when the recorded
+run ID is absent.
 
 Flags mode requires the four identity flags together; the library
 teaches when one is missing (exit ``1``), naming the set, rather

@@ -621,3 +621,32 @@ def test_degraded_only_states_contribute_no_plugin_chrome(tmp_path: Path) -> Non
     )
     assert len(_only_states(document).panels) == 1
     assert document.chrome == ()
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_states_rejects_expanded_parameter_key_collisions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    nested: bool,
+) -> None:
+    parameters: dict[str, JsonValue] = {"{batch}": 1, "A": 1}
+    if nested:
+        parameters = {"nested": [parameters]}
+
+    def unexpected_render(*args: object, **kwargs: object) -> None:
+        pytest.fail("colliding parameters reached component rendering")
+
+    monkeypatch.setattr("workflow_coda.builder._render", unexpected_render)
+    with pytest.raises(LayoutError) as excinfo:
+        _build(
+            tmp_path,
+            _states(
+                values=["A"],
+                children=[_placement(parameters=parameters)],
+            ),
+        )
+    error = excinfo.value
+    assert isinstance(error.__cause__, SpecError)
+    assert str(error).count(str(tmp_path / "states.yaml")) == 1
+    assert "mapping keys '{batch}' and 'A'" in str(error)
+    assert "both expand to 'A'" in str(error)

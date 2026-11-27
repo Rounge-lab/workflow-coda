@@ -2,10 +2,9 @@
 Verification spec
 =================
 
-A verification spec is a UTF-8 YAML file declaring a producer and the
-artifacts that ``workflow-coda verify`` should verify. The command
-expands artifact families, verifies the resulting files, and writes
-their declarations to a :doc:`manifest <manifest>`.
+A verification spec is a UTF-8 YAML file declaring artifacts and optional
+producer claims that ``workflow-coda verify`` uses when creating or
+updating a manifest.
 
 For command syntax and options, see the :doc:`CLI reference <../cli>`.
 For the Python interface, see the
@@ -21,17 +20,30 @@ Document structure
      - Required
      - Shape and meaning
    * - ``producer``
-     - yes
-     - Mapping containing the producer's ``name`` and ``version``,
-       both non-empty strings.
+     - no
+     - Mapping containing optional ``name`` and ``version`` claims.
+       Supplied non-null values must be non-empty strings.
    * - ``artifacts``
      - yes
      - Non-empty list of artifact mappings, in declaration order.
 
 Unknown document, producer, and artifact model keys are rejected.
-The spec has no ``run_id`` field. When creating a manifest, its
-producer is initialized from the spec; when updating one, the name and
-version must match its producer.
+The spec has no ``run_id`` field; use ``--run-id`` for the invocation's
+run claim.
+
+Producer claims reconcile field by field with ``--producer-name`` and
+``--producer-version``. Matching duplication is accepted; conflicting
+CLI and spec values are rejected, never overridden. Creating a manifest
+requires both resolved fields, supplied by the spec, CLI, or a
+combination. Updating may omit either field and retain the recorded
+producer; every supplied claim must match it.
+
+An omitted producer block or ``producer: {}`` carries no claims.
+``producer: null`` is invalid: a supplied block must be a mapping.
+Within that mapping, omitted or ``null`` fields carry no claim.
+Empty strings, numbers, and booleans are invalid claims.
+Producer and run refusals occur before artifact verification,
+independently of ``--on-failure``.
 
 Artifact blocks
 ---------------
@@ -106,15 +118,29 @@ The block expands once per discovered value, in source order. A
 * The raw value in ``id`` and ``type``, or its slug when
   ``sanitize: true``.
 
+Within each criteria mapping, distinct keys must remain distinct after
+substitution. If two source keys expand to the same key, expansion is
+rejected even when their values are equal. This applies recursively to
+nested mappings, including mappings inside lists; substitution never
+silently overwrites criteria.
+
 Expanded ids and types must satisfy their ordinary artifact grammars.
-Colliding ids or types within a family are rejected at spec load.
-Across blocks, manifest placement rules apply.
+Within-family collisions are rejected during expansion, with the source
+values named. After expansion and field validation, ids and types must
+each be unique across the entire concrete spec, including collisions
+between plain blocks and families or between different families.
+
+Whole-spec collisions are collected together and reported with one-based
+expanded block positions, in declaration order. These positions are not
+YAML line numbers or original template-block positions. Repeating a
+declaration within one spec is an error, not an update instruction.
+Module attribution does not partition the id or type namespace.
 
 Only an opening ``{`` starts a placeholder; a lone ``}`` is literal.
 In a family, an opening brace must start the block's own placeholder.
 In a plain block, placeholders in artifact string fields or criteria
-values are rejected. There is no markdown-variable exception in a
-verification spec.
+keys and string values are rejected, including nested criteria.
+There is no markdown-variable exception in a verification spec.
 
 With ``sanitize: true``, a value is lowercased; runs outside
 ``[a-z0-9_-]`` become a hyphen; edge hyphens are removed; and a result
@@ -181,9 +207,16 @@ the varying part of the path; other wildcards (``*``, ``?``, or
 and supplies the artifact file path, so the block must not also carry
 ``file``.
 
-Matches are used in natural order. Hidden files follow the underlying
-glob behavior and are not discovered by an ordinary pattern. No matches
-is an error.
+Only matches that are files are discovered; directories and other
+non-files are ignored. Symlinks resolving to regular files are included.
+A file whose captured value is empty or whitespace-only is an error,
+even when other files have valid captures.
+
+Matches are used in natural order: digit runs compare numerically.
+Equal natural keys, such as ``s1`` and ``s01``, are ordered by their
+original case-sensitive spelling, so ordering does not depend on the
+filesystem. Hidden files follow the underlying glob behavior and are
+not discovered by an ordinary pattern. Discovering no files is an error.
 
 .. code-block:: yaml
 
@@ -198,11 +231,24 @@ Artifact files resolve against the spec directory, but their recorded
 paths are relative to the manifest directory. An artifact outside the
 manifest directory cannot be recorded.
 
+The command checks every expanded artifact's path geometry before
+verifying any artifact. A later out-of-tree path therefore refuses the
+whole invocation before earlier artifact files are read, under either
+failure policy. This check uses lexical path arithmetic; it does not
+require the artifact to exist or resolve symlinks. A missing output
+inside the manifest directory can still be recorded as failed under
+``--on-failure write``.
+
+Flags-mode ids, types, formats, and content schema versions validate
+against the same field grammars as spec artifacts before artifact
+verification. Invalid declarations are invocation errors, not failed
+artifact records.
+
 Successful verification records the verifier's result and the SHA-256
-of the same bytes that were verified. An existing artifact with the
-same id and type is updated in place; a new artifact is appended.
-Reusing an id for a different type, or a type for a different id, is
-an error.
+of the same bytes that were verified. An artifact already recorded in
+the destination manifest with the same id and type is updated in place;
+a new artifact is appended. This rerun behavior does not permit duplicate
+declarations within the current spec.
 
 Under ``--on-failure fail``, artifact verification failures are
 collected and nothing is written. Under ``--on-failure write``, each
@@ -215,7 +261,10 @@ Loading rules
 -------------
 
 The loader reads UTF-8 YAML, rejects duplicate keys, expands families,
-then validates the resulting blocks. Unknown keys and invalid field
-shapes are errors. YAML values must have the expected types: for
-example, quote ``"1.0"`` to keep a version as a string. Discovery
-errors occur during spec loading, before artifact verification.
+then validates the resulting blocks and their whole-spec identity
+uniqueness. Unknown keys and invalid field shapes are errors. Whole-spec
+identity collisions are refused before verifier dispatch or artifact
+verification, independently of ``--on-failure``. YAML values must have
+the expected types: for example, quote ``"1.0"`` to keep a version as a
+string. Discovery errors occur during spec loading, before artifact
+verification.

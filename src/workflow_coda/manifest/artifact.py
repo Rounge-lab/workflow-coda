@@ -21,6 +21,7 @@ from .types import (
     JsonValue,
     ManifestRelativePath,
     NamespacedArtifactFormat,
+    NonEmptyStr,
     Sha256Hex,
 )
 
@@ -90,6 +91,14 @@ class ArtifactDeclaration(BaseModel):
 
     status: ArtifactStatus
     """Lifecycle status of the artifact."""
+
+    module_id: NonEmptyStr | None = None
+    """Optional identifier of the workflow module producing this artifact.
+
+    Multiple artifacts may share a module identifier. Module attribution
+    does not change the manifest's artifact-id and artifact-type uniqueness
+    rules.
+    """
 
     sha256: Sha256Hex | None = None
     """Optional SHA-256 integrity checksum of the artifact file."""

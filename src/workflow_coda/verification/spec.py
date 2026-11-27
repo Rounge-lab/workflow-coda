@@ -1,6 +1,6 @@
 """The verification spec: the pipeline author's declaration.
 
-The spec is a small YAML file declaring the run's producer and
+The spec is a small YAML file declaring optional producer claims and
 one block per output file — identity, format, content schema
 version, and the criteria the format's verifier reads.  The
 loader shares the layout loader's YAML machinery and inherits the
@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Final
 
 import yaml
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from ..errors import SpecError
 from ..layout_loader import (
@@ -64,19 +64,20 @@ exactly one source key — zero or multiple sources teach."""
 
 
 class SpecProducer(BaseModel):
-    """The spec's producer block: who produced the artifacts.
+    """Optional producer claims supplied by a verification spec.
 
-    The manifest's own ``name`` and ``version`` verbatim — the
-    identity every manifest agrees on: one manifest, one producer.
+    Claims reconcile field by field with CLI declarations. Creating a
+    manifest requires a complete resolved identity; updating may omit
+    claims and retain the resident producer.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    name: NonEmptyStr
-    """The producing pipeline's human-readable name."""
+    name: NonEmptyStr | None = None
+    """Optional producing-pipeline name; null means no claim."""
 
-    version: NonEmptyStr
-    """The producing pipeline's version, e.g. a release number."""
+    version: NonEmptyStr | None = None
+    """Optional producing-pipeline version; null means no claim."""
 
 
 class SpecArtifact(BaseModel):
@@ -107,6 +108,14 @@ class SpecArtifact(BaseModel):
     schema_version: ArtifactSchemaVersion
     """The artifact's content schema version, e.g. ``"1.0.0"``."""
 
+    module_id: NonEmptyStr | None = None
+    """Optional producing-module identifier.
+
+    A CLI module declaration may supply this value, but must agree when
+    both the CLI and spec declare it. Family expansion substitutes raw
+    dimension values into module identifiers.
+    """
+
     criteria: dict[str, JsonValue] | None = None
     """The verifier's criteria: keys and values the owning format's
     verifier reads and validates.  Absent means no criteria."""
@@ -115,21 +124,58 @@ class SpecArtifact(BaseModel):
 class VerifySpec(BaseModel):
     """The whole verification spec: producer and artifact blocks.
 
-    Constructed by :func:`load_verify_spec` from the spec file's
-    parsed content; the structural teachings — a producer block, at
-    least one artifact — fire in the loader, before validation,
-    where the file's whole shape is in hand and the teaching is a
-    full sentence.
+    Constructed by load_verify_spec from parsed content. The loader
+    requires at least one artifact; producer claims may be omitted or
+    partial. Producer completeness belongs to manifest creation, not
+    standalone spec loading.
+
+    Once artifact fields validate, ids and types must each be unique
+    across all concrete blocks. Repetition within one spec is an
+    authoring error, not an instruction to update an earlier block.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    producer: SpecProducer
-    """The run's producer — one manifest, one producer."""
+    producer: SpecProducer = Field(default_factory=SpecProducer)
+    """Optional producer claims — one manifest, one producer."""
 
     artifacts: tuple[SpecArtifact, ...]
     """The blocks to verify, in declaration order — ``for_each``
     blocks expanded into their concrete blocks, in value order."""
+
+    @field_validator("artifacts")
+    @classmethod
+    def _validate_unique_artifact_keys(
+        cls, value: tuple[SpecArtifact, ...]
+    ) -> tuple[SpecArtifact, ...]:
+        """Refuse repeated identities across the entire concrete spec.
+
+        Positions are one-based positions after family expansion, not
+        YAML line numbers or original template-block positions. IDs and
+        types are checked independently; module attribution does not
+        partition either identity namespace.
+        """
+        problems: list[str] = []
+        for kind in ("id", "type"):
+            groups: dict[str, list[int]] = {}
+            for position, artifact in enumerate(value, start=1):
+                identity = artifact.id if kind == "id" else artifact.type
+                groups.setdefault(identity, []).append(position)
+            for identity, positions in groups.items():
+                if len(positions) > 1:
+                    locations = ", ".join(str(position) for position in positions)
+                    problems.append(
+                        f"duplicate artifact {kind} {identity!r} "
+                        f"in expanded blocks {locations}"
+                    )
+        if problems:
+            raise ValueError(
+                "artifact ids and types must each be unique across the "
+                "whole spec after family expansion — repeated declarations "
+                "are not updates within one invocation:\n"
+                + "\n".join(f"  - {problem}" for problem in problems)
+            )
+        return value
 
 
 def _require_dimension(source: Mapping[str, JsonValue], *, path: Path) -> str:
@@ -305,7 +351,9 @@ def _walk_strings(node: JsonValue, path: Path) -> None:
         for item in node:
             _walk_strings(item, path)
     elif isinstance(node, Mapping):
-        for value in node.values():
+        for key, value in node.items():
+            if isinstance(key, str):
+                require_no_placeholders(key, path=path)
             _walk_strings(value, path)
 
 
@@ -315,7 +363,7 @@ def _check_plain_block(
     """A plain block's placeholders: none may ride — outside a
     ``for_each`` the placeholder cannot mean anything, so it
     teaches rather than passing through as a literal."""
-    for key in ("file", "id", "type", "format", "schema_version"):
+    for key in ("file", "id", "type", "format", "schema_version", "module_id"):
         value = block.get(key)
         if isinstance(value, str):
             require_no_placeholders(value, path=path)
@@ -423,7 +471,7 @@ def load_verify_spec(path: Path) -> VerifySpec:
     Raises :class:`~workflow_coda.errors.SpecError` — with the file
     path for context — when the file is unreadable, not valid
     UTF-8, not valid YAML, not a mapping, or violating the spec
-    contract: a missing producer block, no artifact blocks, or a
+    contract: no artifact blocks or a
     shape violation taught field by field.  The teaching shapes are
     the layout loader's, whose machinery this loader shares.
 
@@ -433,6 +481,10 @@ def load_verify_spec(path: Path) -> VerifySpec:
     family collisions refused — before ``VerifySpec`` validates
     the result.  A plain block carrying a placeholder teaches:
     the author almost certainly meant a loop.
+
+    Validation also refuses duplicate ids and types across the whole
+    concrete spec, collecting collisions with their one-based expanded
+    block positions before any artifact is verified.
     """
     try:
         text = path.read_text(encoding="utf-8")
@@ -463,12 +515,6 @@ def load_verify_spec(path: Path) -> VerifySpec:
         raise SpecError(
             f"{path}: the spec file must be a mapping (producer:, "
             f"artifacts:), but it contains {found}"
-        )
-    if "producer" not in parsed:
-        raise SpecError(
-            f"{path}: the spec requires a producer block — name and "
-            "version, the manifest's own fields verbatim, e.g.\n"
-            'producer:\n  name: my-pipeline\n  version: "1.0"'
         )
     if not parsed.get("artifacts"):
         raise SpecError(

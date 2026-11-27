@@ -174,6 +174,27 @@ def slugify(raw: str, *, dimension: str, path: Path) -> str:
     return folded
 
 
+def _claim_expanded_key(
+    originals: dict[str, str],
+    *,
+    key: str,
+    expanded: str,
+    dimension: str,
+    raw: str,
+    path: Path,
+) -> None:
+    """Reserve one expanded mapping key; never silently overwrite."""
+    if expanded in originals:
+        previous = originals[expanded]
+        raise SpecError(
+            f"{path}: mapping keys {previous!r} and {key!r} both expand "
+            f"to {expanded!r} for dimension {dimension!r} with value "
+            f"{raw!r} — expanded mapping keys must be unique; "
+            "rename a key or fix its template"
+        )
+    originals[expanded] = key
+
+
 def substitute_raw(
     value: JsonValue,
     *,
@@ -188,7 +209,10 @@ def substitute_raw(
     Strings substitute through :func:`expand_template`; lists and
     mappings recurse in order, mapping keys included — one law for
     every string leaf, no field whitelist — and the other leaves
-    (numbers, booleans, null) ride untouched.  *scope* rides to
+    (numbers, booleans, null) ride untouched.
+    Distinct mapping keys that expand to the same key are rejected,
+    even when their values are equal; expansion never overwrites data.
+    *scope* rides to
     every leaf unchanged: the spec's calls keep the default scope
     (the block's single dimension), and the report builder passes
     the states dimensions in scope, so a nested node's placeholder
@@ -204,14 +228,29 @@ def substitute_raw(
             for item in value
         ]
     if isinstance(value, dict):
-        return {
-            expand_template(
+        expanded: dict[str, JsonValue] = {}
+        originals: dict[str, str] = {}
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise SpecError(
+                    f"{path}: mapping key {key!r} must be a string — "
+                    "quote numbers and booleans in YAML"
+                )
+            expanded_key = expand_template(
                 key, dimension=dimension, raw=raw, path=path, scope=scope
-            ): substitute_raw(
+            )
+            _claim_expanded_key(
+                originals,
+                key=key,
+                expanded=expanded_key,
+                dimension=dimension,
+                raw=raw,
+                path=path,
+            )
+            expanded[expanded_key] = substitute_raw(
                 item, dimension=dimension, raw=raw, path=path, scope=scope
             )
-            for key, item in value.items()
-        }
+        return expanded
     return value
 
 
@@ -275,8 +314,9 @@ def check_family_collisions(
     ambiguity is refused at spec load, before a single artifact is
     verified: every collision is listed, every raw named — the
     loader's collect-and-list law.  The check is within-family,
-    one ``for_each`` block's own values; across blocks, the
-    placement's teachings stand exactly as today.
+    one ``for_each`` block's own values. After expansion, the spec
+    model checks uniqueness across every concrete block. Placement
+    separately checks agreement with artifacts already in a manifest.
     """
     groups: dict[str, list[str]] = {}
     for raw, identity in identities:

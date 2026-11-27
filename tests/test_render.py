@@ -891,24 +891,37 @@ def test_provenance_lines_come_from_the_manifest() -> None:
     assert f"{complete} of {len(manifest.artifacts)} artifacts completed" in html
 
 
-def test_provenance_module_and_run_lines_when_declared() -> None:
+def test_provenance_run_line_when_declared() -> None:
     payload = make_manifest_payload()
     producer = payload["producer"]
     assert isinstance(producer, dict)
-    producer["module_id"] = "qc-module"
     producer["run_id"] = "run-42"
     declared = ReportManifest.model_validate(payload)
+
     html = render_report(make_document(manifest=declared))
-    assert "<li>Workflow module: qc-module</li>" in html
     assert "<li>Run: run-42</li>" in html
-    plain_manifest = ReportManifest.model_validate(make_manifest_payload())
-    if (
-        plain_manifest.producer.module_id is None
-        and plain_manifest.producer.run_id is None
-    ):
-        plain = render_report(make_document(manifest=plain_manifest))
-        assert "Workflow module:" not in plain
-        assert "Run:" not in plain
+    assert "Workflow module:" not in html
+
+    plain_manifest = declared.model_copy(
+        update={"producer": declared.producer.model_copy(update={"run_id": None})}
+    )
+    plain = render_report(make_document(manifest=plain_manifest))
+    assert "<li>Run:" not in plain
+
+
+def test_artifact_module_is_not_rendered_as_a_producer_module() -> None:
+    manifest = ReportManifest.model_validate(make_manifest_payload())
+    assert manifest.artifacts
+
+    artifacts = tuple(
+        artifact.model_copy(update={"module_id": f"module-{index}"})
+        for index, artifact in enumerate(manifest.artifacts, start=1)
+    )
+    declared = manifest.model_copy(update={"artifacts": artifacts})
+
+    html = render_report(make_document(manifest=declared))
+    assert "Workflow module:" not in html
+    assert f"Produced by {declared.producer.name} {declared.producer.version}" in html
 
 
 def test_footer_carries_the_author_and_attribution() -> None:

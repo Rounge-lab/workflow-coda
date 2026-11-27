@@ -121,10 +121,6 @@ def test_verify_answers_help(capsys: pytest.CaptureFixture[str]) -> None:
 def test_flags_mode_creates_a_verified_manifest(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    # The whole create story in one pin: the manifest appears at
-    # schema 0.3.0, the producer recorded, the artifact complete with
-    # the real checksum over the real bytes, a manifest-relative
-    # path, and the verifier's record riding verbatim.
     manifest = tmp_path / "manifest.json"
     stats = _stats_json(tmp_path)
     code = _verify(
@@ -344,16 +340,19 @@ def test_run_id_mismatch_teaches(
     assert "one run" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("old_version", ["0.2.0", "0.3.0"])
 def test_old_schema_manifest_teaches_regeneration(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    old_version: str,
 ) -> None:
-    # The clean-break law at the door: a 0.2.0-era manifest is not
-    # appended to — it is taught forward, regeneration named.
+    # Earlier manifest envelopes are not appended to: the loader
+    # names the rejected version and teaches regeneration.
     manifest = tmp_path / "manifest.json"
     manifest.write_text(
         json.dumps(
             {
-                "schema_version": "0.2.0",
+                "schema_version": old_version,
                 "producer": {"name": "p", "version": "1"},
                 "artifacts": [],
             }
@@ -364,7 +363,7 @@ def test_old_schema_manifest_teaches_regeneration(
     code = _verify(manifest, stats, *_identity("stats", "org.example.stats", "json"))
     assert code == 1
     err = capsys.readouterr().err
-    assert "0.2.0" in err
+    assert old_version in err
     assert "regenerate" in err
 
 
@@ -862,7 +861,7 @@ def test_spec_requires_artifacts(
     assert "at least one" in capsys.readouterr().err
 
 
-def test_spec_producer_block_is_required(
+def test_producerless_spec_create_requires_resolved_identity(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     manifest = tmp_path / "manifest.json"
@@ -880,7 +879,157 @@ artifacts:
     )
     code = _verify(manifest, "--spec", spec)
     assert code == 1
-    assert "producer block" in capsys.readouterr().err
+    assert "requires a producer identity" in capsys.readouterr().err
+    assert not manifest.exists()
+
+
+@pytest.mark.parametrize(
+    ("producer", "flags"),
+    [
+        ("", _PRODUCER_FLAGS),
+        (
+            "producer:\n  name: fungifunk-pipeline\n",
+            ("--producer-version", "1.3"),
+        ),
+        (
+            'producer:\n  version: "1.3"\n',
+            ("--producer-name", "fungifunk-pipeline"),
+        ),
+        (
+            'producer:\n  name: fungifunk-pipeline\n  version: "1.3"\n',
+            _PRODUCER_FLAGS,
+        ),
+    ],
+)
+def test_spec_create_merges_producer_claims(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    producer: str,
+    flags: tuple[str, ...],
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    _stats_json(tmp_path)
+    spec = _write_spec(
+        tmp_path,
+        producer
+        + """\
+artifacts:
+  - file: stats.json
+    id: stats
+    type: org.example.stats
+    format: json
+    schema_version: "1"
+""",
+    )
+    assert _verify(manifest, "--spec", spec, *flags) == 0
+    capsys.readouterr()
+    loaded = load_manifest(manifest)
+    assert loaded.producer.name == "fungifunk-pipeline"
+    assert loaded.producer.version == "1.3"
+
+
+@pytest.mark.parametrize(
+    "producer",
+    [
+        "",
+        "producer: {}\n",
+        "producer:\n  name: fungifunk-pipeline\n",
+        'producer:\n  version: "1.3"\n',
+    ],
+)
+def test_spec_update_retains_omitted_producer_claims(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    producer: str,
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    stats = _stats_json(tmp_path)
+    assert (
+        _verify(
+            manifest,
+            stats,
+            *_identity("stats", "org.example.stats", "json"),
+            *_PRODUCER_FLAGS,
+            "--run-id",
+            "run7",
+        )
+        == 0
+    )
+    capsys.readouterr()
+    before = load_manifest(manifest).producer
+    spec = _write_spec(
+        tmp_path,
+        producer
+        + """\
+artifacts:
+  - file: stats.json
+    id: stats
+    type: org.example.stats
+    format: json
+    schema_version: "1"
+""",
+    )
+    assert _verify(manifest, "--spec", spec) == 0
+    capsys.readouterr()
+    assert load_manifest(manifest).producer == before
+
+
+@pytest.mark.parametrize("mode", ["flags", "spec"])
+@pytest.mark.parametrize("existing", [False, True])
+@pytest.mark.parametrize("on_failure", ["fail", "write"])
+@pytest.mark.parametrize(
+    "flag",
+    ["--producer-name", "--producer-version", "--run-id"],
+)
+def test_empty_producer_claim_refuses_before_verification(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+    existing: bool,
+    on_failure: str,
+    flag: str,
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    stats = _stats_json(tmp_path)
+    before: bytes | None = None
+    if existing:
+        assert (
+            _verify(
+                manifest,
+                stats,
+                *_identity("stats", "org.example.stats", "json"),
+                *_PRODUCER_FLAGS,
+            )
+            == 0
+        )
+        capsys.readouterr()
+        before = manifest.read_bytes()
+
+    def unexpected_verification(*args: object, **kwargs: object) -> None:
+        pytest.fail("invalid producer claim reached artifact verification")
+
+    monkeypatch.setattr(
+        "workflow_coda.verification.drivers.verify_artifact_file",
+        unexpected_verification,
+    )
+    if mode == "flags":
+        args: list[str | Path] = [
+            stats,
+            *_identity("stats", "org.example.stats", "json"),
+        ]
+    else:
+        args = ["--spec", _write_spec(tmp_path, _GOOD_SPEC)]
+
+    assert _verify(manifest, *args, flag, "", "--on-failure", on_failure) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert flag in captured.err
+    assert "non-empty string" in captured.err
+    if existing:
+        assert manifest.read_bytes() == before
+    else:
+        assert not manifest.exists()
 
 
 def test_spec_producer_must_match_on_append(
@@ -938,7 +1087,720 @@ def test_writer_byte_discipline(tmp_path: Path) -> None:
         == 0
     )
     text = manifest.read_text(encoding="utf-8")
-    assert text.startswith('{\n  "schema_version": "0.3.0",\n  "producer": {\n')
+    assert text.startswith(
+        f'{{\n  "schema_version": "{MANIFEST_SCHEMA_VERSION}",\n  "producer": {{\n'
+    )
     assert text.endswith("}\n")
     assert not text.endswith("\n\n")
     assert '"id": "stats"' in text
+
+
+@pytest.mark.parametrize("failed", [False, True])
+def test_flags_module_attribution_survives_recorded_failure(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    failed: bool,
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    stats = _stats_json(tmp_path)
+    if failed:
+        stats.write_text("{invalid", encoding="utf-8")
+
+    assert (
+        _verify(
+            manifest,
+            stats,
+            *_identity("stats", "org.example.stats", "json"),
+            *_PRODUCER_FLAGS,
+            "--module-id",
+            "quality-control",
+            "--on-failure",
+            "write",
+        )
+        == 0
+    )
+    capsys.readouterr()
+    loaded = load_manifest(manifest)
+    artifact = loaded.artifacts[0]
+    assert artifact.module_id == "quality-control"
+    assert artifact.status is (
+        ArtifactStatus.FAILED if failed else ArtifactStatus.COMPLETE
+    )
+    if failed:
+        assert artifact.sha256 is None
+    assert "module_id" not in loaded.producer.model_dump()
+
+
+def test_different_modules_can_append_to_one_manifest(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    stats = _stats_json(tmp_path)
+    samples = _samples_tsv(tmp_path)
+
+    assert (
+        _verify(
+            manifest,
+            stats,
+            *_identity("stats", "org.example.stats", "json"),
+            *_PRODUCER_FLAGS,
+            "--module-id",
+            "quality-control",
+        )
+        == 0
+    )
+    assert (
+        _verify(
+            manifest,
+            samples,
+            *_identity("samples", "org.example.samples", "core.tabular"),
+            "--module-id",
+            "alignment",
+        )
+        == 0
+    )
+    capsys.readouterr()
+    assert [a.module_id for a in load_manifest(manifest).artifacts] == [
+        "quality-control",
+        "alignment",
+    ]
+
+
+def test_spec_records_per_artifact_modules_and_invocation_run(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    _samples_tsv(tmp_path)
+    _stats_json(tmp_path).write_text("{invalid", encoding="utf-8")
+    spec = _write_spec(
+        tmp_path,
+        _GOOD_SPEC.replace(
+            "    id: samples\n",
+            "    id: samples\n    module_id: alignment\n",
+        ).replace(
+            "    id: stats\n",
+            "    id: stats\n    module_id: quality-control\n",
+        ),
+    )
+
+    assert (
+        _verify(
+            manifest,
+            "--spec",
+            spec,
+            *_PRODUCER_FLAGS,
+            "--run-id",
+            "run7",
+            "--on-failure",
+            "write",
+        )
+        == 0
+    )
+    capsys.readouterr()
+    loaded = load_manifest(manifest)
+    assert loaded.producer.run_id == "run7"
+    assert [a.module_id for a in loaded.artifacts] == [
+        "alignment",
+        "quality-control",
+    ]
+    assert loaded.artifacts[1].status is ArtifactStatus.FAILED
+    assert loaded.artifacts[1].sha256 is None
+
+    before = manifest.read_bytes()
+    assert (
+        _verify(
+            manifest,
+            "--spec",
+            spec,
+            "--run-id",
+            "run8",
+            "--on-failure",
+            "write",
+        )
+        == 1
+    )
+    assert "one run" in capsys.readouterr().err
+    assert manifest.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    ("specified", "declared", "expected_code"),
+    [
+        (None, "alignment", 0),
+        ("alignment", None, 0),
+        ("alignment", "alignment", 0),
+        ("alignment", "other", 1),
+    ],
+)
+def test_spec_and_cli_module_claims_must_agree(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    specified: str | None,
+    declared: str | None,
+    expected_code: int,
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    _stats_json(tmp_path)
+    _samples_tsv(tmp_path)
+    text = _GOOD_SPEC
+    if specified is not None:
+        text = text.replace(
+            "    id: samples\n",
+            f"    id: samples\n    module_id: {specified}\n",
+        )
+    spec = _write_spec(tmp_path, text)
+    flags = [] if declared is None else ["--module-id", declared]
+
+    assert _verify(manifest, "--spec", spec, *flags) == expected_code
+    captured = capsys.readouterr()
+    if expected_code == 1:
+        assert "must agree" in captured.err
+        assert not manifest.exists()
+    else:
+        assert load_manifest(manifest).artifacts[0].module_id == (
+            declared if declared is not None else specified
+        )
+
+
+def test_rerun_preserves_module_and_refuses_reassignment(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    stats = _stats_json(tmp_path)
+    identity = _identity("stats", "org.example.stats", "json")
+    assert (
+        _verify(
+            manifest,
+            stats,
+            *identity,
+            *_PRODUCER_FLAGS,
+            "--module-id",
+            "quality-control",
+        )
+        == 0
+    )
+    capsys.readouterr()
+
+    stats.write_text("{invalid", encoding="utf-8")
+    assert _verify(manifest, stats, *identity, "--on-failure", "write") == 0
+    capsys.readouterr()
+    artifact = load_manifest(manifest).artifacts[0]
+    assert artifact.module_id == "quality-control"
+    assert artifact.status is ArtifactStatus.FAILED
+    assert artifact.sha256 is None
+
+    _stats_json(tmp_path)
+    assert _verify(manifest, stats, *identity) == 0
+    capsys.readouterr()
+    artifact = load_manifest(manifest).artifacts[0]
+    assert artifact.module_id == "quality-control"
+    assert artifact.status is ArtifactStatus.COMPLETE
+    assert artifact.sha256 is not None
+
+    before = manifest.read_bytes()
+    assert _verify(manifest, stats, *identity, "--module-id", "other-module") == 1
+    assert "preserve module attribution" in capsys.readouterr().err
+    assert manifest.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    ("flag", "value"),
+    [
+        ("--producer-name", "other"),
+        ("--producer-version", "9"),
+    ],
+)
+def test_spec_checks_cli_producer_claims(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    flag: str,
+    value: str,
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    spec = _write_spec(tmp_path, _GOOD_SPEC)
+    assert _verify(manifest, "--spec", spec, flag, value) == 1
+    assert "must agree" in capsys.readouterr().err
+    assert not manifest.exists()
+
+
+@pytest.mark.parametrize(
+    ("flag", "value"),
+    [
+        ("--id", "stats"),
+        ("--type", "org.example.stats"),
+        ("--format", "json"),
+        ("--schema-version", "1"),
+        ("--criteria", "keys=depth"),
+    ],
+)
+def test_spec_rejects_artifact_only_flags(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    flag: str,
+    value: str,
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    spec = _write_spec(tmp_path, _GOOD_SPEC)
+    assert _verify(manifest, "--spec", spec, flag, value) == 1
+    assert flag in capsys.readouterr().err
+    assert not manifest.exists()
+
+
+def test_empty_cli_module_id_fails_cleanly(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    stats = _stats_json(tmp_path)
+    assert (
+        _verify(
+            manifest,
+            stats,
+            *_identity("stats", "org.example.stats", "json"),
+            *_PRODUCER_FLAGS,
+            "--module-id",
+            "",
+        )
+        == 1
+    )
+    assert "non-empty string" in capsys.readouterr().err
+    assert not manifest.exists()
+
+
+def test_verify_write_error_names_manifest(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    stats = _stats_json(tmp_path)
+
+    def failing_write(*args: object, **kwargs: object) -> None:
+        raise OSError("simulated manifest write failure")
+
+    monkeypatch.setattr(
+        "workflow_coda.verification.drivers.write_manifest_atomically",
+        failing_write,
+    )
+    assert (
+        _verify(
+            manifest,
+            stats,
+            *_identity("stats", "org.example.stats", "json"),
+            *_PRODUCER_FLAGS,
+        )
+        == 1
+    )
+    assert "could not write the manifest to" in capsys.readouterr().err
+    assert not manifest.exists()
+
+
+@pytest.mark.parametrize("on_failure", ["fail", "write"])
+@pytest.mark.parametrize("existing", [False, True])
+def test_duplicate_spec_refuses_before_verification_and_preserves_manifest(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    on_failure: str,
+    existing: bool,
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    before: bytes | None = None
+    if existing:
+        stats = _stats_json(tmp_path)
+        assert (
+            _verify(
+                manifest,
+                stats,
+                *_identity("stats", "org.example.stats", "json"),
+                *_PRODUCER_FLAGS,
+            )
+            == 0
+        )
+        capsys.readouterr()
+        before = manifest.read_bytes()
+
+    def unexpected_verification(*args: object, **kwargs: object) -> None:
+        pytest.fail("duplicate spec reached artifact verification")
+
+    monkeypatch.setattr(
+        "workflow_coda.verification.drivers.verify_artifact_file",
+        unexpected_verification,
+    )
+    spec = _write_spec(
+        tmp_path,
+        """\
+producer:
+  name: fungifunk-pipeline
+  version: "1.3"
+artifacts:
+  - file: missing-first.json
+    id: duplicate
+    type: org.example.duplicate
+    module_id: first-module
+    format: json
+    schema_version: "1"
+  - file: missing-second.json
+    id: duplicate
+    type: org.example.duplicate
+    module_id: second-module
+    format: json
+    schema_version: "1"
+""",
+    )
+
+    assert _verify(manifest, "--spec", spec, "--on-failure", on_failure) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "duplicate artifact id 'duplicate'" in captured.err
+    assert "duplicate artifact type 'org.example.duplicate'" in captured.err
+    assert "expanded blocks 1, 2" in captured.err
+    if existing:
+        assert manifest.read_bytes() == before
+    else:
+        assert not manifest.exists()
+
+
+@pytest.mark.parametrize("on_failure", ["fail", "write"])
+@pytest.mark.parametrize("existing", [False, True])
+@pytest.mark.parametrize(
+    ("flag", "value"),
+    [
+        ("--id", "Bad ID"),
+        ("--type", "not-namespaced"),
+        ("--format", "not-namespaced"),
+        ("--schema-version", ""),
+    ],
+)
+def test_invalid_flags_declaration_refuses_before_verification(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    on_failure: str,
+    existing: bool,
+    flag: str,
+    value: str,
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    stats = _stats_json(tmp_path)
+    before: bytes | None = None
+    if existing:
+        assert (
+            _verify(
+                manifest,
+                stats,
+                *_identity("stats", "org.example.stats", "json"),
+                *_PRODUCER_FLAGS,
+            )
+            == 0
+        )
+        capsys.readouterr()
+        before = manifest.read_bytes()
+
+    def unexpected_verification(*args: object, **kwargs: object) -> None:
+        pytest.fail("invalid declaration reached artifact verification")
+
+    monkeypatch.setattr(
+        "workflow_coda.verification.drivers.verify_artifact_file",
+        unexpected_verification,
+    )
+    identity = _identity("stats", "org.example.stats", "json")
+    identity[identity.index(flag) + 1] = value
+
+    assert (
+        _verify(
+            manifest,
+            stats,
+            *identity,
+            *_PRODUCER_FLAGS,
+            "--on-failure",
+            on_failure,
+        )
+        == 1
+    )
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "invalid flags-mode artifact declaration" in captured.err
+    assert flag in captured.err
+    if existing:
+        assert manifest.read_bytes() == before
+    else:
+        assert not manifest.exists()
+
+
+@pytest.mark.parametrize("on_failure", ["fail", "write"])
+@pytest.mark.parametrize("existing", [False, True])
+@pytest.mark.parametrize("mode", ["flags", "spec"])
+def test_geometry_preflight_refuses_before_any_verification(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    on_failure: str,
+    existing: bool,
+    mode: str,
+) -> None:
+    outputs = tmp_path / "outputs"
+    outputs.mkdir()
+    manifest = outputs / "manifest.json"
+    inside = _stats_json(outputs)
+    outside = _stats_json(tmp_path)
+    before: bytes | None = None
+    if existing:
+        assert (
+            _verify(
+                manifest,
+                inside,
+                *_identity("stats", "org.example.stats", "json"),
+                *_PRODUCER_FLAGS,
+            )
+            == 0
+        )
+        capsys.readouterr()
+        before = manifest.read_bytes()
+
+    def unexpected_verification(*args: object, **kwargs: object) -> None:
+        pytest.fail("geometry refusal reached artifact verification")
+
+    monkeypatch.setattr(
+        "workflow_coda.verification.drivers.verify_artifact_file",
+        unexpected_verification,
+    )
+    if mode == "flags":
+        args: list[str | Path] = [
+            outside,
+            *_identity("outside", "org.example.outside", "json"),
+            *_PRODUCER_FLAGS,
+        ]
+    else:
+        # The first block is recordable; only the later block escapes.
+        spec = _write_spec(
+            outputs,
+            """\
+producer:
+  name: fungifunk-pipeline
+  version: "1.3"
+artifacts:
+  - file: stats.json
+    id: stats
+    type: org.example.stats
+    format: json
+    schema_version: "1"
+  - file: ../stats.json
+    id: outside
+    type: org.example.outside
+    format: json
+    schema_version: "1"
+""",
+        )
+        args = ["--spec", spec]
+
+    assert _verify(manifest, *args, "--on-failure", on_failure) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "lives outside" in captured.err
+    if existing:
+        assert manifest.read_bytes() == before
+    else:
+        assert not manifest.exists()
+
+
+# ---------------------------------------------------------------------------
+# Expansion and discovery: CLI refusal boundaries
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("on_failure", ["fail", "write"])
+@pytest.mark.parametrize("existing", [False, True])
+@pytest.mark.parametrize(
+    ("case", "teaching"),
+    [
+        ("criteria-collision", "both expand to 's1'"),
+        ("plain-key-placeholder", "declares no for_each"),
+        ("blank-glob-capture", "blank capture"),
+        ("directory-only-glob", "matches no files beside the spec"),
+    ],
+)
+def test_spec_expansion_and_discovery_refuse_before_verification(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    on_failure: str,
+    existing: bool,
+    case: str,
+    teaching: str,
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    stats = _stats_json(tmp_path)
+    before: bytes | None = None
+    if existing:
+        assert (
+            _verify(
+                manifest,
+                stats,
+                *_identity("stats", "org.example.stats", "json"),
+                *_PRODUCER_FLAGS,
+            )
+            == 0
+        )
+        capsys.readouterr()
+        before = manifest.read_bytes()
+
+    if case == "criteria-collision":
+        invalid_block = """\
+  - for_each:
+      dimension: sample
+      values: [s1]
+    file: stats.json
+    id: family-{sample}
+    type: org.example.family-{sample}
+    format: json
+    schema_version: "1"
+    criteria:
+      nested:
+        - "{sample}": 1
+          s1: 1
+"""
+    elif case == "plain-key-placeholder":
+        invalid_block = """\
+  - file: stats.json
+    id: plain
+    type: org.example.plain
+    format: json
+    schema_version: "1"
+    criteria:
+      nested:
+        - "{sample}": literal
+"""
+    else:
+        discovered = tmp_path / "discovered"
+        discovered.mkdir()
+        if case == "blank-glob-capture":
+            (discovered / "prefix-.json").write_text("{}", encoding="utf-8")
+            (discovered / "prefix-valid.json").write_text("{}", encoding="utf-8")
+        else:
+            (discovered / "prefix-directory.json").mkdir()
+        invalid_block = """\
+  - for_each:
+      dimension: sample
+      glob: "discovered/prefix-{sample}.json"
+    id: family-{sample}
+    type: org.example.family-{sample}
+    format: json
+    schema_version: "1"
+"""
+
+    spec = _write_spec(
+        tmp_path,
+        """\
+producer:
+  name: fungifunk-pipeline
+  version: "1.3"
+artifacts:
+  - file: stats.json
+    id: stats
+    type: org.example.stats
+    format: json
+    schema_version: "1"
+"""
+        + invalid_block,
+    )
+
+    def unexpected_verification(*args: object, **kwargs: object) -> None:
+        pytest.fail("invalid spec reached artifact verification")
+
+    monkeypatch.setattr(
+        "workflow_coda.verification.drivers.verify_artifact_file",
+        unexpected_verification,
+    )
+
+    assert _verify(manifest, "--spec", spec, "--on-failure", on_failure) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert str(spec) in captured.err
+    assert teaching in captured.err
+    if existing:
+        assert manifest.read_bytes() == before
+    else:
+        assert not manifest.exists()
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_spec_glob_natural_ties_preserve_order_in_written_manifest(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    reverse: bool,
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    outputs = tmp_path / "outputs"
+    outputs.mkdir()
+    matches = [
+        "outputs/s1.json",
+        "outputs/s10.json",
+        "outputs/s01.json",
+        "outputs/s2.json",
+    ]
+    for relative in matches:
+        (tmp_path / relative).write_text('{"depth": 12}', encoding="utf-8")
+    if reverse:
+        matches.reverse()
+
+    def discover(*args: object, **kwargs: object) -> list[str]:
+        return matches
+
+    monkeypatch.setattr(
+        "workflow_coda.verification.sources.glob.glob",
+        discover,
+    )
+    spec = _write_spec(
+        tmp_path,
+        """\
+producer:
+  name: fungifunk-pipeline
+  version: "1.3"
+artifacts:
+  - for_each:
+      dimension: sample
+      glob: "outputs/{sample}.json"
+    id: stats-{sample}
+    type: org.example.stats-{sample}
+    format: json
+    schema_version: "1"
+    criteria:
+      keys: [depth]
+""",
+    )
+
+    assert _verify(manifest, "--spec", spec) == 0
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert captured.out == (
+        f"created {manifest} (producer fungifunk-pipeline 1.3) "
+        "— verified 4 artifacts — appended 4, updated 0\n"
+    )
+
+    loaded = load_manifest(manifest)
+    expected = ["s01", "s1", "s2", "s10"]
+    assert [artifact.id for artifact in loaded.artifacts] == [
+        f"stats-{raw}" for raw in expected
+    ]
+    assert [artifact.type for artifact in loaded.artifacts] == [
+        f"org.example.stats-{raw}" for raw in expected
+    ]
+    assert [artifact.path for artifact in loaded.artifacts] == [
+        f"outputs/{raw}.json" for raw in expected
+    ]
+    for artifact in loaded.artifacts:
+        assert artifact.status is ArtifactStatus.COMPLETE
+        assert (
+            artifact.sha256
+            == hashlib.sha256((tmp_path / artifact.path).read_bytes()).hexdigest()
+        )
+        assert artifact.verification == {
+            "format": "json",
+            "status": "ok",
+            "keys_checked": ["depth"],
+        }

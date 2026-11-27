@@ -382,3 +382,30 @@ def test_expanded_parameter_key_does_not_gain_the_text_exemption(
         build_report(path, _store(tmp_path, []), _core_registry())
     assert str(path) in str(excinfo.value)
     assert isinstance(excinfo.value.__cause__, SpecError)
+
+
+@pytest.mark.parametrize("template_first", [False, True])
+def test_expanded_key_cannot_overwrite_markdown_text(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    template_first: bool,
+) -> None:
+    parameters: dict[str, JsonValue] = (
+        {"{batch}": "replacement", "text": "{{ depth }}"}
+        if template_first
+        else {"text": "{{ depth }}", "{batch}": "replacement"}
+    )
+    placement: dict[str, JsonValue] = {
+        "id": "core.markdown",
+        "parameters": parameters,
+    }
+    path = _write_layout(tmp_path, _states("batch", ["text"], placement))
+
+    def unexpected_render(*args: object, **kwargs: object) -> None:
+        pytest.fail("colliding markdown parameters reached rendering")
+
+    monkeypatch.setattr("workflow_coda.builder._render", unexpected_render)
+    with pytest.raises(LayoutError) as excinfo:
+        build_report(path, _store(tmp_path, []), _core_registry())
+    assert isinstance(excinfo.value.__cause__, SpecError)
+    assert "both expand to 'text'" in str(excinfo.value)

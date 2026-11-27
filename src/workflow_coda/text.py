@@ -41,8 +41,10 @@ def natural_key(text: str) -> tuple[tuple[int, str | int], ...]:
     parts as codepoints (case-sensitive — determinism over
     locale-flavored niceness), digit parts as integers.  Each part
     is tagged — ``(0, text)`` sorts before ``(1, number)`` at the
-    same position — so a text part never compares against a number
-    and the order is total.  This is the framework's ordering law
+    same position — so a text part never compares against a number.
+    Distinct spellings such as "s1" and "s01" can have equal keys;
+    callers needing deterministic tie ordering must also compare
+    the original spelling. This is the framework's ordering law
     for values with no story of their own: a values list and a
     samplesheet carry the producer's order, and only the disk
     needs a key — deterministic, or it is an accident.
