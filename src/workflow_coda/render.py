@@ -720,12 +720,11 @@ def _tab_body(
 
 
 def _provenance_lines(manifest: ReportManifest) -> list[str]:
-    """The manifest's provenance, one line per fact, for the footer.
+    """The manifest's report-wide provenance, one line per fact.
 
-    Pinned to the manifest's envelope: the producer's identity and,
-    when declared, its workflow module and run identifiers; the
-    manifest schema version; and the artifact census — the pipeline's
-    own record of itself, as the report's provenance record.
+    The producer identity and optional run identifier belong to the
+    envelope. Module attribution belongs to individual artifacts and
+    is not represented as a single report-wide workflow module.
     """
     complete = sum(
         1
@@ -733,8 +732,6 @@ def _provenance_lines(manifest: ReportManifest) -> list[str]:
         if artifact.status is ArtifactStatus.COMPLETE
     )
     lines = [f"Produced by {manifest.producer.name} {manifest.producer.version}"]
-    if manifest.producer.module_id is not None:
-        lines.append(f"Workflow module: {manifest.producer.module_id}")
     if manifest.producer.run_id is not None:
         lines.append(f"Run: {manifest.producer.run_id}")
     lines.append(f"Manifest schema version {manifest.schema_version}")

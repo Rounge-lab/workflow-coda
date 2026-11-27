@@ -121,10 +121,6 @@ def test_verify_answers_help(capsys: pytest.CaptureFixture[str]) -> None:
 def test_flags_mode_creates_a_verified_manifest(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    # The whole create story in one pin: the manifest appears at
-    # schema 0.3.0, the producer recorded, the artifact complete with
-    # the real checksum over the real bytes, a manifest-relative
-    # path, and the verifier's record riding verbatim.
     manifest = tmp_path / "manifest.json"
     stats = _stats_json(tmp_path)
     code = _verify(
@@ -344,16 +340,19 @@ def test_run_id_mismatch_teaches(
     assert "one run" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("old_version", ["0.2.0", "0.3.0"])
 def test_old_schema_manifest_teaches_regeneration(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    old_version: str,
 ) -> None:
-    # The clean-break law at the door: a 0.2.0-era manifest is not
-    # appended to — it is taught forward, regeneration named.
+    # Earlier manifest envelopes are not appended to: the loader
+    # names the rejected version and teaches regeneration.
     manifest = tmp_path / "manifest.json"
     manifest.write_text(
         json.dumps(
             {
-                "schema_version": "0.2.0",
+                "schema_version": old_version,
                 "producer": {"name": "p", "version": "1"},
                 "artifacts": [],
             }
@@ -364,7 +363,7 @@ def test_old_schema_manifest_teaches_regeneration(
     code = _verify(manifest, stats, *_identity("stats", "org.example.stats", "json"))
     assert code == 1
     err = capsys.readouterr().err
-    assert "0.2.0" in err
+    assert old_version in err
     assert "regenerate" in err
 
 
@@ -938,7 +937,302 @@ def test_writer_byte_discipline(tmp_path: Path) -> None:
         == 0
     )
     text = manifest.read_text(encoding="utf-8")
-    assert text.startswith('{\n  "schema_version": "0.3.0",\n  "producer": {\n')
+    assert text.startswith(
+        f'{{\n  "schema_version": "{MANIFEST_SCHEMA_VERSION}",\n  "producer": {{\n'
+    )
     assert text.endswith("}\n")
     assert not text.endswith("\n\n")
     assert '"id": "stats"' in text
+
+
+@pytest.mark.parametrize("failed", [False, True])
+def test_flags_module_attribution_survives_recorded_failure(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    failed: bool,
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    stats = _stats_json(tmp_path)
+    if failed:
+        stats.write_text("{invalid", encoding="utf-8")
+
+    assert (
+        _verify(
+            manifest,
+            stats,
+            *_identity("stats", "org.example.stats", "json"),
+            *_PRODUCER_FLAGS,
+            "--module-id",
+            "quality-control",
+            "--on-failure",
+            "write",
+        )
+        == 0
+    )
+    capsys.readouterr()
+    loaded = load_manifest(manifest)
+    artifact = loaded.artifacts[0]
+    assert artifact.module_id == "quality-control"
+    assert artifact.status is (
+        ArtifactStatus.FAILED if failed else ArtifactStatus.COMPLETE
+    )
+    if failed:
+        assert artifact.sha256 is None
+    assert "module_id" not in loaded.producer.model_dump()
+
+
+def test_different_modules_can_append_to_one_manifest(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    stats = _stats_json(tmp_path)
+    samples = _samples_tsv(tmp_path)
+
+    assert (
+        _verify(
+            manifest,
+            stats,
+            *_identity("stats", "org.example.stats", "json"),
+            *_PRODUCER_FLAGS,
+            "--module-id",
+            "quality-control",
+        )
+        == 0
+    )
+    assert (
+        _verify(
+            manifest,
+            samples,
+            *_identity("samples", "org.example.samples", "core.tabular"),
+            "--module-id",
+            "alignment",
+        )
+        == 0
+    )
+    capsys.readouterr()
+    assert [a.module_id for a in load_manifest(manifest).artifacts] == [
+        "quality-control",
+        "alignment",
+    ]
+
+
+def test_spec_records_per_artifact_modules_and_invocation_run(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    _samples_tsv(tmp_path)
+    _stats_json(tmp_path).write_text("{invalid", encoding="utf-8")
+    spec = _write_spec(
+        tmp_path,
+        _GOOD_SPEC.replace(
+            "    id: samples\n",
+            "    id: samples\n    module_id: alignment\n",
+        ).replace(
+            "    id: stats\n",
+            "    id: stats\n    module_id: quality-control\n",
+        ),
+    )
+
+    assert (
+        _verify(
+            manifest,
+            "--spec",
+            spec,
+            *_PRODUCER_FLAGS,
+            "--run-id",
+            "run7",
+            "--on-failure",
+            "write",
+        )
+        == 0
+    )
+    capsys.readouterr()
+    loaded = load_manifest(manifest)
+    assert loaded.producer.run_id == "run7"
+    assert [a.module_id for a in loaded.artifacts] == [
+        "alignment",
+        "quality-control",
+    ]
+    assert loaded.artifacts[1].status is ArtifactStatus.FAILED
+    assert loaded.artifacts[1].sha256 is None
+
+    before = manifest.read_bytes()
+    assert (
+        _verify(
+            manifest,
+            "--spec",
+            spec,
+            "--run-id",
+            "run8",
+            "--on-failure",
+            "write",
+        )
+        == 1
+    )
+    assert "one run" in capsys.readouterr().err
+    assert manifest.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    ("specified", "declared", "expected_code"),
+    [
+        (None, "alignment", 0),
+        ("alignment", None, 0),
+        ("alignment", "alignment", 0),
+        ("alignment", "other", 1),
+    ],
+)
+def test_spec_and_cli_module_claims_must_agree(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    specified: str | None,
+    declared: str | None,
+    expected_code: int,
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    _stats_json(tmp_path)
+    _samples_tsv(tmp_path)
+    text = _GOOD_SPEC
+    if specified is not None:
+        text = text.replace(
+            "    id: samples\n",
+            f"    id: samples\n    module_id: {specified}\n",
+        )
+    spec = _write_spec(tmp_path, text)
+    flags = [] if declared is None else ["--module-id", declared]
+
+    assert _verify(manifest, "--spec", spec, *flags) == expected_code
+    captured = capsys.readouterr()
+    if expected_code == 1:
+        assert "must agree" in captured.err
+        assert not manifest.exists()
+    else:
+        assert load_manifest(manifest).artifacts[0].module_id == (
+            declared if declared is not None else specified
+        )
+
+
+def test_rerun_preserves_module_and_refuses_reassignment(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    stats = _stats_json(tmp_path)
+    identity = _identity("stats", "org.example.stats", "json")
+    assert (
+        _verify(
+            manifest,
+            stats,
+            *identity,
+            *_PRODUCER_FLAGS,
+            "--module-id",
+            "quality-control",
+        )
+        == 0
+    )
+    capsys.readouterr()
+
+    stats.write_text("{invalid", encoding="utf-8")
+    assert _verify(manifest, stats, *identity, "--on-failure", "write") == 0
+    capsys.readouterr()
+    artifact = load_manifest(manifest).artifacts[0]
+    assert artifact.module_id == "quality-control"
+    assert artifact.status is ArtifactStatus.FAILED
+    assert artifact.sha256 is None
+
+    _stats_json(tmp_path)
+    assert _verify(manifest, stats, *identity) == 0
+    capsys.readouterr()
+    artifact = load_manifest(manifest).artifacts[0]
+    assert artifact.module_id == "quality-control"
+    assert artifact.status is ArtifactStatus.COMPLETE
+    assert artifact.sha256 is not None
+
+    before = manifest.read_bytes()
+    assert _verify(manifest, stats, *identity, "--module-id", "other-module") == 1
+    assert "preserve module attribution" in capsys.readouterr().err
+    assert manifest.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    ("flag", "value"),
+    [
+        ("--producer-name", "other"),
+        ("--producer-version", "9"),
+    ],
+)
+def test_spec_checks_cli_producer_claims(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    flag: str,
+    value: str,
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    spec = _write_spec(tmp_path, _GOOD_SPEC)
+    assert _verify(manifest, "--spec", spec, flag, value) == 1
+    assert "must agree" in capsys.readouterr().err
+    assert not manifest.exists()
+
+
+@pytest.mark.parametrize(
+    ("flag", "value"),
+    [
+        ("--id", "stats"),
+        ("--type", "org.example.stats"),
+        ("--format", "json"),
+        ("--schema-version", "1"),
+        ("--criteria", "keys=depth"),
+    ],
+)
+def test_spec_rejects_artifact_only_flags(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    flag: str,
+    value: str,
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    spec = _write_spec(tmp_path, _GOOD_SPEC)
+    assert _verify(manifest, "--spec", spec, flag, value) == 1
+    assert flag in capsys.readouterr().err
+    assert not manifest.exists()
+
+
+def test_empty_cli_module_id_fails_cleanly(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    stats = _stats_json(tmp_path)
+    assert (
+        _verify(
+            manifest,
+            stats,
+            *_identity("stats", "org.example.stats", "json"),
+            *_PRODUCER_FLAGS,
+            "--module-id",
+            "",
+        )
+        == 1
+    )
+    assert "non-empty string" in capsys.readouterr().err
+    assert not manifest.exists()
+
+
+def test_verify_write_error_names_manifest(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    manifest = tmp_path / "missing" / "manifest.json"
+    stats = _stats_json(tmp_path)
+    assert (
+        _verify(
+            manifest,
+            stats,
+            *_identity("stats", "org.example.stats", "json"),
+            *_PRODUCER_FLAGS,
+        )
+        == 1
+    )
+    assert "could not write the manifest to" in capsys.readouterr().err

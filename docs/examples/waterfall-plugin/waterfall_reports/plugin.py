@@ -18,6 +18,7 @@ from workflow_coda.components import (
 )
 from workflow_coda.context import RenderContext
 from workflow_coda.errors import ArtifactUnavailableError, RenderError
+from workflow_coda.manifest import MANIFEST_SCHEMA_VERSION
 from workflow_coda.plugins import ReportPlugin
 from workflow_coda.theme import FigureStyle, FigureTheme, Theme
 
@@ -177,7 +178,7 @@ def get_plugin() -> ReportPlugin:
             name="Waterfall reports",
             version="0.1.0",
             description="A waterfall chart component, built in the tutorial.",
-            supported_schema_versions=frozenset({"0.3.0"}),
+            supported_schema_versions=frozenset({MANIFEST_SCHEMA_VERSION}),
         ),
         components=(
             ReportComponent(

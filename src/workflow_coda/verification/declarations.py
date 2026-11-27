@@ -31,6 +31,7 @@ from ..manifest import (
     ArtifactType,
     JsonValue,
     NamespacedArtifactFormat,
+    NonEmptyStr,
     ProducerMetadata,
     ReportManifest,
     load_manifest,
@@ -111,6 +112,7 @@ def build_verified_declaration(
     manifest: Path,
     record: dict[str, JsonValue],
     sha256: str,
+    module_id: NonEmptyStr | None = None,
 ) -> ArtifactDeclaration:
     """The successful verification's declaration: COMPLETE, the
     verifier's record riding verbatim, the digest of exactly the
@@ -126,6 +128,7 @@ def build_verified_declaration(
         status=ArtifactStatus.COMPLETE,
         sha256=sha256,
         verification=record,
+        module_id=module_id,
     )
 
 
@@ -138,6 +141,7 @@ def build_failed_declaration(
     file: Path,
     manifest: Path,
     message: str,
+    module_id: NonEmptyStr | None = None,
 ) -> ArtifactDeclaration:
     """The failed verification's declaration: FAILED, the failure
     record — the format's own spelling, the failed status, the
@@ -158,6 +162,7 @@ def build_failed_declaration(
         format=fmt,
         status=ArtifactStatus.FAILED,
         verification=_failure_record(_format_key(fmt), message),
+        module_id=module_id,
     )
 
 
@@ -261,6 +266,10 @@ def apply_artifact_declaration(
     artifacts by type, and either mistake leaves that resolution
     ambiguous.  The models are frozen, so placement is a copy with
     a new artifacts tuple, never a mutation.
+
+    Module attribution is preserved when omitted on a rerun. A supplied
+    module may annotate an unattributed artifact, but cannot silently
+    replace an existing module attribution.
     """
     resident = next((a for a in manifest.artifacts if a.id == declaration.id), None)
     if resident is not None:
@@ -271,6 +280,21 @@ def apply_artifact_declaration(
                 f"verification declares it as {declaration.type!r} — an "
                 "update repeats the same type; use a new id for a new "
                 "artifact type"
+            )
+        if (
+            declaration.module_id is not None
+            and resident.module_id is not None
+            and declaration.module_id != resident.module_id
+        ):
+            raise ManifestError(
+                f"artifact {declaration.id!r} already records module "
+                f"{resident.module_id!r}, but this verification declares "
+                f"{declaration.module_id!r} — a rerun must preserve module "
+                "attribution; rebuild the manifest to reassign ownership"
+            )
+        if declaration.module_id is None and resident.module_id is not None:
+            declaration = declaration.model_copy(
+                update={"module_id": resident.module_id}
             )
         artifacts = tuple(
             declaration if a.id == declaration.id else a for a in manifest.artifacts

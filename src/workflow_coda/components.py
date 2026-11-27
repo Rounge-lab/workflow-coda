@@ -532,7 +532,8 @@ class PluginMetadata:
     ``supported_schema_versions`` is the version gate: the report builder
     refuses to run a plugin whose set does not include the manifest's
     ``schema_version``, and the diagnostics section names both versions.
-    The current manifest schema version is ``"0.3.0"``.
+    The current manifest schema version is declared by
+    :data:`workflow_coda.manifest.MANIFEST_SCHEMA_VERSION`.
     """
 
     id: str
@@ -550,7 +551,8 @@ class PluginMetadata:
 
     supported_schema_versions: frozenset[str]
     """Manifest schema versions this plugin understands, e.g.
-    ``frozenset({"0.3.0"})``.  Must be non-empty."""
+    ``frozenset({MANIFEST_SCHEMA_VERSION})`` for a plugin supporting
+    the current framework contract. Must be non-empty."""
 
     icons_package: str | None = None
     """The plugin's icon package: the importable package whose

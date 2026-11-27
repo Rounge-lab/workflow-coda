@@ -30,7 +30,7 @@ Placing it
 
 .. code-block:: yaml
 
-   schema_version: "0.3.0"
+   schema_version: "0.4.0"
    title: Sample QC
    tabs:
      - title: Samples

@@ -25,6 +25,7 @@ from workflow_coda.components import (
 from workflow_coda.context import RenderContext
 from workflow_coda.core.plugin import get_plugin
 from workflow_coda.errors import PluginConflictError, VerificationError
+from workflow_coda.manifest import MANIFEST_SCHEMA_VERSION
 from workflow_coda.plugins import ArtifactVerifier, ReportPlugin
 from workflow_coda.registry import PluginRegistry
 
@@ -99,7 +100,9 @@ def test_plugin_verifiers_gate_by_schema_version() -> None:
     # version.  A plugin may still declare the old version; it
     # simply never gates in.
     old = _plugin_claiming("oldguard", "bio.legacy", frozenset({"0.2.0"}))
-    new = _plugin_claiming("newguard", "bio.newick", frozenset({"0.3.0"}))
+    new = _plugin_claiming(
+        "newguard", "bio.newick", frozenset({MANIFEST_SCHEMA_VERSION})
+    )
     registry = PluginRegistry((old, new))
     assert _formats(registry) == (
         "json",
@@ -108,7 +111,7 @@ def test_plugin_verifiers_gate_by_schema_version() -> None:
         "bio.legacy",
         "bio.newick",
     )
-    supporting = registry.verifiers_supporting("0.3.0")
+    supporting = registry.verifiers_supporting(MANIFEST_SCHEMA_VERSION)
     assert tuple(verifier.format for verifier in supporting) == (
         "json",
         "txt",

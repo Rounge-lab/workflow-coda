@@ -20,7 +20,7 @@ Envelope
      - Shape and meaning
    * - ``schema_version``
      - yes
-     - The literal ``"0.3.0"``: the manifest envelope version.
+     - The literal ``"0.4.0"``: the manifest envelope version.
        Earlier versions are not read; regenerate them with
        ``workflow-coda verify``.
    * - ``producer``
@@ -50,9 +50,6 @@ Producer
    * - ``version``
      - yes
      - Non-empty string identifying the producer's version.
-   * - ``module_id``
-     - no
-     - Non-empty string identifying a workflow module.
    * - ``run_id``
      - no
      - Non-empty string identifying a run.
@@ -90,6 +87,10 @@ Artifacts
    * - ``status``
      - yes
      - ``complete``, ``partial``, ``failed``, or ``missing``.
+   * - ``module_id``
+     - no
+     - Non-empty string identifying the workflow module that produced
+       this artifact. Multiple artifacts may share a module identifier.
    * - ``sha256``
      - no
      - SHA-256 checksum as 64 lowercase hexadecimal characters. The
@@ -99,6 +100,13 @@ Artifacts
      - Object carrying the verifier's account of what was checked, or
        why verification failed. The framework transports it without
        interpreting its format-specific fields.
+
+Module identifiers are attribution, not artifact lookup keys. Artifact
+ids and types must remain unique across the entire manifest, including
+artifacts produced by different modules.
+On verification reruns, omitted module attribution preserves an existing
+value. A supplied module may annotate an unattributed artifact, but a
+different explicit module cannot silently replace existing attribution.
 
 Only ``complete`` artifacts are eligible for reading. A ``complete``
 status alone does not guarantee that the file exists or that its
@@ -134,7 +142,7 @@ Example
 .. code-block:: json
 
    {
-     "schema_version": "0.3.0",
+     "schema_version": "0.4.0",
      "producer": {
        "name": "seq-pipeline",
        "version": "1.4.0",

@@ -107,6 +107,14 @@ class SpecArtifact(BaseModel):
     schema_version: ArtifactSchemaVersion
     """The artifact's content schema version, e.g. ``"1.0.0"``."""
 
+    module_id: NonEmptyStr | None = None
+    """Optional producing-module identifier.
+
+    A CLI module declaration may supply this value, but must agree when
+    both the CLI and spec declare it. Family expansion substitutes raw
+    dimension values into module identifiers.
+    """
+
     criteria: dict[str, JsonValue] | None = None
     """The verifier's criteria: keys and values the owning format's
     verifier reads and validates.  Absent means no criteria."""
@@ -315,7 +323,7 @@ def _check_plain_block(
     """A plain block's placeholders: none may ride — outside a
     ``for_each`` the placeholder cannot mean anything, so it
     teaches rather than passing through as a literal."""
-    for key in ("file", "id", "type", "format", "schema_version"):
+    for key in ("file", "id", "type", "format", "schema_version", "module_id"):
         value = block.get(key)
         if isinstance(value, str):
             require_no_placeholders(value, path=path)

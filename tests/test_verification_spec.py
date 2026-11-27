@@ -569,3 +569,28 @@ def test_load_verify_spec_rejects_unreadable_file(tmp_path: Path) -> None:
 
     with pytest.raises(SpecError, match="could not read the spec file"):
         load_verify_spec(spec)
+
+
+def test_module_id_family_templates_use_raw_values(tmp_path: Path) -> None:
+    path = write_spec(
+        tmp_path,
+        """\
+producer:
+  name: pipeline
+  version: "1"
+artifacts:
+  - for_each:
+      dimension: sample
+      values: ["Sample A"]
+    sanitize: true
+    file: "outputs/{sample}.json"
+    id: "sample-{sample}"
+    type: "org.example.sample-{sample}"
+    module_id: "module/{sample}"
+    format: json
+    schema_version: "1"
+""",
+    )
+    artifact = load_verify_spec(path).artifacts[0]
+    assert artifact.id == "sample-sample-a"
+    assert artifact.module_id == "module/Sample A"

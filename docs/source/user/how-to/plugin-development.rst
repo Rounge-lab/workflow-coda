@@ -266,14 +266,13 @@ both modes.
 Schema gating
 -------------
 
-``supported_schema_versions`` is your plugin's compatibility gate:
-a non-empty frozenset of manifest versions it understands —
-currently ``{"0.3.0"}``.  At build time the framework checks it
-against the manifest's own ``schema_version``: a plugin outside
-the gate is excluded from the report and the diagnostics ledger
-records why, naming both versions.  Keep the set deliberate —
-when a new manifest version ships, that is the moment to decide
-whether your plugin supports it.
+``supported_schema_versions`` is your plugin's compatibility gate: a non-empty
+frozenset of manifest versions it understands.  Use
+``frozenset({MANIFEST_SCHEMA_VERSION})`` for the latest version.  At build time
+the framework checks it against the manifest's own ``schema_version``: a plugin
+outside the gate is excluded from the report and the diagnostics ledger records
+why, naming both versions.  Keep the set deliberate — when a new manifest
+version ships, that is the moment to decide whether your plugin supports it.
 
 Teaching errors: the house style
 --------------------------------
