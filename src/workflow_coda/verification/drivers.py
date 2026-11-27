@@ -27,14 +27,13 @@ from pydantic import TypeAdapter, ValidationError
 from ..errors import VerificationError, VerifyError
 from ..manifest import (
     MANIFEST_SCHEMA_VERSION,
-    ArtifactFormat,
     JsonValue,
-    NamespacedArtifactFormat,
     NonEmptyStr,
 )
 from ..plugins import ArtifactVerifier
 from ..registry import PluginRegistry
 from .declarations import (
+    _manifest_relative_path,
     apply_artifact_declaration,
     build_failed_declaration,
     build_verified_declaration,
@@ -43,7 +42,7 @@ from .declarations import (
     write_manifest_atomically,
 )
 from .engine import _format_key, _require_verifier, verify_artifact_file
-from .spec import load_verify_spec
+from .spec import SpecArtifact, load_verify_spec
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,6 +165,51 @@ def _resolve_spec_module_id(
     return declared if declared is not None else specified
 
 
+def _validate_flags_artifact(
+    *,
+    file: Path,
+    id: str,
+    type: str,
+    fmt: str,
+    schema_version: str,
+    module_id: str | None,
+) -> SpecArtifact:
+    """Validate flags through the same declaration fields as spec mode.
+
+    This does not expand templates or read artifact bytes. Criteria
+    remain flag transport, parsed separately by the driver.
+    """
+    try:
+        return SpecArtifact(
+            file=str(file),
+            id=id,
+            type=type,
+            format=fmt,
+            schema_version=schema_version,
+            module_id=module_id,
+        )
+    except ValidationError as e:
+        flags = {
+            "file": "FILE",
+            "id": "--id",
+            "type": "--type",
+            "format": "--format",
+            "schema_version": "--schema-version",
+            "module_id": "--module-id",
+        }
+        findings: list[str] = []
+        for error in e.errors():
+            field = str(error["loc"][0])
+            flag = flags.get(field, field)
+            finding = f"  - {flag}: {error['msg']}"
+            if finding not in findings:
+                findings.append(finding)
+        raise VerifyError(
+            "invalid flags-mode artifact declaration — use the same "
+            "field grammars as a verification spec:\n" + "\n".join(findings)
+        ) from e
+
+
 def run_flags_verify(
     *,
     file: Path,
@@ -203,6 +247,10 @@ def run_flags_verify(
     manifest's tree, an unavailable verifier, a manifest conflict —
     aborts regardless of the toggle: those are the invocation's or
     the environment's facts, not the artifact's.
+
+    Supplied identity fields validate through the spec artifact model
+    before verifier lookup or artifact reads. Recordable path geometry
+    is checked before loading or initializing the manifest.
     """
     if id is None or type is None or fmt is None or schema_version is None:
         raise VerifyError(
@@ -211,13 +259,22 @@ def run_flags_verify(
             "these per artifact, but flags mode has no spec"
         )
     module_id = _validate_module_id(module_id)
+    artifact = _validate_flags_artifact(
+        file=file,
+        id=id,
+        type=type,
+        fmt=fmt,
+        schema_version=schema_version,
+        module_id=module_id,
+    )
+    id = artifact.id
+    type = artifact.type
+    schema_version = artifact.schema_version
+    fmt_value = artifact.format
     criteria = parse_criteria(criteria_pairs)
-    try:
-        fmt_value: ArtifactFormat | NamespacedArtifactFormat = ArtifactFormat(fmt)
-    except ValueError:
-        fmt_value = fmt
     verifiers = _verifier_index()
     _require_verifier(verifiers, _format_key(fmt_value))
+    _manifest_relative_path(file, manifest_path)
     manifest, created = load_or_init_manifest(
         manifest_path,
         producer_name=producer_name,
@@ -312,6 +369,11 @@ def run_spec_verify(
     geometry abort in both modes: a missing verifier or an artifact
     outside the manifest's tree is not the artifact's fact, and the
     toggle does not reach it.
+
+    All concrete artifact paths undergo geometry preflight before
+    loading or initializing the manifest and before verifying any
+    artifact. A late out-of-tree path cannot trigger earlier artifact
+    reads, even under ``--on-failure fail``.
     """
     module_id = _validate_module_id(module_id)
     spec = load_verify_spec(spec_path)
@@ -336,6 +398,9 @@ def run_spec_verify(
     verifiers = _verifier_index()
     for block in spec.artifacts:
         _require_verifier(verifiers, _format_key(block.format))
+    files = tuple(spec_path.parent / block.file for block in spec.artifacts)
+    for file in files:
+        _manifest_relative_path(file, manifest_path)
     manifest, created = load_or_init_manifest(
         manifest_path,
         producer_name=spec.producer.name,
@@ -348,14 +413,14 @@ def run_spec_verify(
         spec.producer.version,
         run_id,
     )
-    base = spec_path.parent
     successes = 0
     appended = 0
     updated = 0
     warnings: list[str] = []
     failures: list[tuple[str, str]] = []
-    for block, resolved_module_id in zip(spec.artifacts, module_ids, strict=True):
-        file = base / block.file
+    for block, resolved_module_id, file in zip(
+        spec.artifacts, module_ids, files, strict=True
+    ):
         try:
             record, sha256 = verify_artifact_file(
                 verifiers, file, block.format, block.criteria

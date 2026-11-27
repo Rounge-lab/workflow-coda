@@ -81,6 +81,11 @@ def _manifest_relative_path(file: Path, manifest: Path) -> str:
     read — and that failure is taught here and never recorded
     under write: it is the invocation's geometry, not the
     artifact's fact, the availability precedent.
+
+    Drivers also call this arithmetic during preflight, before artifact
+    verification. Declaration builders retain the check for direct
+    callers. Containment is lexical; this helper does not resolve
+    symlinks or require the artifact to exist.
     """
     try:
         relative = os.path.relpath(file, start=manifest.parent)

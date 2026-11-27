@@ -1223,9 +1223,18 @@ def test_empty_cli_module_id_fails_cleanly(
 def test_verify_write_error_names_manifest(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    manifest = tmp_path / "missing" / "manifest.json"
+    manifest = tmp_path / "manifest.json"
     stats = _stats_json(tmp_path)
+
+    def failing_write(*args: object, **kwargs: object) -> None:
+        raise OSError("simulated manifest write failure")
+
+    monkeypatch.setattr(
+        "workflow_coda.verification.drivers.write_manifest_atomically",
+        failing_write,
+    )
     assert (
         _verify(
             manifest,
@@ -1236,6 +1245,7 @@ def test_verify_write_error_names_manifest(
         == 1
     )
     assert "could not write the manifest to" in capsys.readouterr().err
+    assert not manifest.exists()
 
 
 @pytest.mark.parametrize("on_failure", ["fail", "write"])
@@ -1298,6 +1308,149 @@ artifacts:
     assert "duplicate artifact id 'duplicate'" in captured.err
     assert "duplicate artifact type 'org.example.duplicate'" in captured.err
     assert "expanded blocks 1, 2" in captured.err
+    if existing:
+        assert manifest.read_bytes() == before
+    else:
+        assert not manifest.exists()
+
+
+@pytest.mark.parametrize("on_failure", ["fail", "write"])
+@pytest.mark.parametrize("existing", [False, True])
+@pytest.mark.parametrize(
+    ("flag", "value"),
+    [
+        ("--id", "Bad ID"),
+        ("--type", "not-namespaced"),
+        ("--format", "not-namespaced"),
+        ("--schema-version", ""),
+    ],
+)
+def test_invalid_flags_declaration_refuses_before_verification(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    on_failure: str,
+    existing: bool,
+    flag: str,
+    value: str,
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    stats = _stats_json(tmp_path)
+    before: bytes | None = None
+    if existing:
+        assert (
+            _verify(
+                manifest,
+                stats,
+                *_identity("stats", "org.example.stats", "json"),
+                *_PRODUCER_FLAGS,
+            )
+            == 0
+        )
+        capsys.readouterr()
+        before = manifest.read_bytes()
+
+    def unexpected_verification(*args: object, **kwargs: object) -> None:
+        pytest.fail("invalid declaration reached artifact verification")
+
+    monkeypatch.setattr(
+        "workflow_coda.verification.drivers.verify_artifact_file",
+        unexpected_verification,
+    )
+    identity = _identity("stats", "org.example.stats", "json")
+    identity[identity.index(flag) + 1] = value
+
+    assert (
+        _verify(
+            manifest,
+            stats,
+            *identity,
+            *_PRODUCER_FLAGS,
+            "--on-failure",
+            on_failure,
+        )
+        == 1
+    )
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "invalid flags-mode artifact declaration" in captured.err
+    assert flag in captured.err
+    if existing:
+        assert manifest.read_bytes() == before
+    else:
+        assert not manifest.exists()
+
+
+@pytest.mark.parametrize("on_failure", ["fail", "write"])
+@pytest.mark.parametrize("existing", [False, True])
+@pytest.mark.parametrize("mode", ["flags", "spec"])
+def test_geometry_preflight_refuses_before_any_verification(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    on_failure: str,
+    existing: bool,
+    mode: str,
+) -> None:
+    outputs = tmp_path / "outputs"
+    outputs.mkdir()
+    manifest = outputs / "manifest.json"
+    inside = _stats_json(outputs)
+    outside = _stats_json(tmp_path)
+    before: bytes | None = None
+    if existing:
+        assert (
+            _verify(
+                manifest,
+                inside,
+                *_identity("stats", "org.example.stats", "json"),
+                *_PRODUCER_FLAGS,
+            )
+            == 0
+        )
+        capsys.readouterr()
+        before = manifest.read_bytes()
+
+    def unexpected_verification(*args: object, **kwargs: object) -> None:
+        pytest.fail("geometry refusal reached artifact verification")
+
+    monkeypatch.setattr(
+        "workflow_coda.verification.drivers.verify_artifact_file",
+        unexpected_verification,
+    )
+    if mode == "flags":
+        args: list[str | Path] = [
+            outside,
+            *_identity("outside", "org.example.outside", "json"),
+            *_PRODUCER_FLAGS,
+        ]
+    else:
+        # The first block is recordable; only the later block escapes.
+        spec = _write_spec(
+            outputs,
+            """\
+producer:
+  name: fungifunk-pipeline
+  version: "1.3"
+artifacts:
+  - file: stats.json
+    id: stats
+    type: org.example.stats
+    format: json
+    schema_version: "1"
+  - file: ../stats.json
+    id: outside
+    type: org.example.outside
+    format: json
+    schema_version: "1"
+""",
+        )
+        args = ["--spec", spec]
+
+    assert _verify(manifest, *args, "--on-failure", on_failure) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "lives outside" in captured.err
     if existing:
         assert manifest.read_bytes() == before
     else:

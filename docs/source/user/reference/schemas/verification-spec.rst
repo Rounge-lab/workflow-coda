@@ -206,6 +206,19 @@ Artifact files resolve against the spec directory, but their recorded
 paths are relative to the manifest directory. An artifact outside the
 manifest directory cannot be recorded.
 
+The command checks every expanded artifact's path geometry before
+verifying any artifact. A later out-of-tree path therefore refuses the
+whole invocation before earlier artifact files are read, under either
+failure policy. This check uses lexical path arithmetic; it does not
+require the artifact to exist or resolve symlinks. A missing output
+inside the manifest directory can still be recorded as failed under
+``--on-failure write``.
+
+Flags-mode ids, types, formats, and content schema versions validate
+against the same field grammars as spec artifacts before artifact
+verification. Invalid declarations are invocation errors, not failed
+artifact records.
+
 Successful verification records the verifier's result and the SHA-256
 of the same bytes that were verified. An artifact already recorded in
 the destination manifest with the same id and type is updated in place;
