@@ -787,3 +787,72 @@ def test_unique_spec_preserves_order_and_allows_shared_module(
         "shared-module",
         "shared-module",
     ]
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_spec_rejects_expanded_criteria_key_collisions(
+    tmp_path: Path,
+    nested: bool,
+) -> None:
+    criteria: dict[str, object] = {"{sample}": 1, "s1": 1}
+    if nested:
+        criteria = {"nested": [criteria]}
+    path = write_spec(
+        tmp_path,
+        yaml.safe_dump(
+            {
+                "artifacts": [
+                    {
+                        "file": "{sample}.json",
+                        "id": "stats-{sample}",
+                        "type": "org.example.stats-{sample}",
+                        "format": "json",
+                        "schema_version": "1",
+                        "criteria": criteria,
+                        "for_each": {
+                            "dimension": "sample",
+                            "values": ["s1"],
+                        },
+                    }
+                ]
+            },
+            sort_keys=False,
+        ),
+    )
+
+    with pytest.raises(SpecError) as excinfo:
+        load_verify_spec(path)
+    message = str(excinfo.value)
+    assert str(path) in message
+    assert "mapping keys '{sample}' and 's1'" in message
+    assert "both expand to 's1'" in message
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_plain_spec_rejects_placeholders_in_criteria_keys(
+    tmp_path: Path,
+    nested: bool,
+) -> None:
+    criteria: dict[str, object] = {"{sample}": "literal"}
+    if nested:
+        criteria = {"nested": [criteria]}
+    path = write_spec(
+        tmp_path,
+        yaml.safe_dump(
+            {
+                "artifacts": [
+                    {
+                        "file": "stats.json",
+                        "id": "stats",
+                        "type": "org.example.stats",
+                        "format": "json",
+                        "schema_version": "1",
+                        "criteria": criteria,
+                    }
+                ]
+            }
+        ),
+    )
+
+    with pytest.raises(SpecError, match="declares no for_each"):
+        load_verify_spec(path)

@@ -316,3 +316,75 @@ def test_values_from_glob_ignores_hidden_files_by_glob_law(tmp_path: Path) -> No
     )
 
     assert values == ("sample-2",)
+
+
+def test_values_from_glob_ignores_matching_directories(tmp_path: Path) -> None:
+    (tmp_path / "directory.tsv").mkdir()
+    (tmp_path / "sample.tsv").write_text("ok\n", encoding="utf-8")
+
+    assert values_from_glob(
+        "{sample}.tsv",
+        dimension="sample",
+        spec_dir=tmp_path,
+        path=tmp_path / "spec.yaml",
+    ) == ("sample",)
+
+
+def test_values_from_glob_directory_only_is_no_files(tmp_path: Path) -> None:
+    (tmp_path / "directory.tsv").mkdir()
+
+    with pytest.raises(SpecError, match="matches no files beside the spec"):
+        values_from_glob(
+            "{sample}.tsv",
+            dimension="sample",
+            spec_dir=tmp_path,
+            path=tmp_path / "spec.yaml",
+        )
+
+
+@pytest.mark.parametrize("capture", ["", "   "])
+def test_values_from_glob_rejects_blank_file_captures(
+    tmp_path: Path,
+    capture: str,
+) -> None:
+    filename = f"prefix-{capture}.tsv"
+    (tmp_path / filename).write_text("ok\n", encoding="utf-8")
+    (tmp_path / "prefix-valid.tsv").write_text("ok\n", encoding="utf-8")
+
+    with pytest.raises(SpecError) as excinfo:
+        values_from_glob(
+            "prefix-{sample}.tsv",
+            dimension="sample",
+            spec_dir=tmp_path,
+            path=tmp_path / "spec.yaml",
+        )
+    message = str(excinfo.value)
+    assert filename in message
+    assert "blank capture" in message
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_values_from_glob_natural_ties_do_not_follow_discovery_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reverse: bool,
+) -> None:
+    matches = ["s1.tsv", "s01.tsv", "s2.tsv", "s10.tsv"]
+    for filename in matches:
+        (tmp_path / filename).write_text("ok\n", encoding="utf-8")
+    if reverse:
+        matches.reverse()
+
+    def discover(*args: object, **kwargs: object) -> list[str]:
+        return matches
+
+    monkeypatch.setattr(
+        "workflow_coda.verification.sources.glob.glob",
+        discover,
+    )
+    assert values_from_glob(
+        "{sample}.tsv",
+        dimension="sample",
+        spec_dir=tmp_path,
+        path=tmp_path / "spec.yaml",
+    ) == ("s01", "s1", "s2", "s10")

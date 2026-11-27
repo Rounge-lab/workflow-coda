@@ -118,6 +118,12 @@ The block expands once per discovered value, in source order. A
 * The raw value in ``id`` and ``type``, or its slug when
   ``sanitize: true``.
 
+Within each criteria mapping, distinct keys must remain distinct after
+substitution. If two source keys expand to the same key, expansion is
+rejected even when their values are equal. This applies recursively to
+nested mappings, including mappings inside lists; substitution never
+silently overwrites criteria.
+
 Expanded ids and types must satisfy their ordinary artifact grammars.
 Within-family collisions are rejected during expansion, with the source
 values named. After expansion and field validation, ids and types must
@@ -133,8 +139,8 @@ Module attribution does not partition the id or type namespace.
 Only an opening ``{`` starts a placeholder; a lone ``}`` is literal.
 In a family, an opening brace must start the block's own placeholder.
 In a plain block, placeholders in artifact string fields or criteria
-values are rejected. There is no markdown-variable exception in a
-verification spec.
+keys and string values are rejected, including nested criteria.
+There is no markdown-variable exception in a verification spec.
 
 With ``sanitize: true``, a value is lowercased; runs outside
 ``[a-z0-9_-]`` become a hyphen; edge hyphens are removed; and a result
@@ -201,9 +207,16 @@ the varying part of the path; other wildcards (``*``, ``?``, or
 and supplies the artifact file path, so the block must not also carry
 ``file``.
 
-Matches are used in natural order. Hidden files follow the underlying
-glob behavior and are not discovered by an ordinary pattern. No matches
-is an error.
+Only matches that are files are discovered; directories and other
+non-files are ignored. Symlinks resolving to regular files are included.
+A file whose captured value is empty or whitespace-only is an error,
+even when other files have valid captures.
+
+Matches are used in natural order: digit runs compare numerically.
+Equal natural keys, such as ``s1`` and ``s01``, are ordered by their
+original case-sensitive spelling, so ordering does not depend on the
+filesystem. Hidden files follow the underlying glob behavior and are
+not discovered by an ordinary pattern. Discovering no files is an error.
 
 .. code-block:: yaml
 

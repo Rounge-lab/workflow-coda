@@ -1,6 +1,6 @@
 """The verification spec: the pipeline author's declaration.
 
-The spec is a small YAML file declaring the run's producer and
+The spec is a small YAML file declaring optional producer claims and
 one block per output file — identity, format, content schema
 version, and the criteria the format's verifier reads.  The
 loader shares the layout loader's YAML machinery and inherits the
@@ -351,7 +351,9 @@ def _walk_strings(node: JsonValue, path: Path) -> None:
         for item in node:
             _walk_strings(item, path)
     elif isinstance(node, Mapping):
-        for value in node.values():
+        for key, value in node.items():
+            if isinstance(key, str):
+                require_no_placeholders(key, path=path)
             _walk_strings(value, path)
 
 

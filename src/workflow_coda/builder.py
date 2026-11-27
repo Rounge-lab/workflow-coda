@@ -99,7 +99,11 @@ from .theme import (
     load_bundled_theme,
     load_theme,
 )
-from .verification.expansion import expand_template, substitute_raw
+from .verification.expansion import (
+    _claim_expanded_key,
+    expand_template,
+    substitute_raw,
+)
 
 
 def _resolve_theme(layout_path: Path, declared: str) -> Theme:
@@ -581,13 +585,22 @@ def _expand_parameters(
     Valid markdown variables are opaque only within string-valued
     ``core.markdown.text``. Eligibility uses the original placement id
     and parameter key, never the expanded key. Other values recurse
-    through the ordinary states engine, preserving its overwrite
-    behavior when expanded keys coincide.
+    through the ordinary states engine. Expanded keys must be unique
+    at every mapping level; collisions never overwrite parameters.
     """
     parameters: dict[str, JsonValue] = {}
+    originals: dict[str, str] = {}
     for key, value in placement.parameters.items():
         expanded_key = expand_template(
             key, dimension=dimension, raw=raw, path=path, scope=bound
+        )
+        _claim_expanded_key(
+            originals,
+            key=key,
+            expanded=expanded_key,
+            dimension=dimension,
+            raw=raw,
+            path=path,
         )
         if placement.id == "core.markdown" and key == "text" and isinstance(value, str):
             expanded_value: JsonValue = _expand_markdown_text(
