@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+import yaml
 
 from workflow_coda.errors import SpecError
 from workflow_coda.verification.spec import load_verify_spec
@@ -594,3 +595,147 @@ artifacts:
     artifact = load_verify_spec(path).artifacts[0]
     assert artifact.id == "sample-sample-a"
     assert artifact.module_id == "module/Sample A"
+
+
+def _unique_test_block(
+    id_: str,
+    type_: str,
+    *,
+    family: bool = False,
+) -> dict[str, object]:
+    block: dict[str, object] = {
+        "file": "missing.json",
+        "id": id_,
+        "type": type_,
+        "format": "json",
+        "schema_version": "1",
+        "module_id": "shared-module",
+    }
+    if family:
+        block["file"] = "missing-{sample}.json"
+        block["for_each"] = {
+            "dimension": "sample",
+            "values": ["s1", "s2"],
+        }
+    return block
+
+
+def _write_identity_test_spec(
+    tmp_path: Path,
+    blocks: list[dict[str, object]],
+) -> Path:
+    return write_spec(
+        tmp_path,
+        yaml.safe_dump(
+            {
+                "producer": {"name": "pipeline", "version": "1"},
+                "artifacts": blocks,
+            },
+            sort_keys=False,
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    ("left_family", "right_family"),
+    [(False, False), (False, True), (True, False), (True, True)],
+)
+@pytest.mark.parametrize("kind", ["id", "type", "both"])
+def test_whole_spec_rejects_cross_block_identity_collisions(
+    tmp_path: Path,
+    left_family: bool,
+    right_family: bool,
+    kind: str,
+) -> None:
+    left_id = "stats-{sample}" if left_family else "stats-s1"
+    left_type = "org.example.stats-{sample}" if left_family else "org.example.stats-s1"
+    right_id = (
+        ("stats-{sample}" if right_family else "stats-s1")
+        if kind in ("id", "both")
+        else ("other-{sample}" if right_family else "other-s1")
+    )
+    right_type = (
+        ("org.example.stats-{sample}" if right_family else "org.example.stats-s1")
+        if kind in ("type", "both")
+        else ("org.example.other-{sample}" if right_family else "org.example.other-s1")
+    )
+    path = _write_identity_test_spec(
+        tmp_path,
+        [
+            _unique_test_block(left_id, left_type, family=left_family),
+            _unique_test_block(right_id, right_type, family=right_family),
+        ],
+    )
+
+    with pytest.raises(SpecError) as excinfo:
+        load_verify_spec(path)
+
+    message = str(excinfo.value)
+    assert str(path) in message
+    assert "whole spec after family expansion" in message
+    if kind in ("id", "both"):
+        assert "duplicate artifact id 'stats-s1'" in message
+    else:
+        assert "duplicate artifact id " not in message
+    if kind in ("type", "both"):
+        assert "duplicate artifact type 'org.example.stats-s1'" in message
+    else:
+        assert "duplicate artifact type " not in message
+    right_position = 3 if left_family else 2
+    assert f"expanded blocks 1, {right_position}" in message
+
+
+def test_whole_spec_collects_all_collisions_in_deterministic_order(
+    tmp_path: Path,
+) -> None:
+    path = _write_identity_test_spec(
+        tmp_path,
+        [
+            _unique_test_block("alpha", "org.example.first"),
+            _unique_test_block("beta", "org.example.second"),
+            _unique_test_block("alpha", "org.example.second"),
+            _unique_test_block("beta", "org.example.first"),
+            _unique_test_block("alpha", "org.example.third"),
+        ],
+    )
+
+    with pytest.raises(SpecError) as excinfo:
+        load_verify_spec(path)
+
+    message = str(excinfo.value)
+    findings = [
+        "duplicate artifact id 'alpha' in expanded blocks 1, 3, 5",
+        "duplicate artifact id 'beta' in expanded blocks 2, 4",
+        "duplicate artifact type 'org.example.first' in expanded blocks 1, 4",
+        "duplicate artifact type 'org.example.second' in expanded blocks 2, 3",
+    ]
+    positions = [message.index(finding) for finding in findings]
+    assert positions == sorted(positions)
+
+
+def test_unique_spec_preserves_order_and_allows_shared_module(
+    tmp_path: Path,
+) -> None:
+    path = _write_identity_test_spec(
+        tmp_path,
+        [
+            _unique_test_block(
+                "stats-{sample}",
+                "org.example.stats-{sample}",
+                family=True,
+            ),
+            _unique_test_block("summary", "org.example.summary"),
+        ],
+    )
+
+    loaded = load_verify_spec(path)
+    assert [artifact.id for artifact in loaded.artifacts] == [
+        "stats-s1",
+        "stats-s2",
+        "summary",
+    ]
+    assert [artifact.module_id for artifact in loaded.artifacts] == [
+        "shared-module",
+        "shared-module",
+        "shared-module",
+    ]

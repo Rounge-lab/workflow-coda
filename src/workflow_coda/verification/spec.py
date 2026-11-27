@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Final
 
 import yaml
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
 from ..errors import SpecError
 from ..layout_loader import (
@@ -128,6 +128,10 @@ class VerifySpec(BaseModel):
     least one artifact — fire in the loader, before validation,
     where the file's whole shape is in hand and the teaching is a
     full sentence.
+
+    Once artifact fields validate, ids and types must each be unique
+    across all concrete blocks. Repetition within one spec is an
+    authoring error, not an instruction to update an earlier block.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -138,6 +142,40 @@ class VerifySpec(BaseModel):
     artifacts: tuple[SpecArtifact, ...]
     """The blocks to verify, in declaration order — ``for_each``
     blocks expanded into their concrete blocks, in value order."""
+
+    @field_validator("artifacts")
+    @classmethod
+    def _validate_unique_artifact_keys(
+        cls, value: tuple[SpecArtifact, ...]
+    ) -> tuple[SpecArtifact, ...]:
+        """Refuse repeated identities across the entire concrete spec.
+
+        Positions are one-based positions after family expansion, not
+        YAML line numbers or original template-block positions. IDs and
+        types are checked independently; module attribution does not
+        partition either identity namespace.
+        """
+        problems: list[str] = []
+        for kind in ("id", "type"):
+            groups: dict[str, list[int]] = {}
+            for position, artifact in enumerate(value, start=1):
+                identity = artifact.id if kind == "id" else artifact.type
+                groups.setdefault(identity, []).append(position)
+            for identity, positions in groups.items():
+                if len(positions) > 1:
+                    locations = ", ".join(str(position) for position in positions)
+                    problems.append(
+                        f"duplicate artifact {kind} {identity!r} "
+                        f"in expanded blocks {locations}"
+                    )
+        if problems:
+            raise ValueError(
+                "artifact ids and types must each be unique across the "
+                "whole spec after family expansion — repeated declarations "
+                "are not updates within one invocation:\n"
+                + "\n".join(f"  - {problem}" for problem in problems)
+            )
+        return value
 
 
 def _require_dimension(source: Mapping[str, JsonValue], *, path: Path) -> str:
@@ -441,6 +479,10 @@ def load_verify_spec(path: Path) -> VerifySpec:
     family collisions refused — before ``VerifySpec`` validates
     the result.  A plain block carrying a placeholder teaches:
     the author almost certainly meant a loop.
+
+    Validation also refuses duplicate ids and types across the whole
+    concrete spec, collecting collisions with their one-based expanded
+    block positions before any artifact is verified.
     """
     try:
         text = path.read_text(encoding="utf-8")

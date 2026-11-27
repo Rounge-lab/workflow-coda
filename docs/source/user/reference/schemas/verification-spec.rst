@@ -107,8 +107,16 @@ The block expands once per discovered value, in source order. A
   ``sanitize: true``.
 
 Expanded ids and types must satisfy their ordinary artifact grammars.
-Colliding ids or types within a family are rejected at spec load.
-Across blocks, manifest placement rules apply.
+Within-family collisions are rejected during expansion, with the source
+values named. After expansion and field validation, ids and types must
+each be unique across the entire concrete spec, including collisions
+between plain blocks and families or between different families.
+
+Whole-spec collisions are collected together and reported with one-based
+expanded block positions, in declaration order. These positions are not
+YAML line numbers or original template-block positions. Repeating a
+declaration within one spec is an error, not an update instruction.
+Module attribution does not partition the id or type namespace.
 
 Only an opening ``{`` starts a placeholder; a lone ``}`` is literal.
 In a family, an opening brace must start the block's own placeholder.
@@ -199,10 +207,10 @@ paths are relative to the manifest directory. An artifact outside the
 manifest directory cannot be recorded.
 
 Successful verification records the verifier's result and the SHA-256
-of the same bytes that were verified. An existing artifact with the
-same id and type is updated in place; a new artifact is appended.
-Reusing an id for a different type, or a type for a different id, is
-an error.
+of the same bytes that were verified. An artifact already recorded in
+the destination manifest with the same id and type is updated in place;
+a new artifact is appended. This rerun behavior does not permit duplicate
+declarations within the current spec.
 
 Under ``--on-failure fail``, artifact verification failures are
 collected and nothing is written. Under ``--on-failure write``, each
@@ -215,7 +223,10 @@ Loading rules
 -------------
 
 The loader reads UTF-8 YAML, rejects duplicate keys, expands families,
-then validates the resulting blocks. Unknown keys and invalid field
-shapes are errors. YAML values must have the expected types: for
-example, quote ``"1.0"`` to keep a version as a string. Discovery
-errors occur during spec loading, before artifact verification.
+then validates the resulting blocks and their whole-spec identity
+uniqueness. Unknown keys and invalid field shapes are errors. Whole-spec
+identity collisions are refused before verifier dispatch or artifact
+verification, independently of ``--on-failure``. YAML values must have
+the expected types: for example, quote ``"1.0"`` to keep a version as a
+string. Discovery errors occur during spec loading, before artifact
+verification.

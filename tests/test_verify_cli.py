@@ -1236,3 +1236,69 @@ def test_verify_write_error_names_manifest(
         == 1
     )
     assert "could not write the manifest to" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("on_failure", ["fail", "write"])
+@pytest.mark.parametrize("existing", [False, True])
+def test_duplicate_spec_refuses_before_verification_and_preserves_manifest(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    on_failure: str,
+    existing: bool,
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    before: bytes | None = None
+    if existing:
+        stats = _stats_json(tmp_path)
+        assert (
+            _verify(
+                manifest,
+                stats,
+                *_identity("stats", "org.example.stats", "json"),
+                *_PRODUCER_FLAGS,
+            )
+            == 0
+        )
+        capsys.readouterr()
+        before = manifest.read_bytes()
+
+    def unexpected_verification(*args: object, **kwargs: object) -> None:
+        pytest.fail("duplicate spec reached artifact verification")
+
+    monkeypatch.setattr(
+        "workflow_coda.verification.drivers.verify_artifact_file",
+        unexpected_verification,
+    )
+    spec = _write_spec(
+        tmp_path,
+        """\
+producer:
+  name: fungifunk-pipeline
+  version: "1.3"
+artifacts:
+  - file: missing-first.json
+    id: duplicate
+    type: org.example.duplicate
+    module_id: first-module
+    format: json
+    schema_version: "1"
+  - file: missing-second.json
+    id: duplicate
+    type: org.example.duplicate
+    module_id: second-module
+    format: json
+    schema_version: "1"
+""",
+    )
+
+    assert _verify(manifest, "--spec", spec, "--on-failure", on_failure) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "duplicate artifact id 'duplicate'" in captured.err
+    assert "duplicate artifact type 'org.example.duplicate'" in captured.err
+    assert "expanded blocks 1, 2" in captured.err
+    if existing:
+        assert manifest.read_bytes() == before
+    else:
+        assert not manifest.exists()

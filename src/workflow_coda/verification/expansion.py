@@ -275,8 +275,9 @@ def check_family_collisions(
     ambiguity is refused at spec load, before a single artifact is
     verified: every collision is listed, every raw named — the
     loader's collect-and-list law.  The check is within-family,
-    one ``for_each`` block's own values; across blocks, the
-    placement's teachings stand exactly as today.
+    one ``for_each`` block's own values. After expansion, the spec
+    model checks uniqueness across every concrete block. Placement
+    separately checks agreement with artifacts already in a manifest.
     """
     groups: dict[str, list[str]] = {}
     for raw, identity in identities:
