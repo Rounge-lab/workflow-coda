@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Final
 
 import yaml
-from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from ..errors import SpecError
 from ..layout_loader import (
@@ -64,19 +64,20 @@ exactly one source key — zero or multiple sources teach."""
 
 
 class SpecProducer(BaseModel):
-    """The spec's producer block: who produced the artifacts.
+    """Optional producer claims supplied by a verification spec.
 
-    The manifest's own ``name`` and ``version`` verbatim — the
-    identity every manifest agrees on: one manifest, one producer.
+    Claims reconcile field by field with CLI declarations. Creating a
+    manifest requires a complete resolved identity; updating may omit
+    claims and retain the resident producer.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    name: NonEmptyStr
-    """The producing pipeline's human-readable name."""
+    name: NonEmptyStr | None = None
+    """Optional producing-pipeline name; null means no claim."""
 
-    version: NonEmptyStr
-    """The producing pipeline's version, e.g. a release number."""
+    version: NonEmptyStr | None = None
+    """Optional producing-pipeline version; null means no claim."""
 
 
 class SpecArtifact(BaseModel):
@@ -123,11 +124,10 @@ class SpecArtifact(BaseModel):
 class VerifySpec(BaseModel):
     """The whole verification spec: producer and artifact blocks.
 
-    Constructed by :func:`load_verify_spec` from the spec file's
-    parsed content; the structural teachings — a producer block, at
-    least one artifact — fire in the loader, before validation,
-    where the file's whole shape is in hand and the teaching is a
-    full sentence.
+    Constructed by load_verify_spec from parsed content. The loader
+    requires at least one artifact; producer claims may be omitted or
+    partial. Producer completeness belongs to manifest creation, not
+    standalone spec loading.
 
     Once artifact fields validate, ids and types must each be unique
     across all concrete blocks. Repetition within one spec is an
@@ -136,8 +136,8 @@ class VerifySpec(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    producer: SpecProducer
-    """The run's producer — one manifest, one producer."""
+    producer: SpecProducer = Field(default_factory=SpecProducer)
+    """Optional producer claims — one manifest, one producer."""
 
     artifacts: tuple[SpecArtifact, ...]
     """The blocks to verify, in declaration order — ``for_each``
@@ -469,7 +469,7 @@ def load_verify_spec(path: Path) -> VerifySpec:
     Raises :class:`~workflow_coda.errors.SpecError` — with the file
     path for context — when the file is unreadable, not valid
     UTF-8, not valid YAML, not a mapping, or violating the spec
-    contract: a missing producer block, no artifact blocks, or a
+    contract: no artifact blocks or a
     shape violation taught field by field.  The teaching shapes are
     the layout loader's, whose machinery this loader shares.
 
@@ -513,12 +513,6 @@ def load_verify_spec(path: Path) -> VerifySpec:
         raise SpecError(
             f"{path}: the spec file must be a mapping (producer:, "
             f"artifacts:), but it contains {found}"
-        )
-    if "producer" not in parsed:
-        raise SpecError(
-            f"{path}: the spec requires a producer block — name and "
-            "version, the manifest's own fields verbatim, e.g.\n"
-            'producer:\n  name: my-pipeline\n  version: "1.0"'
         )
     if not parsed.get("artifacts"):
         raise SpecError(

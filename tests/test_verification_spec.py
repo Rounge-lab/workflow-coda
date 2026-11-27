@@ -497,21 +497,69 @@ def test_load_verify_spec_rejects_empty_file(tmp_path: Path) -> None:
         load_verify_spec(spec)
 
 
-def test_load_verify_spec_requires_producer_block(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("producer", "name", "version"),
+    [
+        ("", None, None),
+        ("producer: {}\n", None, None),
+        ("producer:\n  name: pipeline\n", "pipeline", None),
+        ('producer:\n  version: "1"\n', None, "1"),
+        ("producer:\n  name: null\n  version: null\n", None, None),
+    ],
+)
+def test_load_verify_spec_accepts_optional_producer_claims(
+    tmp_path: Path,
+    producer: str,
+    name: str | None,
+    version: str | None,
+) -> None:
     spec = write_spec(
         tmp_path,
-        """\
+        producer
+        + """\
 artifacts:
-  - file: output/stats.json
+  - file: missing.json
     id: stats
     type: org.example.stats
     format: json
-    schema_version: "1.0.0"
+    schema_version: "1"
 """,
     )
+    loaded = load_verify_spec(spec)
+    assert loaded.producer.name == name
+    assert loaded.producer.version == version
 
-    with pytest.raises(SpecError, match="requires a producer block"):
+
+@pytest.mark.parametrize(
+    "producer",
+    [
+        "producer: null\n",
+        "producer: []\n",
+        "producer:\n  name: ''\n",
+        "producer:\n  version: 1\n",
+        "producer:\n  name: true\n",
+        "producer:\n  run_id: run7\n",
+    ],
+)
+def test_load_verify_spec_rejects_malformed_producer_claims(
+    tmp_path: Path,
+    producer: str,
+) -> None:
+    spec = write_spec(
+        tmp_path,
+        producer
+        + """\
+artifacts:
+  - file: missing.json
+    id: stats
+    type: org.example.stats
+    format: json
+    schema_version: "1"
+""",
+    )
+    with pytest.raises(SpecError) as excinfo:
         load_verify_spec(spec)
+    assert str(spec) in str(excinfo.value)
 
 
 def test_load_verify_spec_requires_artifacts(tmp_path: Path) -> None:

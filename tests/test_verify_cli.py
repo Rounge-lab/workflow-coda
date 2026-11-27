@@ -861,7 +861,7 @@ def test_spec_requires_artifacts(
     assert "at least one" in capsys.readouterr().err
 
 
-def test_spec_producer_block_is_required(
+def test_producerless_spec_create_requires_resolved_identity(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     manifest = tmp_path / "manifest.json"
@@ -879,7 +879,157 @@ artifacts:
     )
     code = _verify(manifest, "--spec", spec)
     assert code == 1
-    assert "producer block" in capsys.readouterr().err
+    assert "requires a producer identity" in capsys.readouterr().err
+    assert not manifest.exists()
+
+
+@pytest.mark.parametrize(
+    ("producer", "flags"),
+    [
+        ("", _PRODUCER_FLAGS),
+        (
+            "producer:\n  name: fungifunk-pipeline\n",
+            ("--producer-version", "1.3"),
+        ),
+        (
+            'producer:\n  version: "1.3"\n',
+            ("--producer-name", "fungifunk-pipeline"),
+        ),
+        (
+            'producer:\n  name: fungifunk-pipeline\n  version: "1.3"\n',
+            _PRODUCER_FLAGS,
+        ),
+    ],
+)
+def test_spec_create_merges_producer_claims(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    producer: str,
+    flags: tuple[str, ...],
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    _stats_json(tmp_path)
+    spec = _write_spec(
+        tmp_path,
+        producer
+        + """\
+artifacts:
+  - file: stats.json
+    id: stats
+    type: org.example.stats
+    format: json
+    schema_version: "1"
+""",
+    )
+    assert _verify(manifest, "--spec", spec, *flags) == 0
+    capsys.readouterr()
+    loaded = load_manifest(manifest)
+    assert loaded.producer.name == "fungifunk-pipeline"
+    assert loaded.producer.version == "1.3"
+
+
+@pytest.mark.parametrize(
+    "producer",
+    [
+        "",
+        "producer: {}\n",
+        "producer:\n  name: fungifunk-pipeline\n",
+        'producer:\n  version: "1.3"\n',
+    ],
+)
+def test_spec_update_retains_omitted_producer_claims(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    producer: str,
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    stats = _stats_json(tmp_path)
+    assert (
+        _verify(
+            manifest,
+            stats,
+            *_identity("stats", "org.example.stats", "json"),
+            *_PRODUCER_FLAGS,
+            "--run-id",
+            "run7",
+        )
+        == 0
+    )
+    capsys.readouterr()
+    before = load_manifest(manifest).producer
+    spec = _write_spec(
+        tmp_path,
+        producer
+        + """\
+artifacts:
+  - file: stats.json
+    id: stats
+    type: org.example.stats
+    format: json
+    schema_version: "1"
+""",
+    )
+    assert _verify(manifest, "--spec", spec) == 0
+    capsys.readouterr()
+    assert load_manifest(manifest).producer == before
+
+
+@pytest.mark.parametrize("mode", ["flags", "spec"])
+@pytest.mark.parametrize("existing", [False, True])
+@pytest.mark.parametrize("on_failure", ["fail", "write"])
+@pytest.mark.parametrize(
+    "flag",
+    ["--producer-name", "--producer-version", "--run-id"],
+)
+def test_empty_producer_claim_refuses_before_verification(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+    existing: bool,
+    on_failure: str,
+    flag: str,
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    stats = _stats_json(tmp_path)
+    before: bytes | None = None
+    if existing:
+        assert (
+            _verify(
+                manifest,
+                stats,
+                *_identity("stats", "org.example.stats", "json"),
+                *_PRODUCER_FLAGS,
+            )
+            == 0
+        )
+        capsys.readouterr()
+        before = manifest.read_bytes()
+
+    def unexpected_verification(*args: object, **kwargs: object) -> None:
+        pytest.fail("invalid producer claim reached artifact verification")
+
+    monkeypatch.setattr(
+        "workflow_coda.verification.drivers.verify_artifact_file",
+        unexpected_verification,
+    )
+    if mode == "flags":
+        args: list[str | Path] = [
+            stats,
+            *_identity("stats", "org.example.stats", "json"),
+        ]
+    else:
+        args = ["--spec", _write_spec(tmp_path, _GOOD_SPEC)]
+
+    assert _verify(manifest, *args, flag, "", "--on-failure", on_failure) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert flag in captured.err
+    assert "non-empty string" in captured.err
+    if existing:
+        assert manifest.read_bytes() == before
+    else:
+        assert not manifest.exists()
 
 
 def test_spec_producer_must_match_on_append(

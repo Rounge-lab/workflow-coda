@@ -2,10 +2,9 @@
 Verification spec
 =================
 
-A verification spec is a UTF-8 YAML file declaring a producer and the
-artifacts that ``workflow-coda verify`` should verify. The command
-expands artifact families, verifies the resulting files, and writes
-their declarations to a :doc:`manifest <manifest>`.
+A verification spec is a UTF-8 YAML file declaring artifacts and optional
+producer claims that ``workflow-coda verify`` uses when creating or
+updating a manifest.
 
 For command syntax and options, see the :doc:`CLI reference <../cli>`.
 For the Python interface, see the
@@ -21,17 +20,30 @@ Document structure
      - Required
      - Shape and meaning
    * - ``producer``
-     - yes
-     - Mapping containing the producer's ``name`` and ``version``,
-       both non-empty strings.
+     - no
+     - Mapping containing optional ``name`` and ``version`` claims.
+       Supplied non-null values must be non-empty strings.
    * - ``artifacts``
      - yes
      - Non-empty list of artifact mappings, in declaration order.
 
 Unknown document, producer, and artifact model keys are rejected.
-The spec has no ``run_id`` field. When creating a manifest, its
-producer is initialized from the spec; when updating one, the name and
-version must match its producer.
+The spec has no ``run_id`` field; use ``--run-id`` for the invocation's
+run claim.
+
+Producer claims reconcile field by field with ``--producer-name`` and
+``--producer-version``. Matching duplication is accepted; conflicting
+CLI and spec values are rejected, never overridden. Creating a manifest
+requires both resolved fields, supplied by the spec, CLI, or a
+combination. Updating may omit either field and retain the recorded
+producer; every supplied claim must match it.
+
+An omitted producer block or ``producer: {}`` carries no claims.
+``producer: null`` is invalid: a supplied block must be a mapping.
+Within that mapping, omitted or ``null`` fields carry no claim.
+Empty strings, numbers, and booleans are invalid claims.
+Producer and run refusals occur before artifact verification,
+independently of ``--on-failure``.
 
 Artifact blocks
 ---------------

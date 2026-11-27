@@ -20,6 +20,8 @@ import tempfile
 from pathlib import Path
 from typing import Literal
 
+from pydantic import TypeAdapter, ValidationError
+
 from ..errors import ManifestError, VerifyError
 from ..manifest import (
     MANIFEST_SCHEMA_VERSION,
@@ -37,6 +39,34 @@ from ..manifest import (
     load_manifest,
 )
 from .engine import _failure_record, _format_key
+
+_PRODUCER_CLAIM_CHECK: TypeAdapter[NonEmptyStr] = TypeAdapter(NonEmptyStr)
+
+
+def _validate_producer_claims(
+    name: str | None,
+    version: str | None,
+    run_id: str | None,
+) -> None:
+    """Validate supplied claims without requiring a complete identity.
+
+    None is omission. Reuse the manifest's strict non-empty string
+    grammar; no trimming or whitespace normalization is introduced.
+    """
+    problems: list[str] = []
+    for flag, value in (
+        ("--producer-name", name),
+        ("--producer-version", version),
+        ("--run-id", run_id),
+    ):
+        if value is None:
+            continue
+        try:
+            _PRODUCER_CLAIM_CHECK.validate_python(value)
+        except ValidationError:
+            problems.append(f"  - {flag} must be a non-empty string")
+    if problems:
+        raise VerifyError("invalid producer/run declaration:\n" + "\n".join(problems))
 
 
 def write_manifest_atomically(manifest: ReportManifest, path: Path) -> None:
@@ -196,12 +226,15 @@ def load_or_init_manifest(
     not guessed.  Flags mode reaches this unit only after its
     identity check; the mode drivers own that order.
     """
+    _validate_producer_claims(producer_name, producer_version, run_id)
     if not path.exists():
         if producer_name is None or producer_version is None:
             raise VerifyError(
-                f"creating {path} requires a producer identity — pass "
-                "--producer-name and --producer-version (one manifest "
-                "identifies the pipeline that produced its artifacts)"
+                f"creating {path} requires a producer identity — supply "
+                "both name and version through --producer-name and "
+                "--producer-version, the spec's producer mapping, or "
+                "a combination of both (one manifest identifies the "
+                "pipeline that produced its artifacts)"
             )
         return (
             ReportManifest(
@@ -233,6 +266,7 @@ def check_producer_agreement(
     mismatch is taught with both sides named: the manifest's record
     and this verification's claim.
     """
+    _validate_producer_claims(name, version, run_id)
     if name is not None and name != manifest.producer.name:
         raise ManifestError(
             f"one manifest, one producer: the manifest already records "

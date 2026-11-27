@@ -34,6 +34,7 @@ from ..plugins import ArtifactVerifier
 from ..registry import PluginRegistry
 from .declarations import (
     _manifest_relative_path,
+    _validate_producer_claims,
     apply_artifact_declaration,
     build_failed_declaration,
     build_verified_declaration,
@@ -133,19 +134,20 @@ def _validate_module_id(module_id: str | None) -> str | None:
         ) from e
 
 
-def _check_spec_producer_claim(
+def _resolve_spec_producer_claim(
     *,
     flag: str,
     declared: str | None,
-    specified: str,
-) -> None:
-    """Matching CLI/spec duplication is agreement, never an override."""
-    if declared is not None and declared != specified:
+    specified: str | None,
+) -> str | None:
+    """Merge one CLI/spec claim; duplication must agree."""
+    if declared is not None and specified is not None and declared != specified:
         raise VerifyError(
             f"{flag} declares {declared!r}, but the verification spec "
             f"declares {specified!r} — CLI and spec producer declarations "
             "must agree; omit the flag, or use the same value"
         )
+    return declared if declared is not None else specified
 
 
 def _resolve_spec_module_id(
@@ -267,6 +269,7 @@ def run_flags_verify(
         schema_version=schema_version,
         module_id=module_id,
     )
+    _validate_producer_claims(producer_name, producer_version, run_id)
     id = artifact.id
     type = artifact.type
     schema_version = artifact.schema_version
@@ -352,10 +355,13 @@ def run_spec_verify(
     """Spec mode: verify every artifact the spec declares, place,
     write once.
 
-    The spec's producer initializes a create and must match an existing
-    manifest. CLI producer declarations must agree with the spec. The
-    invocation's run ID initializes a create or must match the recorded
-    run. Module attribution belongs to each artifact: a CLI module claim
+    CLI and spec producer claims merge field by field; duplicate claims
+    must agree. Creating requires a resolved name and version. Updating
+    may omit either claim, retaining the resident producer; supplied
+    claims must match it. The invocation's run ID initializes a create
+    or must match the recorded run.
+
+    Module attribution belongs to each artifact: a CLI module claim
     supplies omitted values and must agree with explicit spec values.
     Each file resolves against the spec directory, and the manifest is
     written once, atomically, after placement succeeds.
@@ -376,13 +382,14 @@ def run_spec_verify(
     reads, even under ``--on-failure fail``.
     """
     module_id = _validate_module_id(module_id)
+    _validate_producer_claims(producer_name, producer_version, run_id)
     spec = load_verify_spec(spec_path)
-    _check_spec_producer_claim(
+    producer_name = _resolve_spec_producer_claim(
         flag="--producer-name",
         declared=producer_name,
         specified=spec.producer.name,
     )
-    _check_spec_producer_claim(
+    producer_version = _resolve_spec_producer_claim(
         flag="--producer-version",
         declared=producer_version,
         specified=spec.producer.version,
@@ -403,14 +410,14 @@ def run_spec_verify(
         _manifest_relative_path(file, manifest_path)
     manifest, created = load_or_init_manifest(
         manifest_path,
-        producer_name=spec.producer.name,
-        producer_version=spec.producer.version,
+        producer_name=producer_name,
+        producer_version=producer_version,
         run_id=run_id,
     )
     check_producer_agreement(
         manifest,
-        spec.producer.name,
-        spec.producer.version,
+        producer_name,
+        producer_version,
         run_id,
     )
     successes = 0
@@ -532,6 +539,7 @@ def run_verify(
             )
             if value is not None
         ]
+
         if criteria_pairs:
             artifact_flags.append("--criteria")
         if artifact_flags:
